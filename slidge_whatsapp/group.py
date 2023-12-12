@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slixmpp.exceptions import XMPPError
@@ -35,10 +35,9 @@ class Participant(LegacyParticipant):
 
 class MUC(LegacyMUC[str, str, Participant, str]):
     session: "Session"
-
-    REACTIONS_SINGLE_EMOJI = True
     type = MucType.GROUP
 
+    REACTIONS_SINGLE_EMOJI = True
     _ALL_INFO_FILLED_ON_STARTUP = True
 
     def __init__(self, *a, **kw):
@@ -54,6 +53,28 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         else:
             if avatar.URL:
                 await self.set_avatar(avatar.URL, avatar.ID)
+
+    async def backfill(
+        self,
+        oldest_message_id: Optional[str] = None,
+        oldest_message_date: Optional[datetime] = None,
+    ):
+        """
+        Request history for messages older than the oldest message given by ID and date.
+        """
+        if oldest_message_id not in self.session.muc_sent_msg_ids:
+            # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
+            return
+        oldest_message = whatsapp.Message(
+            ID=oldest_message_id or "",
+            IsCarbon=self.session.message_is_carbon(self, oldest_message_id)
+            if oldest_message_id
+            else False,
+            Timestamp=int(oldest_message_date.timestamp())
+            if oldest_message_date
+            else 0,
+        )
+        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
 
     def get_message_sender(self, legacy_msg_id: str):
         sender_legacy_id = self.sent.get(legacy_msg_id)

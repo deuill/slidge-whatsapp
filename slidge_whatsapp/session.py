@@ -292,6 +292,10 @@ class Session(BaseSession[str, Recipient]):
             contact.react(
                 legacy_msg_id=message.ID, emojis=emojis, carbon=message.IsCarbon
             )
+        for ptr in message.Receipts:
+            await self.handle_receipt(whatsapp.Receipt(handle=ptr))
+        for ptr in message.Reactions:
+            await self.handle_message(whatsapp.Message(handle=ptr))
 
     async def send_text(
         self,
@@ -419,7 +423,7 @@ class Session(BaseSession[str, Recipient]):
         Slidge core makes sure that the emojis parameter is always empty or a
         *single* emoji.
         """
-        is_carbon = self._is_carbon(c, legacy_msg_id)
+        is_carbon = self.message_is_carbon(c, legacy_msg_id)
         message_sender_id = (
             c.get_message_sender(legacy_msg_id)
             if not is_carbon and isinstance(c, MUC)
@@ -481,7 +485,7 @@ class Session(BaseSession[str, Recipient]):
         else:
             return await self.contacts.by_legacy_id(legacy_contact_id)
 
-    def _is_carbon(self, c: Recipient, legacy_msg_id: str):
+    def message_is_carbon(self, c: Recipient, legacy_msg_id: str):
         if c.is_group:
             return legacy_msg_id in self.muc_sent_msg_ids
         else:

@@ -40,6 +40,10 @@ const (
 	// (e.g. for an initial interval of 2 hours, the final value will range from 1 to 3 hours) in
 	// order to provide a more natural interaction with remote WhatsApp servers.
 	presenceRefreshInterval = 12 * time.Hour
+
+	// The maximum number of messages to request at a time when performing on-demand history
+	// synchronization.
+	maxHistorySyncMessages = 50
 )
 
 // HandleEventFunc represents a handler for incoming events sent to the Python Session, accepting an
@@ -80,6 +84,7 @@ func (s *Session) Login() error {
 
 	s.client = whatsmeow.NewClient(store, s.gateway.logger)
 	s.client.AddEventHandler(s.handleEvent)
+	s.client.AutomaticMessageRerequestFromPhone = true
 
 	// Refresh contact presences on a set interval, to avoid issues with WhatsApp dropping them
 	// entirely. Contact presences are refreshed only if our current status is set to "available";
@@ -485,6 +490,35 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 	}
 }
 
+// RequestMessageHistory sends and asynchronous request for message history related to the given
+// resource (e.g. Contact or Group JID), ending at the oldest message given. Messages returned from
+// history should then be handled as a `HistorySync` event of type `ON_DEMAND`, in the session-wide
+// event handler. An error will be returned if requesting history fails for any reason.
+func (s *Session) RequestMessageHistory(resourceID string, oldestMessage Message) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot request history for unauthenticated session")
+	}
+
+	jid, err := types.ParseJID(resourceID)
+	if err != nil {
+		return fmt.Errorf("Could not parse JID for history request: %s", err)
+	}
+
+	info := &types.MessageInfo{
+		ID:            oldestMessage.ID,
+		MessageSource: types.MessageSource{Chat: jid, IsFromMe: oldestMessage.IsCarbon},
+		Timestamp:     time.Unix(oldestMessage.Timestamp, 0).UTC(),
+	}
+
+	req := s.client.BuildHistorySyncRequest(info, maxHistorySyncMessages)
+	_, err = s.client.SendMessage(context.Background(), s.device.JID().ToNonAD(), req, whatsmeow.SendRequestExtra{Peer: true})
+	if err != nil {
+		return fmt.Errorf("Failed to request history for %s: %s", resourceID, err)
+	}
+
+	return nil
+}
+
 // SetEventHandler assigns the given handler function for propagating internal events into the Python
 // gateway. Note that the event handler function is not entirely safe to use directly, and all calls
 // should instead be made via the [propagateEvent] function.
@@ -540,7 +574,7 @@ func (s *Session) handleEvent(evt interface{}) {
 	case *events.HistorySync:
 		switch evt.Data.GetSyncType() {
 		case proto.HistorySync_PUSH_NAME:
-			for _, n := range evt.Data.Pushnames {
+			for _, n := range evt.Data.GetPushnames() {
 				jid, err := types.ParseJID(n.GetId())
 				if err != nil {
 					continue
@@ -548,6 +582,12 @@ func (s *Session) handleEvent(evt interface{}) {
 				s.propagateEvent(newContactEvent(s.client, jid, types.ContactInfo{FullName: n.GetPushname()}))
 				if err = s.client.SubscribePresence(jid); err != nil {
 					s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
+				}
+			}
+		case proto.HistorySync_INITIAL_BOOTSTRAP, proto.HistorySync_RECENT, proto.HistorySync_ON_DEMAND:
+			for _, c := range evt.Data.GetConversations() {
+				for _, msg := range c.GetMessages() {
+					s.propagateEvent(newEventFromHistory(s.client, msg.GetMessage()))
 				}
 			}
 		}
