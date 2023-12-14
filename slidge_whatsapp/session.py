@@ -466,6 +466,25 @@ class Session(BaseSession[str, Recipient]):
         """
         self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
 
+    async def on_moderate(
+        self,
+        muc: MUC,  # type: ignore
+        legacy_msg_id: str,
+        reason: Optional[str],
+    ):
+        pass
+
+    async def on_create_group(
+        self, name: str, contacts: list[Contact]  # type:ignore
+    ):
+        """
+        Creates a WhatsApp group for the given human-readable name and participant list.
+        """
+        group = self.whatsapp.CreateGroup(
+            name, go.Slice_string([c.legacy_id for c in contacts])
+        )
+        return await self.bookmarks.legacy_id_to_jid_local_part(group.JID)
+
     async def search(self, form_values: dict[str, str]):
         self.send_gateway_message("Searching on WhatsApp has not been implemented yet.")
 

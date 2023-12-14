@@ -1,14 +1,15 @@
 import re
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
+from slidge.util.types import MucAffiliation
 from slixmpp.exceptions import XMPPError
 
+from .contact import Contact
 from .generated import whatsapp
 
 if TYPE_CHECKING:
-    from .contact import Contact
     from .session import Session
 
 
@@ -54,6 +55,15 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         else:
             if avatar.URL:
                 await self.set_avatar(avatar.URL, avatar.ID)
+
+    async def on_set_affiliation(
+        self,
+        contact: Contact,
+        affiliation: MucAffiliation,
+        reason: Optional[str],
+        nickname: Optional[str],
+    ):
+        pass
 
     def get_message_sender(self, legacy_msg_id: str):
         sender_legacy_id = self.sent.get(legacy_msg_id)

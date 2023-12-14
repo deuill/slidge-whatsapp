@@ -431,6 +431,32 @@ func (s *Session) GetGroups() ([]Group, error) {
 	return groups, nil
 }
 
+// CreateGroup attempts to create a new WhatsApp group for the given human-readable name and
+// participant JIDs given.
+func (s *Session) CreateGroup(name string, participants []string) (Group, error) {
+	if s.client == nil || s.client.Store.ID == nil {
+		return Group{}, fmt.Errorf("Cannot create group for unauthenticated session")
+	}
+
+	var jids []types.JID
+	for _, p := range participants {
+		jid, err := types.ParseJID(p)
+		if err != nil {
+			return Group{}, fmt.Errorf("Could not parse participant JID: %s", err)
+		}
+
+		jids = append(jids, jid)
+	}
+
+	req := whatsmeow.ReqCreateGroup{Name: name, Participants: jids}
+	info, err := s.client.CreateGroup(req)
+	if err != nil {
+		return Group{}, fmt.Errorf("Could not create group: %s", err)
+	}
+
+	return newGroup(s.client, info), nil
+}
+
 // GetAvatar fetches a profile picture for the Contact or Group JID given. If a non-empty `avatarID`
 // is also given, GetAvatar will return an empty [Avatar] instance with no error if the remote state
 // for the given ID has not changed.
