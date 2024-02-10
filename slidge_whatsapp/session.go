@@ -292,6 +292,17 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 		}
 	}
 
+	// Attach any inline mentions extended metadata.
+	if len(message.MentionJIDs) > 0 {
+		if payload == nil {
+			payload = &proto.Message{ExtendedTextMessage: &proto.ExtendedTextMessage{Text: &message.Body}}
+		}
+		if payload.ExtendedTextMessage.ContextInfo == nil {
+			payload.ExtendedTextMessage.ContextInfo = &proto.ContextInfo{}
+		}
+		payload.ExtendedTextMessage.ContextInfo.MentionedJid = message.MentionJIDs
+	}
+
 	if payload == nil {
 		payload = &proto.Message{Conversation: &message.Body}
 	}

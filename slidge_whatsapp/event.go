@@ -148,6 +148,7 @@ type Message struct {
 	ReplyBody   string       // The full body of the message this message is in reply to, if any.
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
 	Preview     Preview      // A short description for the URL provided in the message body, if any.
+	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
 }
 
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside

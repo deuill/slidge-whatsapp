@@ -17,6 +17,7 @@ from slidge.contact.roster import ContactIsUser
 from slidge.util import is_valid_phone_number
 from slidge.util.types import (
     LegacyAttachment,
+    Mention,
     MessageReference,
     PseudoPresenceShow,
     ResourceDict,
@@ -26,7 +27,7 @@ from . import config
 from .contact import Contact, Roster
 from .gateway import Gateway
 from .generated import go, whatsapp
-from .group import MUC, Bookmarks
+from .group import MUC, Bookmarks, replace_xmpp_mentions
 from .util import get_bytes_temp
 
 MESSAGE_PAIR_SUCCESS = (
@@ -241,7 +242,7 @@ class Session(BaseSession[str, Recipient]):
         reply_to_msg_id: Optional[str] = None,
         reply_to_fallback_text: Optional[str] = None,
         reply_to=None,
-        mentions=None,
+        mentions: Optional[list[Mention]] = None,
         **_,
     ):
         """
@@ -250,7 +251,11 @@ class Session(BaseSession[str, Recipient]):
         message_id = self.whatsapp.GenerateMessageID()
         message_preview = await self.__get_preview(text) or whatsapp.Preview()
         message = whatsapp.Message(
-            ID=message_id, JID=chat.legacy_id, Body=text, Preview=message_preview
+            ID=message_id,
+            JID=chat.legacy_id,
+            Body=replace_xmpp_mentions(text, mentions) if mentions else text,
+            Preview=message_preview,
+            MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),
         )
         set_reply_to(chat, message, reply_to_msg_id, reply_to_fallback_text, reply_to)
         self.whatsapp.SendMessage(message)

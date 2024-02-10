@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
+from slidge.util.types import Mention
 from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
@@ -92,7 +93,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                     participant.affiliation = "owner"
 
     def replace_mentions(self, t: str):
-        return replace_mentions(
+        return replace_whatsapp_mentions(
             t,
             participants={
                 c.jid_username: c.name
@@ -149,10 +150,19 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
         return whatsapp_group_id
 
 
-def replace_mentions(t: str, participants: dict[str, str]):
-    def match(m: re.Match):
-        mat = m.group(0)
-        sub = participants.get(mat.replace("@", "+"), mat)
-        return sub
+def replace_xmpp_mentions(text: str, mentions: list[Mention]):
+    offset: int = 0
+    result: str = ""
+    for m in mentions:
+        legacy_id = "@" + m.contact.legacy_id[: m.contact.legacy_id.find("@")]
+        result = result + text[offset : m.start] + legacy_id
+        offset = m.end
+    return result + text[offset:] if offset > 0 else text
 
-    return re.sub(r"@\d+", match, t)
+
+def replace_whatsapp_mentions(text: str, participants: dict[str, str]):
+    def match(m: re.Match):
+        group = m.group(0)
+        return participants.get(group.replace("@", "+"), group)
+
+    return re.sub(r"@\d+", match, text)
