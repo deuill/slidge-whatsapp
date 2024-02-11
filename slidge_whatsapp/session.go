@@ -532,6 +532,24 @@ func (s *Session) SetGroupTopic(resourceID, topic string) error {
 	return s.client.SetGroupTopic(jid, "", "", topic)
 }
 
+func (s *Session) SetAffiliation(groupID, participantID, change string) ([]types.GroupParticipant, error) {
+	if s.client == nil || s.client.Store.ID == nil {
+		return make([]types.GroupParticipant, 0), fmt.Errorf("Cannot set affiliation for unauthenticated session")
+	}
+
+	groupJID, err := types.ParseJID(groupID)
+	if err != nil {
+		return make([]types.GroupParticipant, 0), fmt.Errorf("Could not parse JID for affiliation change: %s", err)
+	}
+
+	participantJID, err := types.ParseJID(participantID)
+	if err != nil {
+		return make([]types.GroupParticipant, 0), fmt.Errorf("Could not parse JID for affiliation change: %s", err)
+	}
+
+	return s.client.UpdateGroupParticipants(groupJID, [1]types.JID{participantJID}, types.ParticipantChange)
+}
+
 // FindContact attempts to check for a registered contact on WhatsApp corresponding to the given
 // phone number, returning a concrete instance if found; typically, only the contact JID is set. No
 // error is returned if no contact was found, but any unexpected errors will otherwise be returned
