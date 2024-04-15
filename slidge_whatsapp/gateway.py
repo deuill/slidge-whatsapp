@@ -68,16 +68,21 @@ class Gateway(BaseGateway):
         :meth:`.Session.disconnect` function.
         """
         session: "Session" = self.get_session_from_user(user)  # type:ignore
-        session.whatsapp.Logout()
+        await self.run_in_executor(session.whatsapp.Logout)
         with open(str(session.user_shelf_path)) as shelf:
             try:
-                device = whatsapp.LinkedDevice(ID=shelf["device_id"])
-                self.whatsapp.CleanupSession(device)
+                device = await self.run_in_executor(
+                    whatsapp.LinkedDevice, shelf["device_id"]
+                )
+                await self.run_in_executor(self.whatsapp.CleanupSession, device)
             except KeyError:
                 pass
             except RuntimeError as err:
                 log.error("Failed to clean up WhatsApp session: %s", err)
         session.user_shelf_path.unlink()
+
+    async def run_in_executor(self, func, *args):
+        return await self.loop.run_in_executor(None, func, *args)
 
 
 def handle_log(level, msg: str):

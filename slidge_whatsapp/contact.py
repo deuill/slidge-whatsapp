@@ -37,7 +37,9 @@ class Roster(LegacyRoster[str, Contact]):
         Retrieve contacts from remote WhatsApp service, subscribing to their presence and adding to
         local roster.
         """
-        contacts = self.session.whatsapp.GetContacts(refresh=config.ALWAYS_SYNC_ROSTER)
+        contacts = await self.session.run_in_executor(
+            self.session.whatsapp.GetContacts, config.ALWAYS_SYNC_ROSTER
+        )
         for contact in contacts:
             await self.add_whatsapp_contact(contact)
 
@@ -52,7 +54,9 @@ class Roster(LegacyRoster[str, Contact]):
         contact.name = data.Name
         contact.is_friend = True
         try:
-            avatar = self.session.whatsapp.GetAvatar(data.JID, contact.avatar or "")
+            avatar = await self.session.run_in_executor(
+                self.session.whatsapp.GetAvatar, data.JID, contact.avatar or ""
+            )
             if avatar.URL:
                 await contact.set_avatar(avatar.URL, avatar.ID)
         except RuntimeError as err:

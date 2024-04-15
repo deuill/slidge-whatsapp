@@ -72,7 +72,7 @@ class PairPhone(Command):
         p = form_values.get("phone")
         if not is_valid_phone_number(p):
             raise ValueError("Not a valid phone number", p)
-        code = session.whatsapp.PairPhone(p)
+        code = await session.run_in_executor(session.whatsapp.PairPhone, p)
         return f"Please open the official WhatsApp client and input the following code: {code}"
 
 
@@ -114,9 +114,13 @@ class ChangePresence(Command):
     async def finish(form_values: dict, session: "Session", _ifrom: JID):
         p = form_values.get("presence")
         if p == "available":
-            session.whatsapp.SendPresence(whatsapp.PresenceAvailable, "")
+            await session.run_in_executor(
+                session.whatsapp.SendPresence, whatsapp.PresenceAvailable, ""
+            )
         elif p == "unavailable":
-            session.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")
+            await session.run_in_executor(
+                session.whatsapp.SendPresence, whatsapp.PresenceUnavailable, ""
+            )
         else:
             raise ValueError("Not a valid presence kind.", p)
         return f"Presence succesfully set to {p}"
@@ -140,5 +144,5 @@ class SubscribeToPresences(Command):
         *args,
     ) -> str:
         assert session is not None
-        session.whatsapp.GetContacts(False)
+        await session.run_in_executor(session.whatsapp.GetContacts, False)
         return "Looks like no exception was raised. Success, I guess?"

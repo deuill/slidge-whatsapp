@@ -79,13 +79,16 @@ class Session(BaseSession[str, Recipient]):
         self.user_phone: Optional[str] = None
         self._lock = Lock()
 
+    async def run_in_executor(self, func, *args):
+        return await self.xmpp.run_in_executor(func, *args)
+
     async def login(self):
         """
         Initiate login process and connect session to WhatsApp. Depending on existing state, login
         might either return having initiated the Linked Device registration process in the background,
         or will re-connect to a previously existing Linked Device session.
         """
-        self.whatsapp.Login()
+        await self.run_in_executor(self.whatsapp.Login)
         self._connected = self.xmpp.loop.create_future()
         return await self._connected
 
@@ -94,7 +97,7 @@ class Session(BaseSession[str, Recipient]):
         Disconnect the active WhatsApp session. This will not remove any local or remote state, and
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
         """
-        self.whatsapp.Disconnect()
+        await self.run_in_executor(self.whatsapp.Disconnect)
         self.logged = False
 
     @ignore_contact_is_user
@@ -265,7 +268,7 @@ class Session(BaseSession[str, Recipient]):
             MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),
         )
         set_reply_to(chat, message, reply_to_msg_id, reply_to_fallback_text, reply_to)
-        self.whatsapp.SendMessage(message)
+        await self.run_in_executor(self.whatsapp.SendMessage, message)
         return message_id
 
     async def on_file(
@@ -295,7 +298,7 @@ class Session(BaseSession[str, Recipient]):
             Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),
         )
         set_reply_to(chat, message, reply_to_msg_id, reply_to_fallback_text, reply_to)
-        self.whatsapp.SendMessage(message)
+        await self.run_in_executor(self.whatsapp.SendMessage, message)
         return message_id
 
     async def on_presence(
@@ -311,15 +314,19 @@ class Session(BaseSession[str, Recipient]):
         XMPP clients.
         """
         if not merged_resource:
-            self.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")
+            await self.run_in_executor(
+                self.whatsapp.SendPresence, whatsapp.PresenceUnavailable, ""
+            )
         else:
             presence = (
                 whatsapp.PresenceAvailable
                 if merged_resource["show"] in ["chat", ""]
                 else whatsapp.PresenceUnavailable
             )
-            self.whatsapp.SendPresence(
-                presence, merged_resource["status"] if merged_resource["status"] else ""
+            await self.run_in_executor(
+                self.whatsapp.SendPresence,
+                presence,
+                merged_resource["status"] if merged_resource["status"] else "",
             )
 
     async def on_active(self, c: Recipient, thread=None):
@@ -340,7 +347,7 @@ class Session(BaseSession[str, Recipient]):
         being composed.
         """
         state = whatsapp.ChatState(JID=c.legacy_id, Kind=whatsapp.ChatStateComposing)
-        self.whatsapp.SendChatState(state)
+        await self.run_in_executor(self.whatsapp.SendChatState, state)
 
     async def on_paused(self, c: Recipient, thread=None):
         """
@@ -348,7 +355,7 @@ class Session(BaseSession[str, Recipient]):
         longer being composed.
         """
         state = whatsapp.ChatState(JID=c.legacy_id, Kind=whatsapp.ChatStatePaused)
-        self.whatsapp.SendChatState(state)
+        await self.run_in_executor(self.whatsapp.SendChatState, state)
 
     async def on_displayed(self, c: Recipient, legacy_msg_id: str, thread=None):
         """
@@ -364,7 +371,7 @@ class Session(BaseSession[str, Recipient]):
             ),
             GroupJID=c.legacy_id if c.is_group else "",
         )
-        self.whatsapp.SendReceipt(receipt)
+        await self.run_in_executor(self.whatsapp.SendReceipt, receipt)
 
     async def on_react(
         self, c: Recipient, legacy_msg_id: str, emojis: list[str], thread=None
@@ -388,7 +395,7 @@ class Session(BaseSession[str, Recipient]):
             Body=emojis[0] if emojis else "",
             IsCarbon=is_carbon,
         )
-        self.whatsapp.SendMessage(message)
+        await self.run_in_executor(self.whatsapp.SendMessage, message)
 
     async def on_retract(self, c: Recipient, legacy_msg_id: str, thread=None):
         """
@@ -397,7 +404,7 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageRevoke, ID=legacy_msg_id, JID=c.legacy_id
         )
-        self.whatsapp.SendMessage(message)
+        await self.run_in_executor(self.whatsapp.SendMessage, message)
 
     async def on_moderate(
         self,
@@ -411,7 +418,7 @@ class Session(BaseSession[str, Recipient]):
             JID=muc.legacy_id,
             OriginJID=muc.get_message_sender(legacy_msg_id),
         )
-        self.whatsapp.SendMessage(message)
+        await self.run_in_executor(self.whatsapp.SendMessage, message)
         # Apparently, no revoke event is received by whatsmeow after sending
         # the revoke message, so we need to "echo" it here.
         part = await muc.get_user_participant()
@@ -432,7 +439,7 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageEdit, ID=legacy_msg_id, JID=c.legacy_id, Body=text
         )
-        self.whatsapp.SendMessage(message)
+        await self.run_in_executor(self.whatsapp.SendMessage, message)
 
     async def on_avatar(
         self,
@@ -445,7 +452,9 @@ class Session(BaseSession[str, Recipient]):
         """
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
         """
-        self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
+        await self.run_in_executor(
+            self.whatsapp.SetAvatar, "", await get_bytes_temp(bytes_) if bytes_ else ""
+        )
 
     async def on_create_group(
         self, name: str, contacts: list[Contact]  # type:ignore
@@ -453,8 +462,10 @@ class Session(BaseSession[str, Recipient]):
         """
         Creates a WhatsApp group for the given human-readable name and participant list.
         """
-        group = self.whatsapp.CreateGroup(
-            name, go.Slice_string([c.legacy_id for c in contacts])
+        group = await self.run_in_executor(
+            self.whatsapp.CreateGroup,
+            name,
+            go.Slice_string([c.legacy_id for c in contacts]),
         )
         return await self.bookmarks.legacy_id_to_jid_local_part(group.JID)
 
@@ -467,7 +478,7 @@ class Session(BaseSession[str, Recipient]):
         if not is_valid_phone_number(phone):
             raise ValueError("Not a valid phone number", phone)
 
-        data = self.whatsapp.FindContact(phone)
+        data = await self.run_in_executor(self.whatsapp.FindContact, phone)
         if not data.JID:
             return
 

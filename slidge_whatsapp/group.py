@@ -50,7 +50,9 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     async def update_info(self):
         try:
-            avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
+            avatar = await self.session.run_in_executor(
+                self.session.whatsapp.GetAvatar, self.legacy_id, self.avatar or ""
+            )
         except RuntimeError:
             # no avatar
             await self.set_avatar(None)
@@ -83,7 +85,9 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 int(oldest_message_date.timestamp()) if oldest_message_date else 0
             ),
         )
-        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
+        await self.session.run_in_executor(
+            self.session.whatsapp.RequestMessageHistory, self.legacy_id, oldest_message
+        )
 
     def get_message_sender(self, legacy_msg_id: str):
         sender_legacy_id = self.sent.get(legacy_msg_id)
@@ -147,8 +151,10 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         )
 
     async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
-        return self.session.whatsapp.SetAvatar(
-            self.legacy_id, await get_bytes_temp(data) if data else ""
+        return await self.session.run_in_executor(
+            self.session.whatsapp.SetAvatar,
+            self.legacy_id,
+            await get_bytes_temp(data) if data else "",
         )
 
     async def on_set_config(
@@ -158,11 +164,15 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     ):
         # there are no group descriptions in WA, but topics=subjects
         if self.name != name:
-            self.session.whatsapp.SetGroupName(self.legacy_id, name)
+            await self.session.run_in_executor(
+                self.session.whatsapp.SetGroupName, self.legacy_id, name
+            )
 
     async def on_set_subject(self, subject: str):
         if self.subject != subject:
-            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)
+            await self.session.run_in_executor(
+                self.session.whatsapp.SetGroupTopic, self.legacy_id, subject
+            )
 
     async def on_set_affiliation(
         self,
@@ -185,21 +195,21 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 "bad-request",
                 f"You can't make a participant '{affiliation}' in whatsapp",
             )
-        self.session.whatsapp.SetAffiliation(self.legacy_id, contact.legacy_id, change)
+        await self.session.run_in_executor(
+            self.session.whatsapp.SetAffiliation,
+            self.legacy_id,
+            contact.legacy_id,
+            change,
+        )
 
 
 class Bookmarks(LegacyBookmarks[str, MUC]):
     session: "Session"
 
-    def __init__(self, session: "Session"):
-        super().__init__(session)
-        self.__filled = False
-
     async def fill(self):
-        groups = self.session.whatsapp.GetGroups()
+        groups = await self.session.run_in_executor(self.session.whatsapp.GetGroups)
         for group in groups:
             await self.add_whatsapp_group(group)
-        self.__filled = True
 
     async def add_whatsapp_group(self, data: whatsapp.Group):
         muc = await self.by_legacy_id(data.JID)
@@ -213,17 +223,9 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
         if not local_part.startswith("#"):
             raise XMPPError("bad-request", "Invalid group ID, expected '#' prefix")
 
-        if not self.__filled:
-            raise XMPPError(
-                "recipient-unavailable", "Still fetching group info, please retry later"
-            )
-
         whatsapp_group_id = (
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
-
-        if whatsapp_group_id not in self._mucs_by_legacy_id:
-            raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id
 
