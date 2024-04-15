@@ -72,12 +72,15 @@ class Gateway(BaseGateway):
         with open(str(session.user_shelf_path)) as shelf:
             try:
                 device = whatsapp.LinkedDevice(ID=shelf["device_id"])
-                self.whatsapp.CleanupSession(device)
+                await self.run_in_executor(self.whatsapp.CleanupSession, device)
             except KeyError:
                 pass
             except RuntimeError as err:
                 log.error("Failed to clean up WhatsApp session: %s", err)
         session.user_shelf_path.unlink()
+
+    async def run_in_executor(self, func, *args):
+        return await self.loop.run_in_executor(None, func, *args)
 
 
 def handle_log(level, msg: str):
