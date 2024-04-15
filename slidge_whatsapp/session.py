@@ -1,4 +1,4 @@
-from asyncio import iscoroutine, run_coroutine_threadsafe
+from asyncio import Event, iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
 from os import fdopen
@@ -75,7 +75,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self._handle_event)
-        self._connected = self.xmpp.loop.create_future()
+        self._connected = Event()
         self.user_phone: Optional[str] = None
         self._lock = Lock()
 
@@ -89,8 +89,8 @@ class Session(BaseSession[str, Recipient]):
         or will re-connect to a previously existing Linked Device session.
         """
         await self.run_in_executor(self.whatsapp.Login)
-        self._connected = self.xmpp.loop.create_future()
-        return await self._connected
+        await self._connected.wait()
+        return self.__get_connected_status_message()
 
     async def logout(self):
         """
@@ -107,26 +107,24 @@ class Session(BaseSession[str, Recipient]):
         state required for processing by the Gateway itself, and will do minimal processing themselves.
         """
         data = whatsapp.EventPayload(handle=ptr)
-        if event == whatsapp.EventQRCode:
+        if event == whatsapp.EventConnected:
+            self.contacts.user_legacy_id = data.ConnectedJID
+            self.user_phone = "+" + data.ConnectedJID.split("@")[0]
+            self._connected.set()
+            # this sends the gateway status twice on first login,
+            # but ensures the gateway status is updated when re-pairing
+            self.send_gateway_status(self.__get_connected_status_message(), show="chat")
+        elif event == whatsapp.EventQRCode:
             self.send_gateway_status("QR Scan Needed", show="dnd")
             await self.send_qr(data.QRCode)
-        elif event == whatsapp.EventPair:
+        await self._connected.wait()
+        if event == whatsapp.EventPair:
             self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
             with open(str(self.user_shelf_path)) as shelf:
                 shelf["device_id"] = data.PairDeviceID
-        elif event == whatsapp.EventConnected:
-            if self._connected.done():
-                # On re-pair, Session.login() is not called by slidge core, so
-                # the status message is not updated
-                self.send_gateway_status(
-                    self.__get_connected_status_message(), show="chat"
-                )
-            else:
-                self.contacts.user_legacy_id = data.ConnectedJID
-                self.user_phone = "+" + data.ConnectedJID.split("@")[0]
-                self._connected.set_result(self.__get_connected_status_message())
         elif event == whatsapp.EventLoggedOut:
             self.logged = False
+            self._connected.clear()
             self.send_gateway_message(MESSAGE_LOGGED_OUT)
             self.send_gateway_status("Logged out", show="away")
         elif event == whatsapp.EventContact:
