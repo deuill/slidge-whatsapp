@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"runtime"
 	"time"
 
 	// Third-party libraries.
@@ -662,11 +661,6 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 	if payload == nil {
 		payload = &EventPayload{}
 	}
-
-	// Don't allow other Goroutines from using this thread, as this might lead to concurrent use of
-	// the GIL, which can lead to crashes.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 
 	s.eventHandler(kind, payload)
 }

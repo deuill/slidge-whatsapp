@@ -3,9 +3,7 @@ package whatsapp
 import (
 	// Standard library.
 	"fmt"
-	"net/http"
 	"os"
-	"runtime"
 
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
@@ -78,9 +76,8 @@ type Gateway struct {
 	TempDir string // The directory to create temporary files under.
 
 	// Internal variables.
-	container  *sqlstore.Container
-	httpClient *http.Client
-	logger     walog.Logger
+	container *sqlstore.Container
+	logger    walog.Logger
 }
 
 // NewGateway returns a new, un-initialized Gateway. This function should always be followed by calls
@@ -92,11 +89,6 @@ func NewGateway() *Gateway {
 // SetLogHandler specifies the log handling function to use for all [Gateway] and [Session] operations.
 func (w *Gateway) SetLogHandler(h HandleLogFunc) {
 	w.logger = HandleLogFunc(func(level ErrorLevel, message string) {
-		// Don't allow other Goroutines from using this thread, as this might lead to concurrent
-		// use of the GIL, which can lead to crashes.
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-
 		h(level, message)
 	})
 }
