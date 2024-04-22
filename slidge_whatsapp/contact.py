@@ -1,5 +1,6 @@
+import asyncio
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from slidge import LegacyContact, LegacyRoster
 from slixmpp.exceptions import XMPPError
@@ -32,6 +33,10 @@ class Contact(LegacyContact[str]):
 class Roster(LegacyRoster[str, Contact]):
     session: "Session"
 
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.__fetch_avatar_task: Optional[asyncio.Task] = None
+
     async def fill(self):
         """
         Retrieve contacts from remote WhatsApp service, subscribing to their presence and adding to
@@ -53,6 +58,15 @@ class Roster(LegacyRoster[str, Contact]):
         contact = await self.by_legacy_id(data.JID)
         contact.name = data.Name
         contact.is_friend = True
+        contact.set_vcard(full_name=contact.name, phone=str(contact.jid.local))
+        await contact.add_to_roster()
+        if self.__fetch_avatar_task is not None and not self.__fetch_avatar_task.done():
+            self.__fetch_avatar_task.cancel()
+        self.__fetch_avatar_task = asyncio.create_task(
+            self.__fetch_avatar(data, contact)
+        )
+
+    async def __fetch_avatar(self, data: whatsapp.Contact, contact: Contact):
         try:
             avatar = await self.session.run_in_executor(
                 self.session.whatsapp.GetAvatar, data.JID, contact.avatar or ""
@@ -63,8 +77,8 @@ class Roster(LegacyRoster[str, Contact]):
             self.session.log.error(
                 "Failed getting avatar for contact %s: %s", data.JID, err
             )
-        contact.set_vcard(full_name=contact.name, phone=str(contact.jid.local))
-        await contact.add_to_roster()
+        except asyncio.CancelledError:
+            self.log.debug("Cancelled avatar fetch")
 
     async def legacy_id_to_jid_username(self, legacy_id: str) -> str:
         return "+" + legacy_id[: legacy_id.find("@")]

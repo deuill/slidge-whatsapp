@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
@@ -47,16 +48,29 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.sent = dict[str, str]()
+        self.__avatar_fetch_task: Optional[asyncio.Task] = None
 
     async def update_info(self):
+        self.log.debug("Updating info")
+        if self.__avatar_fetch_task is not None and not self.__avatar_fetch_task.done():
+            self.log.debug("Already fetching avatar in background, cancelling")
+            self.__avatar_fetch_task.cancel()
+        self.__avatar_fetch_task = asyncio.create_task(self.__fetch_avatar())
+
+    async def __fetch_avatar(self):
         try:
+            self.log.debug("Fetching avatar")
             avatar = await self.session.run_in_executor(
                 self.session.whatsapp.GetAvatar, self.legacy_id, self.avatar or ""
             )
         except RuntimeError:
             # no avatar
+            self.log.debug("No avatar")
             await self.set_avatar(None)
+        except asyncio.CancelledError:
+            self.log.debug("Cancelled avatar fetching")
         else:
+            self.log.debug("Avatar URL: %r", avatar.URL)
             if avatar.URL:
                 await self.set_avatar(avatar.URL, avatar.ID)
 
