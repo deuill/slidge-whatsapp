@@ -665,10 +665,16 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 
 	// Don't allow other Goroutines from using this thread, as this might lead to concurrent use of
 	// the GIL, which can lead to crashes.
+	s.gateway.logger.Debugf("Locking OS Thread (propagateEvent)")
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	defer UnlockOSThread2(s)
 
 	s.eventHandler(kind, payload)
+}
+
+func UnlockOSThread2(s *Session) {
+	s.gateway.logger.Debugf("Unlocking OS thread (propagateEvent)")
+	runtime.UnlockOSThread()
 }
 
 // HandleEvent processes the given incoming WhatsApp event, checking its concrete type and

@@ -7,7 +7,7 @@ from pathlib import Path
 from re import search
 from shelve import open
 from tempfile import mkstemp
-from threading import Lock
+from threading import Event, Lock
 from typing import Optional, Union, cast
 
 from aiohttp import ClientSession
@@ -75,7 +75,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self._handle_event)
-        self._connected = self.xmpp.loop.create_future()
+        self._connected = Event()
         self.user_phone: Optional[str] = None
         self._lock = Lock()
 
@@ -86,8 +86,8 @@ class Session(BaseSession[str, Recipient]):
         or will re-connect to a previously existing Linked Device session.
         """
         self.whatsapp.Login()
-        self._connected = self.xmpp.loop.create_future()
-        return await self._connected
+        await self.xmpp.loop.run_in_executor(None, self._connected.wait)
+        return self.__get_connected_status_message()
 
     async def logout(self):
         """
@@ -104,29 +104,36 @@ class Session(BaseSession[str, Recipient]):
         state required for processing by the Gateway itself, and will do minimal processing themselves.
         """
         data = whatsapp.EventPayload(handle=ptr)
-        if event == whatsapp.EventQRCode:
+        self.log.debug("Handling event %s", data)
+        if event == whatsapp.EventConnected:
+            self.contacts.user_legacy_id = data.ConnectedJID
+            self.user_phone = "+" + data.ConnectedJID.split("@")[0]
+            self.log.debug("Setting connected")
+            self._connected.set()
+            self.log.debug("Connected set")
+            # this sends the gateway status twice on first login,
+            # but ensures the gateway status is updated when re-pairing
+            self.send_gateway_status(self.__get_connected_status_message(), show="chat")
+            return
+        elif event == whatsapp.EventQRCode:
             self.send_gateway_status("QR Scan Needed", show="dnd")
             await self.send_qr(data.QRCode)
+            return
         elif event == whatsapp.EventPair:
             self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
             with open(str(self.user_shelf_path)) as shelf:
                 shelf["device_id"] = data.PairDeviceID
-        elif event == whatsapp.EventConnected:
-            if self._connected.done():
-                # On re-pair, Session.login() is not called by slidge core, so
-                # the status message is not updated
-                self.send_gateway_status(
-                    self.__get_connected_status_message(), show="chat"
-                )
-            else:
-                self.contacts.user_legacy_id = data.ConnectedJID
-                self.user_phone = "+" + data.ConnectedJID.split("@")[0]
-                self._connected.set_result(self.__get_connected_status_message())
+            return
         elif event == whatsapp.EventLoggedOut:
             self.logged = False
+            self._connected.clear()
             self.send_gateway_message(MESSAGE_LOGGED_OUT)
             self.send_gateway_status("Logged out", show="away")
-        elif event == whatsapp.EventContact:
+            return
+        self.log.debug("Waiting for connected event for %s", data)
+        await self.xmpp.loop.run_in_executor(None, self._connected.wait)
+        self.log.debug("Connected! Processing %s", data)
+        if event == whatsapp.EventContact:
             await self.contacts.add_whatsapp_contact(data.Contact)
         elif event == whatsapp.EventGroup:
             await self.bookmarks.add_whatsapp_group(data.Group)

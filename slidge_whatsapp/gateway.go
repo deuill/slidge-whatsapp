@@ -92,11 +92,17 @@ func (w *Gateway) SetLogHandler(h HandleLogFunc) {
 	w.logger = HandleLogFunc(func(level ErrorLevel, message string) {
 		// Don't allow other Goroutines from using this thread, as this might lead to concurrent
 		// use of the GIL, which can lead to crashes.
+		h(LevelDebug, "Locking OS thread")
 		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
+		defer UnlockOSThread(h)
 
 		h(level, message)
 	})
+}
+
+func UnlockOSThread(h HandleLogFunc) {
+	h(LevelDebug, "Unlocking OS thread")
+	runtime.UnlockOSThread()
 }
 
 // Init performs initialization procedures for the Gateway, and is expected to be run before any
