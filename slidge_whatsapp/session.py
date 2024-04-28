@@ -136,13 +136,17 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventChatState:
             await self.handle_chat_state(data.ChatState)
         elif event == whatsapp.EventReceipt:
+            self.log.debug("waiting for lock with receipt")
             with self._lock:
                 await self.handle_receipt(data.Receipt)
+            self.log.debug("releasing lock with receipt")
         elif event == whatsapp.EventCall:
             await self.handle_call(data.Call)
         elif event == whatsapp.EventMessage:
+            self.log.debug("waiting for lock with message")
             with self._lock:
                 await self.handle_message(data.Message)
+            self.log.debug("releasing lock with message")
 
     async def handle_chat_state(self, state: whatsapp.ChatState):
         contact = await self.__get_contact_or_participant(state.JID, state.GroupJID)
