@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.types import Hat, Mention, MucAffiliation
+from slidge.util.archive_msg import HistoryMessage
+from slidge.util.types import Hat, HoleBound, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
@@ -18,22 +19,6 @@ class Participant(LegacyParticipant):
     contact: "Contact"
     muc: "MUC"
 
-    def send_text(self, body, legacy_msg_id, **kw):
-        res = super().send_text(body, legacy_msg_id, **kw)
-        self._store(legacy_msg_id)
-        return res
-
-    async def send_file(self, file_path, legacy_msg_id, **kw):
-        res = await super().send_file(file_path, legacy_msg_id, **kw)
-        self._store(legacy_msg_id)
-        return res
-
-    def _store(self, legacy_msg_id: str):
-        if self.is_user:
-            self.muc.sent[legacy_msg_id] = str(self.session.contacts.user_legacy_id)
-        else:
-            self.muc.sent[legacy_msg_id] = self.contact.legacy_id
-
 
 class MUC(LegacyMUC[str, str, Participant, str]):
     session: "Session"
@@ -43,10 +28,6 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     _ALL_INFO_FILLED_ON_STARTUP = True
 
     HAS_DESCRIPTION = False
-
-    def __init__(self, *a, **kw):
-        super().__init__(*a, **kw)
-        self.sent = dict[str, str]()
 
     async def update_info(self):
         try:
@@ -60,36 +41,27 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     async def backfill(
         self,
-        oldest_message_id: Optional[str] = None,
-        oldest_message_date: Optional[datetime] = None,
+        after: HoleBound | None = None,
+        before: HoleBound | None = None,
     ):
         """
         Request history for messages older than the oldest message given by ID and date.
         """
-        if (
-            oldest_message_id is not None
-            and oldest_message_id not in self.session.muc_sent_msg_ids
-        ):
-            # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
-            return
-        oldest_message = whatsapp.Message(
-            ID=oldest_message_id or "",
-            IsCarbon=(
-                self.session.message_is_carbon(self, oldest_message_id)
-                if oldest_message_id
-                else False
-            ),
-            Timestamp=(
-                int(oldest_message_date.timestamp()) if oldest_message_date else 0
-            ),
-        )
-        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
+        pass
 
     def get_message_sender(self, legacy_msg_id: str):
-        sender_legacy_id = self.sent.get(legacy_msg_id)
-        if sender_legacy_id is None:
+        assert self.pk is not None
+        stored = self.xmpp.store.mam.get_by_legacy_id(self.pk, legacy_msg_id)
+        if stored is None:
             raise XMPPError("internal-server-error", "Unable to find message sender")
-        return sender_legacy_id
+        msg = HistoryMessage(stored.stanza)
+        occupant_id = msg.stanza["occupant-id"]["id"]
+        if occupant_id == "slidge-user":
+            return self.session.contacts.user_legacy_id
+        if "@" in occupant_id:
+            jid_username = occupant_id.split("@")[0]
+            return jid_username.removeprefix("+") + "@" + whatsapp.DefaultUserServer
+        raise XMPPError("internal-server-error", "Unable to find message sender")
 
     async def update_whatsapp_info(self, info: whatsapp.Group):
         """
@@ -132,13 +104,14 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                     participant.affiliation = "member"
                     participant.role = "participant"
 
-    def replace_mentions(self, t: str):
+    async def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(
             t,
             participants=(
                 {
-                    c.jid_username: p.nickname
-                    for c, p in self._participants_by_contacts.items()
+                    p.contact.jid_username: p.nickname
+                    async for p in self.get_participants()
+                    if p.contact is not None  # should not happen
                 }
                 | {self.session.user_phone: self.user_nick}
                 if self.session.user_phone  # user_phone *should* be set at this point,
@@ -171,8 +144,13 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         reason: Optional[str],
         nickname: Optional[str],
     ):
+        assert contact.contact_pk is not None
+        assert self.pk is not None
         if affiliation == "member":
-            if contact in self._participants_by_contacts:
+            if (
+                self.xmpp.store.participants.get_by_contact(self.pk, contact.contact_pk)
+                is not None
+            ):
                 change = "demote"
             else:
                 change = "add"
@@ -222,7 +200,12 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        if whatsapp_group_id not in self._mucs_by_legacy_id:
+        if (
+            self.xmpp.store.rooms.get_by_legacy_id(
+                self.session.user_pk, whatsapp_group_id
+            )
+            is None
+        ):
             raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id

@@ -1,6 +1,5 @@
 from logging import getLogger
 from pathlib import Path
-from shelve import open
 from typing import TYPE_CHECKING
 
 from slidge import BaseGateway, FormField, GatewayUser, global_config
@@ -69,15 +68,15 @@ class Gateway(BaseGateway):
         """
         session: "Session" = self.get_session_from_user(user)  # type:ignore
         session.whatsapp.Logout()
-        with open(str(session.user_shelf_path)) as shelf:
-            try:
-                device = whatsapp.LinkedDevice(ID=shelf["device_id"])
-                self.whatsapp.CleanupSession(device)
-            except KeyError:
-                pass
-            except RuntimeError as err:
-                log.error("Failed to clean up WhatsApp session: %s", err)
-        session.user_shelf_path.unlink()
+        try:
+            device = whatsapp.LinkedDevice(
+                ID=session.user.legacy_module_data["device_id"]
+            )
+            self.whatsapp.CleanupSession(device)
+        except KeyError:
+            pass
+        except RuntimeError as err:
+            log.error("Failed to clean up WhatsApp session: %s", err)
 
 
 def handle_log(level, msg: str):

@@ -39,15 +39,17 @@ class Roster(LegacyRoster[str, Contact]):
         """
         contacts = self.session.whatsapp.GetContacts(refresh=config.ALWAYS_SYNC_ROSTER)
         for contact in contacts:
-            await self.add_whatsapp_contact(contact)
+            c = await self.add_whatsapp_contact(contact)
+            if c is not None:
+                yield c
 
-    async def add_whatsapp_contact(self, data: whatsapp.Contact):
+    async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:
         """
         Adds a WhatsApp contact to local roster, filling all required and optional information.
         """
         if data.JID == self.user_legacy_id:
             # with the current implementation, we don't allow that
-            return
+            return None
         contact = await self.by_legacy_id(data.JID)
         contact.name = data.Name
         contact.is_friend = True
@@ -60,7 +62,7 @@ class Roster(LegacyRoster[str, Contact]):
                 "Failed getting avatar for contact %s: %s", data.JID, err
             )
         contact.set_vcard(full_name=contact.name, phone=str(contact.jid.local))
-        await contact.add_to_roster()
+        return contact
 
     async def legacy_id_to_jid_username(self, legacy_id: str) -> str:
         return "+" + legacy_id[: legacy_id.find("@")]

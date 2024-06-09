@@ -5,10 +5,9 @@ from os import fdopen
 from os.path import basename
 from pathlib import Path
 from re import search
-from shelve import open
 from tempfile import mkstemp
 from threading import Lock
-from typing import Optional, Union, cast
+from typing import Any, Optional, Union, cast
 
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
@@ -64,14 +63,11 @@ class Session(BaseSession[str, Recipient]):
 
     def __init__(self, user: GatewayUser):
         super().__init__(user)
-        self.user_shelf_path = (
-            global_config.HOME_DIR / "whatsapp" / (self.user.bare_jid + ".shelf")
-        )
-        with open(str(self.user_shelf_path)) as shelf:
-            try:
-                device = whatsapp.LinkedDevice(ID=shelf["device_id"])
-            except KeyError:
-                device = whatsapp.LinkedDevice()
+        self.migrate()
+        try:
+            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
+        except KeyError:
+            device = whatsapp.LinkedDevice()
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self._handle_event)
@@ -79,6 +75,26 @@ class Session(BaseSession[str, Recipient]):
         self.user_phone: Optional[str] = None
         self._presence_status: str = ""
         self._lock = Lock()
+
+    def migrate(self):
+        user_shelf_path = (
+            global_config.HOME_DIR / "whatsapp" / (self.user_jid.bare + ".shelf")
+        )
+        if not user_shelf_path.exists():
+            return
+        import shelve
+
+        with shelve.open(str(user_shelf_path)) as shelf:
+            try:
+                device_id = shelf["device_id"]
+            except KeyError:
+                pass
+            else:
+                self.log.info(
+                    "Migrated data from %s to the slidge main DB", user_shelf_path
+                )
+                self.legacy_module_data_set({"device_id": device_id})
+        user_shelf_path.unlink()
 
     async def login(self):
         """
@@ -110,8 +126,7 @@ class Session(BaseSession[str, Recipient]):
             await self.send_qr(data.QRCode)
         elif event == whatsapp.EventPair:
             self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
-            with open(str(self.user_shelf_path)) as shelf:
-                shelf["device_id"] = data.PairDeviceID
+            self.legacy_module_data_set({"device_id": data.PairDeviceID})
         elif event == whatsapp.EventConnected:
             if self._connected.done():
                 # On re-pair, Session.login() is not called by slidge core, so
@@ -194,7 +209,7 @@ class Session(BaseSession[str, Recipient]):
         )
         if message.Kind == whatsapp.MessagePlain:
             if hasattr(contact, "muc"):
-                body = contact.muc.replace_mentions(message.Body)
+                body = await contact.muc.replace_mentions(message.Body)
             else:
                 body = message.Body
             contact.send_text(
@@ -205,7 +220,7 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.IsCarbon,
             )
         elif message.Kind == whatsapp.MessageAttachment:
-            attachments = Attachment.convert_list(message.Attachments, muc)
+            attachments = await Attachment.convert_list(message.Attachments, muc)
             await contact.send_files(
                 attachments=attachments,
                 legacy_msg_id=message.ID,
@@ -486,10 +501,14 @@ class Session(BaseSession[str, Recipient]):
         )
 
     def message_is_carbon(self, c: Recipient, legacy_msg_id: str):
+        stored: Any
         if c.is_group:
-            return legacy_msg_id in self.muc_sent_msg_ids
+            assert isinstance(c, MUC)
+            assert c.pk is not None
+            stored = self.xmpp.store.sent.get_group_xmpp_id(c.pk, legacy_msg_id)
         else:
-            return legacy_msg_id in self.sent
+            stored = self.xmpp.store.sent.get_xmpp_id(self.user_pk, legacy_msg_id)
+        return stored is not None
 
     def __get_connected_status_message(self):
         return f"Connected as {self.user_phone}"
@@ -504,11 +523,11 @@ class Session(BaseSession[str, Recipient]):
             body=(
                 message.ReplyBody
                 if muc is None
-                else muc.replace_mentions(message.ReplyBody)
+                else await muc.replace_mentions(message.ReplyBody)
             ),
         )
         if message.OriginJID == self.contacts.user_legacy_id:
-            reply_to.author = self.user
+            reply_to.author = "user"
         else:
             reply_to.author = await self.__get_contact_or_participant(
                 message.OriginJID, message.GroupJID
@@ -571,13 +590,13 @@ class Session(BaseSession[str, Recipient]):
 
 class Attachment(LegacyAttachment):
     @staticmethod
-    def convert_list(
+    async def convert_list(
         attachments: list, muc: Optional["MUC"] = None
     ) -> list["Attachment"]:
-        return [Attachment.convert(attachment, muc) for attachment in attachments]
+        return [await Attachment.convert(attachment, muc) for attachment in attachments]
 
     @staticmethod
-    def convert(
+    async def convert(
         wa_attachment: whatsapp.Attachment, muc: Optional["MUC"] = None
     ) -> "Attachment":
         return Attachment(
@@ -586,7 +605,7 @@ class Attachment(LegacyAttachment):
             caption=(
                 wa_attachment.Caption
                 if muc is None
-                else muc.replace_mentions(wa_attachment.Caption)
+                else await muc.replace_mentions(wa_attachment.Caption)
             ),
             name=wa_attachment.Filename,
         )
