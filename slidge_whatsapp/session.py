@@ -5,7 +5,6 @@ from os import fdopen
 from os.path import basename
 from pathlib import Path
 from re import search
-from shelve import open
 from tempfile import mkstemp
 from threading import Lock
 from typing import Optional, Union, cast
@@ -64,14 +63,11 @@ class Session(BaseSession[str, Recipient]):
 
     def __init__(self, user: GatewayUser):
         super().__init__(user)
-        self.user_shelf_path = (
-            global_config.HOME_DIR / "whatsapp" / (self.user.bare_jid + ".shelf")
-        )
-        with open(str(self.user_shelf_path)) as shelf:
-            try:
-                device = whatsapp.LinkedDevice(ID=shelf["device_id"])
-            except KeyError:
-                device = whatsapp.LinkedDevice()
+        self.migrate()
+        try:
+            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
+        except KeyError:
+            device = whatsapp.LinkedDevice()
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self._handle_event)
@@ -79,6 +75,26 @@ class Session(BaseSession[str, Recipient]):
         self.user_phone: Optional[str] = None
         self._presence_status: str = ""
         self._lock = Lock()
+
+    def migrate(self):
+        user_shelf_path = (
+            global_config.HOME_DIR / "whatsapp" / (self.user_jid.bare + ".shelf")
+        )
+        if not user_shelf_path.exists():
+            return
+        import shelve
+
+        with shelve.open(str(user_shelf_path)) as shelf:
+            try:
+                device_id = shelf["device_id"]
+            except KeyError:
+                pass
+            else:
+                self.log.info(
+                    "Migrated data from %s to the slidge main DB", user_shelf_path
+                )
+                self.legacy_module_data_set({"device_id": device_id})
+        user_shelf_path.unlink()
 
     async def login(self):
         """
@@ -110,8 +126,7 @@ class Session(BaseSession[str, Recipient]):
             await self.send_qr(data.QRCode)
         elif event == whatsapp.EventPair:
             self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
-            with open(str(self.user_shelf_path)) as shelf:
-                shelf["device_id"] = data.PairDeviceID
+            self.legacy_module_data_set({"device_id": data.PairDeviceID})
         elif event == whatsapp.EventConnected:
             if self._connected.done():
                 # On re-pair, Session.login() is not called by slidge core, so
@@ -508,7 +523,7 @@ class Session(BaseSession[str, Recipient]):
             ),
         )
         if message.OriginJID == self.contacts.user_legacy_id:
-            reply_to.author = self.user
+            reply_to.author = "user"
         else:
             reply_to.author = await self.__get_contact_or_participant(
                 message.OriginJID, message.GroupJID
