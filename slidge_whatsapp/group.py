@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, AsyncIterator, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slidge.util.archive_msg import HistoryMessage
@@ -83,7 +83,15 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 )
                 if name := participant.nickname:
                     self.subject_setter = name
-        for data in info.Participants:
+        self.session.wa_participants[self.legacy_id] = info.Participants
+
+    async def fill_participants(self) -> AsyncIterator[Participant]:
+        try:
+            participants = self.session.wa_participants.pop(self.legacy_id)
+        except KeyError:
+            self.log.warning("No participants!")
+            return
+        for data in participants:
             participant = await self.get_participant_by_legacy_id(data.JID)
             if data.Action == whatsapp.GroupParticipantActionRemove:
                 self.remove_participant(participant)
@@ -103,6 +111,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 else:
                     participant.affiliation = "member"
                     participant.role = "participant"
+                yield participant
 
     async def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(

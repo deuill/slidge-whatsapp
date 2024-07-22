@@ -75,6 +75,7 @@ class Session(BaseSession[str, Recipient]):
         self.user_phone: Optional[str] = None
         self._presence_status: str = ""
         self._lock = Lock()
+        self.wa_participants = dict[str, list[whatsapp.GroupParticipant]]()
 
     def migrate(self):
         user_shelf_path = (
