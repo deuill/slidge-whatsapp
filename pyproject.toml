@@ -23,7 +23,7 @@ script = "build.py"
 python = "^3.11"
 linkpreview = "^0.6.5"
 pybindgen = "^0.22.1"
-slidge = "0.2.0alpha2"
+slidge = "0.2.0alpha3"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.21.0"

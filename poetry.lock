@@ -1955,13 +1955,13 @@ files = [
 
 [[package]]
 name = "slidge"
-version = "0.2.0a2"
+version = "0.2.0a3"
 description = "XMPP bridging framework"
 optional = false
 python-versions = "<4.0,>=3.11"
 files = [
-    {file = "slidge-0.2.0a2-py3-none-any.whl", hash = "sha256:0693c78dabe10ecd542cf08c6126088902f275153f90f88ea28b1d712b386e52"},
-    {file = "slidge-0.2.0a2.tar.gz", hash = "sha256:fd87186ab5454e3da8e7cfb334df6c9d67fda53bf8b0b97e065a6b35fd68f06f"},
+    {file = "slidge-0.2.0a3-py3-none-any.whl", hash = "sha256:7b5338fcf1f5d8dca20d7f71532b73ecd08bb21dfb2df9e5d8bde72181d972e4"},
+    {file = "slidge-0.2.0a3.tar.gz", hash = "sha256:f747d5dc4b3a6e0bccca27a913b79a5abc2eebda5c879ca5252c144e45cda4cc"},
 ]
 
 [package.dependencies]
@@ -2515,4 +2515,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "5ee5c5d65d4704a9319cd1683f6dba5ddf81046463a2ae0e346426fbbf1674c7"
+content-hash = "56afb481a0bdeef867e162a2756815f7510921cde3932a5be8eb9770498e8d77"
