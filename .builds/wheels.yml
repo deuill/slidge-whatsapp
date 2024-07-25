@@ -30,7 +30,7 @@ tasks:
         docker buildx build . \
           --target wheel \
           -o ./dist-mess/ \
-          --platform linux/arm64,linux/amd64 \
+          --platform linux/amd64 \
           --build-arg PYTHONVER=$PYTHONVER
       done
       mkdir dist
