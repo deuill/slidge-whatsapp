@@ -43,12 +43,12 @@ type EventPayload struct {
 	PairDeviceID string
 	Connect      Connect
 	Contact      Contact
-	Presence  Presence
-	Message   Message
-	ChatState ChatState
-	Receipt   Receipt
-	Group     Group
-	Call      Call
+	Presence     Presence
+	Message      Message
+	ChatState    ChatState
+	Receipt      Receipt
+	Group        Group
+	Call         Call
 }
 
 // HandleEventFunc represents a handler for incoming events sent to the Python adapter, accepting an
