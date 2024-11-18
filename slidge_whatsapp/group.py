@@ -222,15 +222,16 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        if (
-            self.xmpp.store.rooms.get_by_legacy_id(
-                self.session.user_pk, whatsapp_group_id
-            )
-            is None
-        ):
+        if not self.whatsapp_group_added(whatsapp_group_id):
             raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id
+
+    def whatsapp_group_added(self, legacy_id: str):
+        return (
+            self.xmpp.store.rooms.get_by_legacy_id(self.session.user_pk, legacy_id)
+            is not None
+        )
 
 
 def replace_xmpp_mentions(text: str, mentions: list[Mention]):

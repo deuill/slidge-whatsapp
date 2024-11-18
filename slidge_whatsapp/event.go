@@ -37,7 +37,8 @@ const (
 	EventMessage
 	EventChatState
 	EventReceipt
-	EventGroup
+	EventGroupInfo
+	EventGroupJoin
 	EventCall
 )
 
@@ -1006,10 +1007,10 @@ type GroupParticipant struct {
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
 }
 
-// NewGroupEvent returns event data meant for [Session.propagateEvent] for the primive group event
-// given. Group data returned by this function can be partial, and callers should take care to only
-// handle non-empty values.
-func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
+// NewGroupInfoEvent returns event data meant for [Session.propagateEvent] for the primive group
+// event given. Group data returned by this function can be partial, and callers should take care to
+// only handle non-empty values.
+func newGroupInfoEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 	var group = Group{JID: evt.JID.ToNonAD().String()}
 	if evt.Name != nil {
 		group.Name = evt.Name.Name
@@ -1047,13 +1048,38 @@ func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 			Affiliation: GroupAffiliationNone,
 		})
 	}
-	return EventGroup, &EventPayload{Group: group}
+	// Don't propagate events that contain no metadata (other than the group JID), as we will
+	// presumably receive a more complete event about the group (e.g. a join) at some point in the
+	// future.
+	if group.Name == "" && group.Subject == (GroupSubject{}) && len(group.Participants) == 0 {
+		return EventUnknown, nil
+	}
+	return EventGroupInfo, &EventPayload{Group: group}
+}
+
+// NewGroupJoinEvent returns event data meant for [Session.propagateEvent] for the join group event
+// given. Groups that are handled internally (such as parent groups for communities) will have this
+// function return [EventUnknown], otherwise [EventGroupJoin] is returned.
+func newGroupJoinEvent(client *whatsmeow.Client, evt *events.JoinedGroup) (EventKind, *EventPayload) {
+	group, err := newGroup(client, &evt.GroupInfo)
+	if err != nil {
+		return EventUnknown, nil
+	}
+	return EventGroupJoin, &EventPayload{Group: group}
 }
 
 // NewGroup returns a concrete [Group] for the primitive data given. This function will generally
 // populate fields with as much data as is available from the remote, and is therefore should not
 // be called when partial data is to be returned.
-func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
+func newGroup(client *whatsmeow.Client, info *types.GroupInfo) (Group, error) {
+	// Don't process community as group, as these need to be handled as a special case.
+	if info.GroupParent.IsParent {
+		return Group{}, fmt.Errorf("cannot handle community as group")
+	}
+	var name = info.GroupName.Name
+	if !info.GroupLinkedParent.LinkedParentJID.IsEmpty() && info.GroupAnnounce.IsAnnounce {
+			name += " - Announcements"
+	}
 	var participants []GroupParticipant
 	for _, p := range info.Participants {
 		if p.Error > 0 {
@@ -1072,7 +1098,7 @@ func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
 	}
 	return Group{
 		JID:  info.JID.ToNonAD().String(),
-		Name: info.GroupName.Name,
+		Name: name,
 		Subject: GroupSubject{
 			Subject:  info.Topic,
 			SetAt:    info.TopicSetAt.Unix(),
@@ -1080,7 +1106,7 @@ func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
 		},
 		Nickname:     client.Store.PushName,
 		Participants: participants,
-	}
+	}, nil
 }
 
 // CallState represents the state of the call to synchronize with.

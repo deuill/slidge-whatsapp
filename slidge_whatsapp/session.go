@@ -479,7 +479,9 @@ func (s *Session) GetGroups() ([]Group, error) {
 
 	var groups []Group
 	for _, info := range data {
-		groups = append(groups, newGroup(s.client, info))
+		if group, err := newGroup(s.client, info); err == nil {
+			groups = append(groups, group)
+		}
 	}
 
 	return groups, nil
@@ -508,7 +510,12 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 		return Group{}, fmt.Errorf("Could not create group: %s", err)
 	}
 
-	return newGroup(s.client, info), nil
+	group, err := newGroup(s.client, info)
+	if err != nil {
+		return Group{}, fmt.Errorf("Could not create group: %s", err)
+	}
+
+	return group, nil
 }
 
 // LeaveGroup attempts to remove our own user from the given WhatsApp group, for the JID given.
@@ -762,9 +769,9 @@ func (s *Session) handleEvent(evt interface{}) {
 	case *events.PushName:
 		s.propagateEvent(newContactEvent(evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
 	case *events.JoinedGroup:
-		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(s.client, &evt.GroupInfo)})
+		s.propagateEvent(newGroupJoinEvent(s.client, evt))
 	case *events.GroupInfo:
-		s.propagateEvent(newGroupEvent(evt))
+		s.propagateEvent(newGroupInfoEvent(evt))
 	case *events.ChatPresence:
 		s.propagateEvent(newChatStateEvent(evt))
 	case *events.CallOffer:
