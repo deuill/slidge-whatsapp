@@ -34,7 +34,8 @@ const (
 	EventMessage
 	EventChatState
 	EventReceipt
-	EventGroup
+	EventGroupInfo
+	EventGroupJoin
 	EventCall
 )
 
@@ -983,6 +984,14 @@ func newReceiptEvent(evt *events.Receipt) (EventKind, *EventPayload) {
 	return EventReceipt, &EventPayload{Receipt: receipt}
 }
 
+// GroupKind represents the overarching semantics of a group.
+type GroupKind int
+
+const (
+	GroupKindPrivate  GroupKind = iota // Generic, invite-only group.
+	GroupKindAnnounce                  // Group where only admins have send permissions; meant for announcements.
+)
+
 // GroupAffiliation represents the set of privilidges given to a specific participant in a group.
 type GroupAffiliation int
 
@@ -999,9 +1008,11 @@ const (
 // [Session.GetGroups] for more information.
 type Group struct {
 	JID          string             // The WhatsApp JID for this group.
+	Kind         GroupKind          // The kind of group, e.g. announcements.
 	Name         string             // The user-defined, human-readable name for this group.
 	Subject      GroupSubject       // The longer-form, user-defined description for this group.
 	Nickname     string             // Our own nickname in this group-chat.
+	Parent       GroupParent        // Information on the parent Community for the group, if any.
 	Participants []GroupParticipant // The list of participant contacts for this group, including ourselves.
 }
 
@@ -1011,6 +1022,12 @@ type GroupSubject struct {
 	Subject  string // The user-defined group description.
 	SetAt    int64  // The exact time this group description was set at, as a timestamp.
 	SetByJID string // The JID of the user that set the subject.
+}
+
+// GroupParent represents common information for the parent Community a group belongs to, if any.
+type GroupParent struct {
+	JID string // The WhatsApp JID for the parent Community.
+	Unlinked bool // Used to signal that the parent/child relationship has been severed.
 }
 
 // GroupParticipantAction represents the distinct set of actions that can be taken when encountering
@@ -1067,13 +1084,15 @@ func newGroupParticipant(p types.GroupParticipant) GroupParticipant {
 	}
 }
 
-// NewGroupEvent returns event data meant for [Session.propagateEvent] for the primive group event
-// given. Group data returned by this function can be partial, and callers should take care to only
-// handle non-empty values.
-func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
+// NewGroupInfoEvent returns event data meant for [Session.propagateEvent] for the primive group
+// event given. Group data returned by this function can be partial, and callers should take care to
+// only handle non-empty values.
+func newGroupInfoEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 	var group = Group{JID: evt.JID.ToNonAD().String()}
+	var changed bool
 	if evt.Name != nil {
 		group.Name = evt.Name.Name
+		changed = true
 	}
 	if evt.Topic != nil {
 		group.Subject = GroupSubject{
@@ -1081,6 +1100,22 @@ func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 			SetAt:    evt.Topic.TopicSetAt.Unix(),
 			SetByJID: evt.Topic.TopicSetBy.ToNonAD().String(),
 		}
+		changed = true
+	}
+	if evt.Announce != nil {
+		group.Kind = GroupKindPrivate
+		if evt.Announce.IsAnnounce {
+			group.Kind = GroupKindAnnounce
+		}
+		changed = true
+	}
+	if evt.Link != nil {
+		group.Parent.JID = evt.Link.Group.JID.ToNonAD().String()
+		changed = true
+	}
+	if evt.Unlink != nil {
+		group.Parent.Unlinked = true
+		changed = true
 	}
 	for _, p := range evt.Join {
 		group.Participants = append(group.Participants, GroupParticipant{
@@ -1108,13 +1143,47 @@ func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 			Affiliation: GroupAffiliationNone,
 		})
 	}
-	return EventGroup, &EventPayload{Group: group}
+	if len(group.Participants) > 0 {
+		changed = true
+	}
+	// Don't propagate events that contain no metadata (other than the group JID), as we will
+	// presumably receive a more complete event about the group (e.g. a join) at some point in the
+	// future.
+	if !changed {
+		return EventUnknown, nil
+	}
+	return EventGroupInfo, &EventPayload{Group: group}
+}
+
+// NewGroupJoinEvent returns event data meant for [Session.propagateEvent] for the join group event
+// given. Groups that are handled internally (such as parent groups for communities) will have this
+// function return [EventUnknown], otherwise [EventGroupJoin] is returned.
+func newGroupJoinEvent(client *whatsmeow.Client, evt *events.JoinedGroup) (EventKind, *EventPayload) {
+	group, err := newGroup(client, &evt.GroupInfo)
+	if err != nil {
+		return EventUnknown, nil
+	}
+	return EventGroupJoin, &EventPayload{Group: group}
 }
 
 // NewGroup returns a concrete [Group] for the primitive data given. This function will generally
 // populate fields with as much data as is available from the remote, and is therefore should not
 // be called when partial data is to be returned.
-func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
+func newGroup(client *whatsmeow.Client, info *types.GroupInfo) (Group, error) {
+	// Don't process community as group, as these need to be handled as a special case.
+	if info.GroupParent.IsParent {
+		return Group{}, fmt.Errorf("cannot handle community as group")
+	}
+	var kind GroupKind
+	var parent GroupParent
+	if !info.GroupLinkedParent.LinkedParentJID.IsEmpty() {
+		parent = GroupParent{
+			JID: info.GroupLinkedParent.LinkedParentJID.ToNonAD().String(),
+		}
+		if info.GroupAnnounce.IsAnnounce {
+			kind = GroupKindAnnounce
+		}
+	}
 	var participants []GroupParticipant
 	for i := range info.Participants {
 		p := newGroupParticipant(info.Participants[i])
@@ -1126,14 +1195,16 @@ func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
 	return Group{
 		JID:  info.JID.ToNonAD().String(),
 		Name: info.GroupName.Name,
+		Kind: kind,
 		Subject: GroupSubject{
 			Subject:  info.Topic,
 			SetAt:    info.TopicSetAt.Unix(),
 			SetByJID: info.TopicSetBy.ToNonAD().String(),
 		},
 		Nickname:     client.Store.PushName,
+		Parent:       parent,
 		Participants: participants,
-	}
+	}, nil
 }
 
 // CallState represents the state of the call to synchronize with.

@@ -156,22 +156,22 @@ type logger struct {
 var _ walog.Logger = logger{}
 
 // Errorf handles the given message as representing a (typically) fatal error.
-func (l logger) Errorf(msg string, args ...interface{}) {
+func (l logger) Errorf(msg string, args ...any) {
 	l.logger.Error(fmt.Sprintf(msg, args...))
 }
 
 // Warn handles the given message as representing a non-fatal error or warning thereof.
-func (l logger) Warnf(msg string, args ...interface{}) {
+func (l logger) Warnf(msg string, args ...any) {
 	l.logger.Warn(fmt.Sprintf(msg, args...))
 }
 
 // Infof handles the given message as representing an informational notice.
-func (l logger) Infof(msg string, args ...interface{}) {
+func (l logger) Infof(msg string, args ...any) {
 	l.logger.Info(fmt.Sprintf(msg, args...))
 }
 
 // Debugf handles the given message as representing an internal-only debug message.
-func (l logger) Debugf(msg string, args ...interface{}) {
+func (l logger) Debugf(msg string, args ...any) {
 	l.logger.Debug(fmt.Sprintf(msg, args...))
 }
 

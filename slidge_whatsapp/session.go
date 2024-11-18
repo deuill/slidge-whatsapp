@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image/jpeg"
 	"math/rand"
+	"slices"
 	"time"
 
 	// Internal packages.
@@ -398,7 +399,7 @@ func (s *Session) SendReceipt(receipt Receipt) error {
 		}
 	}
 
-	ids := append([]types.MessageID{}, receipt.MessageIDs...)
+	ids := slices.Clone(receipt.MessageIDs)
 	return s.client.MarkRead(ids, time.Unix(receipt.Timestamp, 0), jid, senderJID)
 }
 
@@ -475,7 +476,9 @@ func (s *Session) GetGroups() ([]Group, error) {
 
 	var groups []Group
 	for _, info := range data {
-		groups = append(groups, newGroup(s.client, info))
+		if group, err := newGroup(s.client, info); err == nil {
+			groups = append(groups, group)
+		}
 	}
 
 	return groups, nil
@@ -504,7 +507,12 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 		return Group{}, fmt.Errorf("Could not create group: %s", err)
 	}
 
-	return newGroup(s.client, info), nil
+	group, err := newGroup(s.client, info)
+	if err != nil {
+		return Group{}, fmt.Errorf("Could not create group: %s", err)
+	}
+
+	return group, nil
 }
 
 // LeaveGroup attempts to remove our own user from the given WhatsApp group, for the JID given.
@@ -740,7 +748,7 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 // HandleEvent processes the given incoming WhatsApp event, checking its concrete type and
 // propagating it to the adapter event handler. Unknown or unhandled events are ignored, and any
 // errors that occur during processing are logged.
-func (s *Session) handleEvent(evt interface{}) {
+func (s *Session) handleEvent(evt any) {
 	s.gateway.logger.Debugf("Handling event '%T': %+v", evt, evt)
 
 	switch evt := evt.(type) {
@@ -796,9 +804,9 @@ func (s *Session) handleEvent(evt interface{}) {
 	case *events.PushName:
 		s.propagateEvent(newContactEvent(evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
 	case *events.JoinedGroup:
-		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(s.client, &evt.GroupInfo)})
+		s.propagateEvent(newGroupJoinEvent(s.client, evt))
 	case *events.GroupInfo:
-		s.propagateEvent(newGroupEvent(evt))
+		s.propagateEvent(newGroupInfoEvent(evt))
 	case *events.ChatPresence:
 		s.propagateEvent(newChatStateEvent(evt))
 	case *events.CallOffer:

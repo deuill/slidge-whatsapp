@@ -26,6 +26,11 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     HAS_DESCRIPTION = False
     REACTIONS_SINGLE_EMOJI = True
 
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.group_type: int = whatsapp.GroupKindPrivate
+        self.parent_id: str = ""
+
     async def update_info(self):
         try:
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
@@ -46,11 +51,9 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         """
         Request history for messages older than the oldest message given by ID and date.
         """
-
+        # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
         if before is None:
             return
-            # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
-
         assert isinstance(before.id, str)
         oldest_message = whatsapp.Message(
             ID=before.id,
@@ -81,7 +84,12 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         if info.Nickname:
             self.user_nick = info.Nickname
         if info.Name:
-            self.name = info.Name
+            if info.Kind == whatsapp.GroupKindAnnounce:
+                self.name = info.Name + " - Announcements"
+            else:
+                self.name = info.Name
+        if info.Kind:
+            self.group_type = info.Kind
         if info.Subject.Subject:
             self.subject = info.Subject.Subject
             if info.Subject.SetAt:
@@ -93,13 +101,20 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 )
                 if name := participant.nickname:
                     self.subject_setter = name
-        self.session.whatsapp_participants[self.legacy_id] = info.Participants
-        self.n_participants = len(info.Participants)
-        # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
-        # we need to do that to actually update the participant list.
-        if self._participants_filled:
-            async for _ in self.fill_participants():
-                pass
+        if info.Parent:
+            if info.Parent.JID:
+                self.parent_id = info.Parent.JID
+            elif info.Parent.Unlinked:
+                self.parent_id = ""
+        if info.Participants:
+            self.session.whatsapp_participants[self.legacy_id] = info.Participants
+            # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
+            # we need to do that to actually update the participant list.
+            if self._participants_filled:
+                num_participants = 0
+                async for _ in self.fill_participants():
+                    num_participants += 1
+                self.n_participants = num_participants
 
     async def fill_participants(self) -> AsyncIterator[Participant]:
         await self.session.bookmarks.ready
@@ -127,7 +142,10 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                     participant.role = "moderator"
                 else:
                     participant.affiliation = "member"
-                    participant.role = "participant"
+                    if self.group_type == whatsapp.GroupKindAnnounce:
+                        participant.role = "visitor"
+                    else:
+                        participant.role = "participant"
                 yield participant
 
     async def replace_mentions(self, t: str):
@@ -197,6 +215,16 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             ),
         )
 
+    def serialize_extra_attributes(self) -> dict:
+        return {
+            "group_type": self.group_type,
+            "parent_id": self.parent_id,
+        }
+
+    def deserialize_extra_attributes(self, data: dict) -> None:
+        self.group_type = data.get("group_type", whatsapp.GroupKindPrivate)
+        self.parent_id = data.get("parent_id", "")
+
 
 class Bookmarks(LegacyBookmarks[str, MUC]):
     session: "Session"
@@ -232,15 +260,16 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        if (
-            self.xmpp.store.rooms.get_by_legacy_id(
-                self.session.user_pk, whatsapp_group_id
-            )
-            is None
-        ):
+        if not self.__whatsapp_group_added(whatsapp_group_id):
             raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id
+
+    def __whatsapp_group_added(self, legacy_id: str):
+        return (
+            self.xmpp.store.rooms.get_by_legacy_id(self.session.user_pk, legacy_id)
+            is not None
+        )
 
 
 def replace_xmpp_mentions(text: str, mentions: list[Mention]):
