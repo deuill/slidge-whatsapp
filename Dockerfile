@@ -29,7 +29,7 @@ RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/
     rustc \
     && apt-get install -y golang -t bookworm-backports
 
-RUN pip install poetry
+RUN pip install poetry poetry-plugin-export
 RUN python3 -m venv /venv
 RUN ln -s /venv/lib/python$PYTHONVER /venv/lib/python
 

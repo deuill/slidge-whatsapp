@@ -173,19 +173,24 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 self.xmpp.store.participants.get_by_contact(self.pk, contact.contact_pk)
                 is not None
             ):
-                change = "demote"
+                action = whatsapp.GroupParticipantActionDemote
             else:
-                change = "add"
+                action = whatsapp.GroupParticipantActionAdd
         elif affiliation == "admin":
-            change = "promote"
+            action = whatsapp.GroupParticipantActionPromote
         elif affiliation == "outcast" or affiliation == "none":
-            change = "remove"
+            action = whatsapp.GroupParticipantActionRemove
         else:
             raise XMPPError(
                 "bad-request",
-                f"You can't make a participant '{affiliation}' in whatsapp",
+                f"You can't make a participant '{affiliation}' in WhatsApp",
             )
-        self.session.whatsapp.SetAffiliation(self.legacy_id, contact.legacy_id, change)
+        self.session.whatsapp.UpdateGroupParticipants(
+            self.legacy_id,
+            go.Slice_whatsapp_GroupParticipant(
+                [whatsapp.GroupParticipant(JID=contact.legacy_id, Action=action)]
+            ),
+        )
 
 
 class Bookmarks(LegacyBookmarks[str, MUC]):

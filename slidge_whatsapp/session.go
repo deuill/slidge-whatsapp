@@ -592,7 +592,7 @@ func (s *Session) SetGroupName(resourceID, name string) error {
 	return s.client.SetGroupName(jid, name)
 }
 
-// SetGroupTopic updates the topic of a WhatsApp group
+// SetGroupName updates the topic of a WhatsApp group for the Group JID given.
 func (s *Session) SetGroupTopic(resourceID, topic string) error {
 	if s.client == nil || s.client.Store.ID == nil {
 		return fmt.Errorf("Cannot set group topic for unauthenticated session")
@@ -607,21 +607,52 @@ func (s *Session) SetGroupTopic(resourceID, topic string) error {
 
 }
 
-func (s *Session) SetAffiliation(groupID, participantID string, change whatsmeow.ParticipantChange) ([]types.GroupParticipant, error) {
+// UpdateGroupParticipants processes changes to the given group's participants, including additions,
+// removals, and changes to privileges. Participant JIDs given must be part of the authenticated
+// session's roster at least, and must also be active group participants for other types of changes.
+func (s *Session) UpdateGroupParticipants(resourceID string, participants []GroupParticipant) ([]GroupParticipant, error) {
 	if s.client == nil || s.client.Store.ID == nil {
-		return make([]types.GroupParticipant, 0), fmt.Errorf("Cannot set affiliation for unauthenticated session")
+		return nil, fmt.Errorf("Cannot update group participants for unauthenticated session")
 	}
 
-	groupJID, err := types.ParseJID(groupID)
+	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return make([]types.GroupParticipant, 0), fmt.Errorf("Could not parse JID for affiliation change: %s", err)
+		return nil, fmt.Errorf("Could not parse JID for group participant update: %s", err)
 	}
 
-	participantJID, err := types.ParseJID(participantID)
-	if err != nil {
-		return make([]types.GroupParticipant, 0), fmt.Errorf("Could not parse JID for affiliation change: %s", err)
+	var changes = make(map[whatsmeow.ParticipantChange][]types.JID)
+	for _, p := range participants {
+		participantJID, err := types.ParseJID(p.JID)
+		if err != nil {
+			return nil, fmt.Errorf("Could not parse participant JID for update: %s", err)
+		}
+
+		if c, err := s.client.Store.Contacts.GetContact(participantJID); err != nil {
+			return nil, fmt.Errorf("Could not fetch contact for participant: %s", err)
+		} else if !c.Found {
+			return nil, fmt.Errorf("Cannot update group participant for contact '%s' not in roster", participantJID)
+		}
+
+		c := p.Action.toParticipantChange()
+		changes[c] = append(changes[c], participantJID)
 	}
-	return s.client.UpdateGroupParticipants(groupJID, []types.JID{participantJID}, change)
+
+	var result []GroupParticipant
+	for change, participantJIDs := range changes {
+		participants, err := s.client.UpdateGroupParticipants(jid, participantJIDs, change)
+		if err != nil {
+			return nil, fmt.Errorf("Failed setting group affiliation: %s", err)
+		}
+		for i := range participants {
+			p := newGroupParticipant(participants[i])
+			if p.JID == "" {
+				continue
+			}
+			result = append(result, p)
+		}
+	}
+
+	return result, nil
 }
 
 // FindContact attempts to check for a registered contact on WhatsApp corresponding to the given
@@ -631,6 +662,13 @@ func (s *Session) SetAffiliation(groupID, participantID string, change whatsmeow
 func (s *Session) FindContact(phone string) (Contact, error) {
 	if s.client == nil || s.client.Store.ID == nil {
 		return Contact{}, fmt.Errorf("Cannot find contact for unauthenticated session")
+	}
+
+	jid := types.NewJID(phone, DefaultUserServer)
+	if c, err := s.client.Store.Contacts.GetContact(jid); err == nil && c.Found {
+		if _, e := newContactEvent(jid, c); e != nil {
+			return e.Contact, nil
+		}
 	}
 
 	resp, err := s.client.IsOnWhatsApp([]string{phone})

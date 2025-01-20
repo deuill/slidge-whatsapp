@@ -435,7 +435,6 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 	return result, info, nil
 }
 
-
 const (
 	// The MIME type used by voice messages on WhatsApp.
 	voiceMessageMIME = string(media.TypeOgg) + "; codecs=opus"
@@ -1014,10 +1013,26 @@ type GroupSubject struct {
 type GroupParticipantAction int
 
 const (
-	GroupParticipantActionAdd    GroupParticipantAction = iota // Default action; add participant to list.
-	GroupParticipantActionUpdate                               // Update existing participant information.
-	GroupParticipantActionRemove                               // Remove participant from list, if existing.
+	GroupParticipantActionAdd     GroupParticipantAction = iota // Default action; add participant to list.
+	GroupParticipantActionRemove                                // Remove participant from list, if existing.
+	GroupParticipantActionPromote                               // Make group member into administrator.
+	GroupParticipantActionDemote                                // Make group administrator into member.
 )
+
+// ToParticipantChange converts our public [GroupParticipantAction] to the internal [ParticipantChange]
+// representation.
+func (a GroupParticipantAction) toParticipantChange() whatsmeow.ParticipantChange {
+	switch a {
+	case GroupParticipantActionRemove:
+		return whatsmeow.ParticipantChangeRemove
+	case GroupParticipantActionPromote:
+		return whatsmeow.ParticipantChangePromote
+	case GroupParticipantActionDemote:
+		return whatsmeow.ParticipantChangeDemote
+	default:
+		return whatsmeow.ParticipantChangeAdd
+	}
+}
 
 // A GroupParticipant represents a contact who is currently joined in a given group. Participants in
 // WhatsApp can always be derived back to their individual [Contact]; there are no anonymous groups
@@ -1026,6 +1041,25 @@ type GroupParticipant struct {
 	JID         string                 // The WhatsApp JID for this participant.
 	Affiliation GroupAffiliation       // The set of priviledges given to this specific participant.
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
+}
+
+// NewGroupParticipant returns a [GroupParticipant], filling fields from the internal participant
+// type. This is a no-op if [types.GroupParticipant.Error] is non-zero, and other fields may only
+// be set optionally.
+func newGroupParticipant(p types.GroupParticipant) GroupParticipant {
+	if p.Error > 0 {
+		return GroupParticipant{}
+	}
+	var affiliation = GroupAffiliationNone
+	if p.IsSuperAdmin {
+		affiliation = GroupAffiliationOwner
+	} else if p.IsAdmin {
+		affiliation = GroupAffiliationAdmin
+	}
+	return GroupParticipant{
+		JID:         p.JID.ToNonAD().String(),
+		Affiliation: affiliation,
+	}
 }
 
 // NewGroupEvent returns event data meant for [Session.propagateEvent] for the primive group event
@@ -1058,14 +1092,14 @@ func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 	for _, p := range evt.Promote {
 		group.Participants = append(group.Participants, GroupParticipant{
 			JID:         p.ToNonAD().String(),
-			Action:      GroupParticipantActionUpdate,
+			Action:      GroupParticipantActionPromote,
 			Affiliation: GroupAffiliationAdmin,
 		})
 	}
 	for _, p := range evt.Demote {
 		group.Participants = append(group.Participants, GroupParticipant{
 			JID:         p.ToNonAD().String(),
-			Action:      GroupParticipantActionUpdate,
+			Action:      GroupParticipantActionDemote,
 			Affiliation: GroupAffiliationNone,
 		})
 	}
@@ -1077,20 +1111,12 @@ func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 // be called when partial data is to be returned.
 func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
 	var participants []GroupParticipant
-	for _, p := range info.Participants {
-		if p.Error > 0 {
+	for i := range info.Participants {
+		p := newGroupParticipant(info.Participants[i])
+		if p.JID == "" {
 			continue
 		}
-		var affiliation = GroupAffiliationNone
-		if p.IsSuperAdmin {
-			affiliation = GroupAffiliationOwner
-		} else if p.IsAdmin {
-			affiliation = GroupAffiliationAdmin
-		}
-		participants = append(participants, GroupParticipant{
-			JID:         p.JID.ToNonAD().String(),
-			Affiliation: affiliation,
-		})
+		participants = append(participants, p)
 	}
 	return Group{
 		JID:  info.JID.ToNonAD().String(),
