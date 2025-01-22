@@ -1,0 +1,42 @@
+when:
+  event: [ push, pull_request ]
+  path: [ pyproject.toml, uv.lock, "**/*.py", "**/*.go", "**/go.mod", "**/go.sum" ]
+
+variables:
+  - &image codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
+
+steps:
+  update-venv:
+    image: *image
+    pull: true
+    commands:
+      - cp -r /venv .venv
+      - uv venv --allow-existing .venv
+      - uv export > req.txt
+      - uv pip install --requirements req.txt --link-mode=copy
+
+  build-go:
+    image: *image
+    environment:
+      CGO_LDFLAGS: "-lgumbo -lfreetype -ljbig2dec -lharfbuzz -ljpeg -lmujs -lopenjp2"
+    commands:
+      - cd slidge_whatsapp
+      - gopy build -output=generated -no-make=true -build-tags="mupdf extlib static" .
+    when:
+      path: [ "**/*.go", "**/go.mod", "**/go.sum" ]
+
+  ruff:
+    image: *image
+    commands:
+      - ruff check
+      - ruff format
+
+  mypy:
+    image: *image
+    commands:
+      - python -m mypy
+
+  test:
+    image: *image
+    commands:
+      - python -m pytest tests

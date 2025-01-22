@@ -18,7 +18,7 @@ services:
         condition: service_started
 
   prosody:
-    image: docker.io/nicocool84/slidge-prosody-dev:latest
+    image: codeberg.org/slidge/prosody-slidge-dev:latest
     ports:
       - "127.0.0.1:5281:5281" # XMPP port for clients to connect to
       - "127.0.0.1:5222:5222" # prosody's http_file_share

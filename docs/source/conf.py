@@ -1,6 +1,9 @@
+from datetime import datetime
+from pathlib import Path
+
 project = "slidge-whatsapp"
-copyright = "2023, deuill"
-author = "deuill"
+copyright = f"{datetime.today().year}, the {project} contributors"
+author = f"the {project} contributors"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -8,10 +11,9 @@ extensions = [
     "sphinx.ext.extlinks",
     "sphinx.ext.viewcode",
     "sphinx.ext.autodoc.typehints",
-    "sphinxarg.ext",
     "autoapi.extension",
-    "slidge_dev_helpers.doap",
-    "slidge_dev_helpers.sphinx_config_obj",
+    "slidge_sphinx_extensions.doap",
+    "slidge_sphinx_extensions.config_obj",
     "sphinx_mdinclude",
 ]
 
@@ -34,3 +36,14 @@ intersphinx_mapping = {
 extlinks = {"xep": ("https://xmpp.org/extensions/xep-%s.html", "XEP-%s")}
 
 html_theme = "furo"
+html_theme_options = {
+    "source_edit_link": f"https://codeberg.org/slidge/{project}/_edit/main/docs/source/{{filename}}",
+    "source_view_link": f"https://codeberg.org/slidge/{project}/src/branch/main/docs/source/{{filename}}",
+    "footer_icons": [
+        {
+            "name": "Codeberg",
+            "url": f"https://codeberg.org/slidge/{project}",
+            "html": Path("codeberg.svg").read_text(),
+        },
+    ],
+}

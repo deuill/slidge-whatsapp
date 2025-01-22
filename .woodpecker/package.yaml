@@ -1,0 +1,28 @@
+when:
+  event: [ push, pull_request ]
+  path: [ "slidge_whatsapp/**/*", "pyproject.toml", "uv.lock" ]
+
+variables:
+  - &image codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
+
+steps:
+  version:
+    image: codeberg.org/slidge/woodpecker-version
+
+  changelog:
+    image: codeberg.org/slidge/woodpecker-generate-changelog
+    pull: true
+
+  build:
+    image: *image
+    commands: uv build
+
+  codeberg-pypi:
+    when:
+      event: push
+    image: *image
+    environment:
+      CODEBERG_TOKEN:
+        from_secret: CODEBERG_TOKEN
+    commands:
+      - uv publish --index codeberg --token $CODEBERG_TOKEN

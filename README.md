@@ -1,11 +1,5 @@
 # slidge-whatsapp
 
-[Home](https://sr.ht/~nicoco/slidge) |
-[Docs](https://slidge.im/slidge-whatsapp) |
-[Issues](https://todo.sr.ht/~nicoco/slidge-whatsapp) |
-[Patches](https://lists.sr.ht/~nicoco/public-inbox) |
-[Chat](xmpp:slidge@conference.nicoco.fr?join)
-
 A
 [feature-rich](https://slidge.im/slidge-whatsapp/features.html)
 [WhatsApp](https://whatsapp.com) to
@@ -14,9 +8,9 @@ A
 [slidge](https://slidge.im) and
 [whatsmeow](https://github.com/tulir/whatsmeow).
 
-[![builds.sr.ht status](https://builds.sr.ht/~nicoco/slidge-whatsapp/commits/master/ci.yml.svg)](https://builds.sr.ht/~nicoco/slidge-whatsapp/commits/master/ci.yml)
-[![containers status](https://builds.sr.ht/~nicoco/slidge-whatsapp/commits/master/container.yml.svg)](https://builds.sr.ht/~nicoco/slidge-whatsapp/commits/master/container.yml)
-[![pypi status](https://badge.fury.io/py/slidge-whatsapp.svg)](https://pypi.org/project/slidge-whatsapp/)
+[![PyPI package version](https://badge.fury.io/py/slidge-whatsapp.svg)](https://pypi.org/project/slidge-whatsapp/)
+[![CI pipeline status](https://ci.codeberg.org/api/badges/14066/status.svg)](https://ci.codeberg.org/repos/14066)
+[![Chat](https://conference.nicoco.fr:5281/muc_badge/slidge@conference.nicoco.fr)](https://conference.nicoco.fr:5281/muc_log/slidge/)
 
 ## Installation
 
@@ -25,7 +19,7 @@ for general info on how to set up an XMPP server component.
 
 ### Containers
 
-From [dockerhub](https://hub.docker.com/r/nicocool84/slidge-whatsapp)
+From [the codeberg package registry](https://codeberg.org/slidge/-/packages?q=&type=container)
 
 ```sh
 # use ravermeister/slidge-whatsapp for arm64 (thanks raver! <3)
@@ -43,11 +37,11 @@ pipx install slidge-whatsapp
 
 # for the bleeding edge
 pipx install slidge-whatsapp==0.0.0.dev0 \
-    --pip-args='--extra-index-url https://slidge.im/repo'
+    --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/'
 
 # to update bleeding edge installs
 pipx install slidge-whatsapp==0.0.0.dev0 \
-    --pip-args='--extra-index-url https://slidge.im/repo' --force
+    --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/' --force
 
 slidge-whatsapp --help
 ```
@@ -62,8 +56,8 @@ sudo apt install ffmpeg
 ## Dev
 
 ```sh
-git clone https://git.sr.ht/~nicoco/slidge
-git clone https://git.sr.ht/~nicoco/slidge-whatsapp
+git clone https://codeberg.org/slidge/slidge
+git clone https://codeberg.org/slidge/slidge-whatsapp
 cd slidge-whatsapp
 docker-compose up
 ```

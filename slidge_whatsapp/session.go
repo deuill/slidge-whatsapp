@@ -11,7 +11,7 @@ import (
 	"time"
 
 	// Internal packages.
-	"git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp/media"
+	"codeberg.org/slidge/slidge-whatsapp/slidge_whatsapp/media"
 
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
