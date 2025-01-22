@@ -187,7 +187,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             )
         self.session.whatsapp.UpdateGroupParticipants(
             self.legacy_id,
-            go.Slice_whatsapp_GroupParticipant(
+            whatsapp.Slice_whatsapp_GroupParticipant(
                 [whatsapp.GroupParticipant(JID=contact.legacy_id, Action=action)]
             ),
         )
