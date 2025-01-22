@@ -16,7 +16,9 @@ if __name__ == "__main__":
         patterns=["*.py"],
         ignore_patterns=["generated/*.py"],
     )
-    gopy_cmd = 'gopy build -output=generated -no-make=true -build-tags="mupdf extlib static" .'
+    gopy_cmd = (
+        'gopy build -output=generated -no-make=true -build-tags="mupdf extlib static" .'
+    )
     gopy_build = ShellCommandTrick(
         shell_command='cd "$(dirname ${watch_src_path})" && '
         + gopy_cmd

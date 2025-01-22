@@ -490,7 +490,9 @@ class Session(BaseSession[str, Recipient]):
         )
 
     async def on_create_group(
-        self, name: str, contacts: list[Contact]  # type:ignore
+        self,
+        name: str,
+        contacts: list[Contact],  # type:ignore
     ):
         """
         Creates a WhatsApp group for the given human-readable name and participant list.

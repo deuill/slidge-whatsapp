@@ -1,4 +1,4 @@
-module git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp
+module codeberg.org/slidge/slidge-whatsapp/slidge_whatsapp
 
 go 1.22.0
 

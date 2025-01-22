@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	// Internal packages.
-	"git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp/media"
+	"codeberg.org/slidge/slidge-whatsapp/slidge_whatsapp/media"
 
 	// Third-party libraries.
 	"go.mau.fi/whatsmeow"

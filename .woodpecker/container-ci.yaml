@@ -1,0 +1,19 @@
+# Build a container with a virtualenv that can be used for tests and to build docs.
+
+when:
+  event: [ manual, cron ]
+
+steps:
+  build-and-push:
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      platforms: linux/amd64
+      repo: codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}
+      registry: codeberg.org
+      auto_tag: true
+      target: woodpecker-${CI_REPO_NAME}
+      username: ${CI_REPO_OWNER}
+      password:
+        from_secret: CODEBERG_TOKEN
+      cache_images:
+        - codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}:buildcache

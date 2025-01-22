@@ -1,0 +1,24 @@
+when:
+  event: [ push, tag, pull_request ]
+  path: [ "slidge_whatsapp/**/*.py", "docs/**/*" ]
+
+steps:
+  build:
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
+    pull: true
+    commands:
+      # the first 2 commands update the virtualenv, which is a no-op unless uv.lock has been modified
+      - uv export > req.txt
+      - uv pip install --requirements req.txt
+      - uv pip install .
+      - cd docs
+      - make html
+
+  publish:
+    image: codeberg.org/slidge/woodpecker-publish-pages
+    pull: true
+    when:
+      event: [ push, tag ]
+    settings:
+      token:
+        from_secret: CODEBERG_TOKEN

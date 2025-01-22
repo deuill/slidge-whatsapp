@@ -1,0 +1,26 @@
+# Generate build caches for containers used by the legacy modules and the CI images
+
+# We cannot do it directly in the container workflow, because buildx does not "magically"
+# merge multi-arch build caches, cf https://github.com/docker/buildx/discussions/1382#discussioncomment-4159926
+
+when:
+  event: [ manual, cron ]
+
+matrix:
+  PLATFORM:
+    - arm64
+    - amd64
+
+steps:
+  build-cache:
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      platforms: linux/${PLATFORM}
+      target: ${CI_REPO_NAME}
+      cache_images:
+        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-${PLATFORM}
+      registry: codeberg.org
+      username: slidge
+      password:
+        from_secret: CODEBERG_TOKEN
+      dry_run: true  # we don't want to push the actual image, just the build cache
