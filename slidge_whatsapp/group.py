@@ -84,7 +84,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         if info.Name:
             self.name = info.Name
         if info.Subject.Subject:
-            self.subject = info.Subject.Subject
+            self.subject = remove_empty_lines(info.Subject.Subject)
             if info.Subject.SetAt:
                 set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
                 self.subject_date = set_at
@@ -254,3 +254,7 @@ def replace_whatsapp_mentions(text: str, participants: dict[str, str]):
         return participants.get(group.replace("@", "+"), group)
 
     return re.sub(r"@\d+", match, text)
+
+
+def remove_empty_lines(text: str) -> str:
+    return "\n".join(line for line in text.split("\n") if line.strip()).strip()
