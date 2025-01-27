@@ -16,7 +16,7 @@ keywords = ["xmpp", "gateway", "bridge", "instant messaging", "whatsapp"]
 dependencies = [
     "linkpreview>=0.11.0",
     "pybindgen>=0.22.1",
-    "slidge>=0.2.3.post1",
+    "slidge>=0.2.4",
 ]
 
 [project.urls]
@@ -91,6 +91,10 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["I"]
+
+[tool.git-cliff.remote.gitea]
+owner = "slidge"
+repo = "slidge-whatsapp"
 
 [tool.git-cliff.changelog]
 header = """

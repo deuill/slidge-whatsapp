@@ -76,7 +76,7 @@ COPY --from=codeberg.org/slidge/prosody-slidge-dev:latest /etc/prosody/certs/loc
 RUN update-ca-certificates
 
 RUN apt update -y && apt install -y ffmpeg
-RUN pip install watchdog[watchmedo]
+RUN uv pip install watchdog[watchmedo]
 ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
 
 COPY ./watcher.py /
