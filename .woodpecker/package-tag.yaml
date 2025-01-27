@@ -25,7 +25,7 @@ steps:
   build:
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      platforms: linux/amd64,linux/arm64
+      platforms: linux/amd64  #,linux/arm64 is too slow!
       build_args:
         PYTHONVER: "${PYTHONVER}"
       target: wheel
