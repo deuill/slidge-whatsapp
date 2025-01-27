@@ -108,8 +108,8 @@ body = """
     {% for commit in commits %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
-            {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif %}\
+            {{ commit.message | split(pat="\n") | first | upper_first | trim }}\
+            {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif %} \
     {% endfor %}
 {% endfor %}\n
 """
@@ -118,6 +118,8 @@ footer = """
 """
 
 [tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = false
 commit_parsers = [
   { message = "^feat", group = "<!-- 0 -->🚀 Features" },
   { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
