@@ -578,6 +578,7 @@ func convertAttachment(attach *Attachment) error {
 			// these are some times misdetected as such.
 			if s.VideoWidth == 0 && s.VideoHeight == 0 && s.AudioSampleRate > 0 && s.Duration > 0 {
 				spec = voiceMessageSpec
+				spec.SourceMIME = media.TypeM4A
 			}
 		}
 	default:
@@ -586,6 +587,10 @@ func convertAttachment(attach *Attachment) error {
 	}
 
 	// Convert attachment between file-types, if source MIME matches the known list of convertable types.
+	if spec.SourceMIME == "" {
+		spec.SourceMIME = detectedMIME
+	}
+
 	data, err := media.Convert(ctx, attach.Data, &spec)
 	if err != nil {
 		return fmt.Errorf("failed converting attachment: %w", err)

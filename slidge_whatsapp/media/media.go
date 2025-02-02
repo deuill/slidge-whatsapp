@@ -107,6 +107,8 @@ type Spec struct {
 	VideoHeight      int        // The height of the video stream, in pixels.
 	VideoFilter      string     // A complex filter to apply to the video stream.
 
+	Duration time.Duration // The duration of the audio or video stream.
+
 	ImageWidth     int // The width of the image, in pixels.
 	ImageHeight    int // The height of the image, in pixels.
 	ImageQuality   int // Image quality for lossy image formats, typically a value from 1 to 100.
@@ -114,8 +116,8 @@ type Spec struct {
 
 	DocumentPage int // The number of pages for the document.
 
-	Duration      time.Duration // The duration of the audio or video stream.
-	StripMetadata bool          // Whether or not to remove any container-level metadata present in the stream.
+	SourceMIME    MIMEType // The MIME type for the source data. If not set, this is derived from the source data.
+	StripMetadata bool     // Whether or not to remove any container-level metadata present in the stream.
 }
 
 // CommandLineArgs returns the current [Spec] as a list of command-line arguments meant for FFMPEG
@@ -216,7 +218,10 @@ func (s Spec) commandLineArgs() ([]string, error) {
 // specification given. For information on how these definitions affect media conversions, see the
 // documentation for the [Spec] type.
 func Convert(ctx context.Context, data []byte, spec *Spec) ([]byte, error) {
-	var from, to = DetectMIMEType(data), spec.MIME.BaseMediaType()
+	var from, to = spec.SourceMIME, spec.MIME.BaseMediaType()
+	if from == "" {
+		from = DetectMIMEType(data)
+	}
 	switch from {
 	case TypeOgg, TypeM4A:
 		switch to {
