@@ -24,7 +24,7 @@ Homepage = "https://codeberg.org/slidge/slidge-whatsapp"
 Issues = "https://codeberg.org/slidge/slidge-whatsapp/issues"
 Repository = "https://codeberg.org/slidge/slidge-whatsapp"
 "Chat room" = "https://conference.nicoco.fr:5281/muc_log/slidge/"
-Documentation = "https://slidge.codeberg.page/docs/slidge-whatsapp/main"
+Documentation = "https://slidge.im/docs/slidge-whatsapp/main"
 
 [project.scripts]
 slidge-whatsapp = "slidge_whatsapp:main"

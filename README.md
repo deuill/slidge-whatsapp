@@ -14,7 +14,7 @@ A
 
 ## Installation
 
-Refer to the [slidge admin documentation](https://slidge.im/core/admin/)
+Refer to the [slidge admin documentation](https://slidge.im/docs/slidge/main/admin/)
 for general info on how to set up an XMPP server component.
 
 ### Containers

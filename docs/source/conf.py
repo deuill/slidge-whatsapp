@@ -30,7 +30,7 @@ autoapi_ignore = ["generated/*"]
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "slixmpp": ("https://slixmpp.readthedocs.io/en/latest/", None),
-    "slidge": ("https://slidge.im/core/", None),
+    "slidge": ("https://slidge.im/docs/slidge/main/", None),
 }
 
 extlinks = {"xep": ("https://xmpp.org/extensions/xep-%s.html", "XEP-%s")}
