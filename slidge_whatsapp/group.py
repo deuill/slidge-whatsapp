@@ -27,6 +27,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     REACTIONS_SINGLE_EMOJI = True
     _ALL_INFO_FILLED_ON_STARTUP = True
 
+    has_been_joined = False
+
     async def update_info(self):
         try:
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
@@ -95,6 +97,11 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 if name := participant.nickname:
                     self.subject_setter = name
         self.session.whatsapp_participants[self.legacy_id] = info.Participants
+        # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
+        # we need to do that to actually update the participant list.
+        if self.has_been_joined:
+            async for _ in self.fill_participants():
+                pass
 
     async def fill_participants(self) -> AsyncIterator[Participant]:
         await self.session.bookmarks.ready
@@ -124,6 +131,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                     participant.affiliation = "member"
                     participant.role = "participant"
                 yield participant
+        self.has_been_joined = True
 
     async def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(
