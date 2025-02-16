@@ -22,8 +22,8 @@ for general info on how to set up an XMPP server component.
 From [the codeberg package registry](https://codeberg.org/slidge/-/packages?q=&type=container)
 
 ```sh
-# use ravermeister/slidge-whatsapp for arm64 (thanks raver! <3)
-docker run docker.io/nicocool84/slidge-whatsapp
+# use docker.io/ravermeister/slidge-whatsapp for arm64 (thanks raver! <3)
+docker run codeberg.org/slidge/slidge-whatsapp
 ```
 
 ### Python package
