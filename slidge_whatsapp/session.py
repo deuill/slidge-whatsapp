@@ -590,30 +590,32 @@ class Session(BaseSession[str, Recipient]):
         if not match:
             return None
         url = match.group("url")
-        async with self.http.get(url) as resp:
-            if resp.status != 200:
-                self.log.debug(
-                    "Could not generate a preview for %s because response status was %s",
-                    url,
-                    resp.status,
-                )
-                return None
-            if resp.content_type != "text/html":
-                self.log.debug(
-                    "Could not generate a preview for %s because content type is %s",
-                    url,
-                    resp.content_type,
-                )
-                return None
-            try:
-                html = await resp.text()
-            except Exception as e:
-                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
-                return None
-            preview = LinkPreview(Link(url, html))
-            if not preview.title:
-                return None
-            try:
+        try:
+            async with self.http.get(url) as resp:
+                if resp.status != 200:
+                    self.log.debug(
+                        "Could not generate a preview for %s because response status was %s",
+                        url,
+                        resp.status,
+                    )
+                    return None
+                if resp.content_type != "text/html":
+                    self.log.debug(
+                        "Could not generate a preview for %s because content type is %s",
+                        url,
+                        resp.content_type,
+                    )
+                    return None
+                try:
+                    html = await resp.text()
+                except Exception as e:
+                    self.log.debug(
+                        "Could not generate a preview for %s", url, exc_info=e
+                    )
+                    return None
+                preview = LinkPreview(Link(url, html))
+                if not preview.title:
+                    return None
                 thumbnail = (
                     await get_url_bytes(self.http, preview.image)
                     if preview.image
@@ -635,9 +637,9 @@ class Session(BaseSession[str, Recipient]):
                         else go.Slice_byte()
                     ),
                 )
-            except Exception as e:
-                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
-                return None
+        except Exception as e:
+            self.log.debug("Could not generate a preview for %s", url, exc_info=e)
+            return None
 
     async def __get_location(self, text: str) -> Optional[whatsapp.Location]:
         match = search(GEO_URI_SEARCH_REGEX, text)
