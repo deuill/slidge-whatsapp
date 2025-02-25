@@ -29,10 +29,10 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     async def update_info(self):
         try:
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
+            # empty avatar response should be interpreted as "no change", but what is
+            # the response for "group does not have an avatar anymore?"
             if avatar.URL and self.avatar != avatar.ID:
                 await self.set_avatar(avatar.URL, avatar.ID)
-            elif avatar.URL == "":
-                await self.set_avatar(None)
         except RuntimeError as err:
             self.session.log.error(
                 "Failed getting avatar for group %s: %s", self.legacy_id, err
