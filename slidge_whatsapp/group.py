@@ -25,7 +25,6 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     HAS_DESCRIPTION = False
     REACTIONS_SINGLE_EMOJI = True
-    _ALL_INFO_FILLED_ON_STARTUP = True
 
     async def update_info(self):
         try:
@@ -95,6 +94,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 if name := participant.nickname:
                     self.subject_setter = name
         self.session.whatsapp_participants[self.legacy_id] = info.Participants
+        self.n_participants = len(info.Participants)
         # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
         # we need to do that to actually update the participant list.
         if self._participants_filled:
