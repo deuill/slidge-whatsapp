@@ -95,6 +95,11 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 if name := participant.nickname:
                     self.subject_setter = name
         self.session.whatsapp_participants[self.legacy_id] = info.Participants
+        # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
+        # we need to do that to actually update the participant list.
+        if self._participants_filled:
+            async for _ in self.fill_participants():
+                pass
 
     async def fill_participants(self) -> AsyncIterator[Participant]:
         await self.session.bookmarks.ready
