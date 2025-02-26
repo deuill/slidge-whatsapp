@@ -31,7 +31,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
             if avatar.URL and self.avatar != avatar.ID:
                 await self.set_avatar(avatar.URL, avatar.ID)
-            elif avatar.URL == "":
+            elif avatar.URL == "" and avatar.ID == "":
                 await self.set_avatar(None)
         except RuntimeError as err:
             self.session.log.error(

@@ -57,7 +57,7 @@ class Roster(LegacyRoster[str, Contact]):
             avatar = self.session.whatsapp.GetAvatar(data.JID, contact.avatar or "")
             if avatar.URL and contact.avatar != avatar.ID:
                 await contact.set_avatar(avatar.URL, avatar.ID)
-            elif avatar.URL == "":
+            elif avatar.URL == "" and avatar.ID == "":
                 await contact.set_avatar(None)
         except RuntimeError as err:
             self.session.log.error(

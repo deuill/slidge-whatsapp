@@ -535,15 +535,15 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 	}
 
 	p, err := s.client.GetProfilePictureInfo(jid, &whatsmeow.GetProfilePictureParams{ExistingID: avatarID})
-	if err != nil &&
-		!errors.Is(err, whatsmeow.ErrProfilePictureNotSet) &&
-		!errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized) {
+	if errors.Is(err, whatsmeow.ErrProfilePictureNotSet) || errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized) {
+		return Avatar{}, nil
+	} else if err != nil {
 		return Avatar{}, fmt.Errorf("Could not get avatar: %s", err)
 	} else if p != nil {
 		return Avatar{ID: p.ID, URL: p.URL}, nil
 	}
 
-	return Avatar{}, nil
+	return Avatar{ID: avatarID}, nil
 }
 
 // SetAvatar updates the profile picture for the Contact or Group JID given; it can also update the
