@@ -57,7 +57,7 @@ RUN gopy build -output=generated -no-make=true -build-tags="mupdf extlib static"
 FROM builder AS woodpecker-slidge-whatsapp
 # In CI we sometimes move /venv to .venv, then update it for the whole workflow.
 ENV PATH=".venv/bin:$PATH"
-RUN uv sync --frozen --no-install-project --all-extras
+RUN uv sync --frozen --no-install-project --all-extras --all-groups
 
 FROM codeberg.org/slidge/slidge-base AS slidge-whatsapp
 

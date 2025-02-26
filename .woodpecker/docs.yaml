@@ -1,16 +1,14 @@
 when:
   event: [ push, tag, pull_request ]
-  path: [ "slidge_whatsapp/**/*.py", "docs/**/*" ]
+  path: [ "slidge_whatsapp/**/*.py", "docs/**/*", ".woodpecker/docs.yaml" ]
 
 steps:
   build:
     image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
     pull: true
     commands:
-      # the first 2 commands update the virtualenv, which is a no-op unless uv.lock has been modified
-      - uv export > req.txt
-      - uv pip install --requirements req.txt
-      - uv pip install .
+      # the first command updates the virtualenv, which is a no-op unless uv.lock has been modified
+      - uv sync --frozen --all-groups --no-install-project
       - cd docs
       - make html
 
