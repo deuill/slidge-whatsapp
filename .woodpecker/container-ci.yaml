@@ -2,6 +2,7 @@
 
 when:
   event: [ manual, cron ]
+  cron: container-ci
 
 steps:
   build-and-push:

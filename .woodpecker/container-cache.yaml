@@ -5,6 +5,7 @@
 
 when:
   event: [ manual, cron ]
+  cron: container-cache
 
 matrix:
   PLATFORM:

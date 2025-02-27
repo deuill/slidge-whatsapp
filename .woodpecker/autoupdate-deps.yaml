@@ -1,0 +1,28 @@
+when:
+  event: [ cron, manual ]
+  cron: lockfile
+
+variables:
+  - &image codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
+
+steps:
+  refresh-deps:
+    image: *image
+    pull: true
+    environment:
+      CODEBERG_TOKEN:
+        from_secret: CODEBERG_TOKEN
+    commands:
+      - rm uv.lock
+      - uv lock --refresh
+      - git diff
+      - git config --global user.email "c3p0@slidge.im"
+      - git config --global user.name "c3p0"
+      - |
+        if git commit uv.lock -m 'build(lockfile): automatic update'; then
+          git remote set-url origin https://$CODEBERG_TOKEN@codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}.git
+          git push -u origin main
+          echo Pushed lockfile update
+        else
+          echo Nothing to update, exiting
+        fi
