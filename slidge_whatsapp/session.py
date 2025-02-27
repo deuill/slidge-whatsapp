@@ -160,7 +160,9 @@ class Session(BaseSession[str, Recipient]):
             self.send_gateway_message(MESSAGE_LOGGED_OUT)
             self.send_gateway_status("Logged out", show="away")
         elif event == whatsapp.EventContact:
-            await self.contacts.add_whatsapp_contact(data.Contact)
+            contact = await self.contacts.add_whatsapp_contact(data.Contact)
+            if contact is not None:
+                await contact.add_to_roster()
         elif event == whatsapp.EventGroup:
             await self.bookmarks.add_whatsapp_group(data.Group)
         elif event == whatsapp.EventPresence:
