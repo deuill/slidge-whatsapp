@@ -562,6 +562,13 @@ class Session(BaseSession[str, Recipient]):
                 body = body + ";u=%d" % message.Location.Accuracy
         if message.IsForwarded:
             body = "↱ Forwarded message:\n " + add_quote_prefix(body)
+        if message.Album.IsAlbum:
+            body = body + "Album: "
+            if message.Album.ImageCount > 0:
+                body = body + "%d photos, " % message.Album.ImageCount
+            if message.Album.VideoCount > 0:
+                body = body + "%d videos" % message.Album.VideoCount
+            body = body.rstrip(" ,:")
         return body
 
     async def __get_reply_to(

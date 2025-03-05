@@ -165,6 +165,7 @@ type Message struct {
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
 	Preview     Preview      // A short description for the URL provided in the message body, if any.
 	Location    Location     // The location metadata for messages, if any.
+	Album       Album        // The image album message, if any.
 	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
 	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
 	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
@@ -226,6 +227,13 @@ type Location struct {
 	Name    string
 	Address string
 	URL     string
+}
+
+// A Album message represents a collection of media files, typically images and videos.
+type Album struct {
+	IsAlbum    bool // Whether or not the message is an album, regardless of calculated media counts.
+	ImageCount int  // The calculated amount of images in the album, might not be accurate.
+	VideoCount int  // The calculated amount of videos in the album, might not be accurate.
 }
 
 // NewMessageEvent returns event data meant for [Session.propagateEvent] for the primive message
@@ -302,6 +310,16 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 			Longitude: l.GetDegreesLongitude(),
 			Accuracy:  int(l.GetAccuracyInMeters()),
 			IsLive:    true,
+		}
+		return EventMessage, &EventPayload{Message: message}
+	}
+
+	// Handle "album" messages, denoting a grouping of media messages to follow.
+	if a := evt.Message.GetAlbumMessage(); a != nil {
+		message.Album = Album{
+			IsAlbum:    true,
+			ImageCount: int(a.GetExpectedImageCount()),
+			VideoCount: int(a.GetExpectedVideoCount()),
 		}
 		return EventMessage, &EventPayload{Message: message}
 	}
