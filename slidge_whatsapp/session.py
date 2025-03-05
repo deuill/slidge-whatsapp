@@ -138,12 +138,12 @@ class Session(BaseSession[str, Recipient]):
             # not updated.
             if self.__connected.done():
                 if data.Connect.Error != "":
+                    self.send_gateway_status("Connection error", show="dnd")
+                    self.send_gateway_message(data.Connect.Error)
+                else:
                     self.send_gateway_status(
                         self.__get_connected_status_message(), show="chat"
                     )
-                else:
-                    self.send_gateway_status("Connection error", show="dnd")
-                    self.send_gateway_message(data.Connect.Error)
             elif data.Connect.Error != "":
                 self.xmpp.loop.call_soon_threadsafe(
                     self.__connected.set_exception,
