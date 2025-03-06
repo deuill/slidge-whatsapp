@@ -40,6 +40,7 @@ RUN go install golang.org/x/tools/cmd/goimports@latest
 
 COPY uv.lock pyproject.toml /build/
 
+RUN uv venv /venv --relocatable
 RUN uv sync --frozen --no-install-project --no-dev
 RUN ln -s /venv/lib/python$PYTHONVER /venv/lib/python
 
