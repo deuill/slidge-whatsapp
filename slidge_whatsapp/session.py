@@ -265,6 +265,17 @@ class Session(BaseSession[str, Recipient]):
             contact.react(
                 legacy_msg_id=message.ID, emojis=emojis, carbon=message.IsCarbon
             )
+        elif message.Kind == whatsapp.MessagePoll:
+            body = "🗳 %s" % message.Poll.Title
+            for option in message.Poll.Options:
+                body = body + "\n☐ %s" % option.Title
+            contact.send_text(
+                body=body,
+                legacy_msg_id=message.ID,
+                when=message_timestamp,
+                reply_to=reply_to,
+                carbon=message.IsCarbon,
+            )
         for receipt in message.Receipts:
             await self.handle_receipt(receipt)
         for reaction in message.Reactions:

@@ -145,6 +145,7 @@ const (
 	MessageRevoke
 	MessageReaction
 	MessageAttachment
+	MessagePoll
 )
 
 // A Message represents one of many kinds of bidirectional communication payloads, for example, a
@@ -165,6 +166,7 @@ type Message struct {
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
 	Preview     Preview      // A short description for the URL provided in the message body, if any.
 	Location    Location     // The location metadata for messages, if any.
+	Poll        Poll         // The multiple-choice poll contained in the message, if any.
 	Album       Album        // The image album message, if any.
 	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
 	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
@@ -227,6 +229,18 @@ type Location struct {
 	Name    string
 	Address string
 	URL     string
+}
+
+// A Poll represents a multiple-choice question, on which each choice might be voted for one or more
+// times.
+type Poll struct {
+	Title   string       // The human-readable name of this poll.
+	Options []PollOption // The list of choices to vote on in the poll.
+}
+
+// A PollOption represents an individual choice within a broader poll.
+type PollOption struct {
+	Title string // The human-readable name for the poll option.
 }
 
 // A Album message represents a collection of media files, typically images and videos.
@@ -310,6 +324,25 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 			Longitude: l.GetDegreesLongitude(),
 			Accuracy:  int(l.GetAccuracyInMeters()),
 			IsLive:    true,
+		}
+		return EventMessage, &EventPayload{Message: message}
+	}
+
+	// Handle poll messages.
+	for _, p := range []*waE2E.PollCreationMessage{
+		evt.Message.GetPollCreationMessageV3(),
+		evt.Message.GetPollCreationMessageV2(),
+		evt.Message.GetPollCreationMessage(),
+	} {
+		if p == nil {
+			continue
+		}
+		message.Kind = MessagePoll
+		message.Poll = Poll{Title: p.GetName()}
+		for _, o := range p.GetOptions() {
+			message.Poll.Options = append(message.Poll.Options, PollOption{
+				Title: o.GetOptionName(),
+			})
 		}
 		return EventMessage, &EventPayload{Message: message}
 	}
