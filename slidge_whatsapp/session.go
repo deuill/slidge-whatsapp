@@ -305,7 +305,6 @@ func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 		}
 
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
-		payload.ExtendedTextMessage.CanonicalURL = &message.Preview.URL
 		payload.ExtendedTextMessage.Title = &message.Preview.Title
 		payload.ExtendedTextMessage.Description = &message.Preview.Description
 
