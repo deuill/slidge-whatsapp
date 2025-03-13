@@ -145,11 +145,11 @@ wheels = [
 
 [[package]]
 name = "attrs"
-version = "25.1.0"
+version = "25.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/49/7c/fdf464bcc51d23881d110abd74b512a42b3d5d376a55a831b44c603ae17f/attrs-25.1.0.tar.gz", hash = "sha256:1c97078a80c814273a76b2a298a932eb681c87415c11dee0a6921de7f1b02c3e", size = 810562 }
+sdist = { url = "https://files.pythonhosted.org/packages/69/82/3c4e1d44f3cbaa2a578127d641fe385ba3bff6c38b789447ae11a21fa413/attrs-25.2.0.tar.gz", hash = "sha256:18a06db706db43ac232cce80443fcd9f2500702059ecf53489e3c5a3f417acaf", size = 812038 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/30/d4986a882011f9df997a55e6becd864812ccfcd821d64aac8570ee39f719/attrs-25.1.0-py3-none-any.whl", hash = "sha256:c75a69e28a550a7e93789579c22aa26b0f5b83b75dc4e08fe092980051e1090a", size = 63152 },
+    { url = "https://files.pythonhosted.org/packages/03/33/7a7388b9ef94aab40539939d94461ec682afbd895458945ed25be07f03f6/attrs-25.2.0-py3-none-any.whl", hash = "sha256:611344ff0a5fed735d86d7784610c84f8126b95e549bcad9ff61b4242f2d386b", size = 64016 },
 ]
 
 [[package]]
@@ -1148,8 +1148,11 @@ dependencies = [
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ca/c3/bfeeab121935bcf5e982ab67f347cfd2d752cbeaa1c794583849c5a65c7a/slixmpp-1.9.1.tar.gz", hash = "sha256:26d05a1700f7ea492a279c9f53707679d322bbe84c87ab97a87810302237916c", size = 708818 }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/17/0df0f190fd83fc43001f53664f2d6f7b2944e67a3ad4cad074fbae9c401d/slixmpp-1.9.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:abf22d0daa7e7fef7423e9fff9fe8e58e91ac252408fa1b51b805efd672aa56c", size = 989324 },
     { url = "https://files.pythonhosted.org/packages/c3/73/7f03ebb80d8392d42e811f1e0a37248a6aaa7fe08a3009d5d6e9173a9a2a/slixmpp-1.9.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d61c39d55a709991012fe53eefce4175032f6ca8912ed71740cfe54a60aeda36", size = 992712 },
+    { url = "https://files.pythonhosted.org/packages/7b/30/ae5825d6c6f399a86a32fefaeeea75e117546efb54cc3d242e0615ba8fab/slixmpp-1.9.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:511dbc9f4e8645035d5fae59fde0d3ebb46c2b180270ffce76a3e52941198ed0", size = 988339 },
     { url = "https://files.pythonhosted.org/packages/8a/c7/583862edcf8171eaafeef534a89db1c81aed0736ff3c2784969bd0812765/slixmpp-1.9.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f39b30a81573803353e6c2e050343b7d77be73b614c2171810ad15b199aa27c9", size = 991962 },
+    { url = "https://files.pythonhosted.org/packages/aa/d5/643c683995b80911d1ef3b669dfa39a03ed3af21e302a591191889548f75/slixmpp-1.9.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e31d47aa7c189bfc6f0724621817c186434fe1e85b3d82bca8f514be38a2eab6", size = 988179 },
     { url = "https://files.pythonhosted.org/packages/9e/85/8af9a942a5333e02cfc57cdc5c0426a5b0f76a74498c9449dd620def266b/slixmpp-1.9.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ef204ca375020c6b205d0db216e9448ce10307a828b62703415713d3bba25fde", size = 991524 },
 ]
 
