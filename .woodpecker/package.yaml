@@ -1,6 +1,6 @@
 when:
   event: [ push, pull_request ]
-  path: [ "slidge_whatsapp/**/*", "pyproject.toml", "uv.lock" ]
+  path: [ "${CI_REPO_NAME}/**/*", "pyproject.toml", "uv.lock", "README.md" ]
 
 variables:
   - &image codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
@@ -8,6 +8,7 @@ variables:
 steps:
   version:
     image: codeberg.org/slidge/woodpecker-version
+    pull: true
 
   changelog:
     image: codeberg.org/slidge/woodpecker-generate-changelog

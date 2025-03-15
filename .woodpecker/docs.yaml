@@ -1,6 +1,6 @@
 when:
-  event: [ push, tag, pull_request ]
-  path: [ "slidge_whatsapp/**/*.py", "docs/**/*" ]
+  event: [push, tag, pull_request]
+  path: ["${CI_REPO_NAME}/**/*.py", "docs/**/*", "README.md"]
 
 steps:
   build:
@@ -18,7 +18,7 @@ steps:
     image: codeberg.org/slidge/woodpecker-publish-pages
     pull: true
     when:
-      event: [ push, tag ]
+      event: [push, tag]
     settings:
       token:
         from_secret: CODEBERG_TOKEN

@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -957,6 +956,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-asyncio"
+version = "0.25.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f2/a8/ecbc8ede70921dd2f544ab1cadd3ff3bf842af27f87bbdea774c7baa1d38/pytest_asyncio-0.25.3.tar.gz", hash = "sha256:fc1da2cf9f125ada7e710b4ddad05518d4cee187ae9412e9ac9271003497f07a", size = 54239 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/17/3493c5624e48fd97156ebaec380dcaafee9506d7e2c46218ceebbb57d7de/pytest_asyncio-0.25.3-py3-none-any.whl", hash = "sha256:9e89518e0f9bd08928f97a3482fdc4e244df17529460bc038291ccaf8f85c7c3", size = 19467 },
+]
+
+[[package]]
 name = "python-magic"
 version = "0.4.27"
 source = { registry = "https://pypi.org/simple" }
@@ -1110,12 +1121,11 @@ dev = [
     { name = "furo" },
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "ruff" },
     { name = "slidge-sphinx-extensions" },
     { name = "sphinx-autoapi" },
     { name = "sphinx-mdinclude" },
-    { name = "types-beautifulsoup4" },
-    { name = "types-requests" },
 ]
 
 [package.metadata]
@@ -1129,12 +1139,11 @@ dev = [
     { name = "furo", specifier = ">=2024.8.6" },
     { name = "mypy", specifier = ">=1.14.1" },
     { name = "pytest", specifier = ">=8.3.4" },
+    { name = "pytest-asyncio", specifier = ">=0.25.3" },
     { name = "ruff", specifier = ">=0.9.1" },
     { name = "slidge-sphinx-extensions", specifier = ">=0.1.0", index = "https://codeberg.org/api/packages/slidge/pypi/simple" },
     { name = "sphinx-autoapi", specifier = ">=3.4.0" },
     { name = "sphinx-mdinclude", specifier = ">=0.6.2" },
-    { name = "types-beautifulsoup4", specifier = ">=4.12.0.20241020" },
-    { name = "types-requests", specifier = ">=2.32.0.20241016" },
 ]
 
 [[package]]
@@ -1342,39 +1351,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d1/17/fc026b10f448e25413e4cc692c9ca00cc8ef0e4022a1dd8d7b90761c9be9/thumbhash-0.1.2.tar.gz", hash = "sha256:ef4e6398f93f3b5ad480dc8e3a3b3a200813c86a8857fb069f8478be809f8247", size = 13766 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9a/64/0b5d39612708e892ca67934a0d98b2a2b06aabe8261be800b5db54f9702e/thumbhash-0.1.2-py3-none-any.whl", hash = "sha256:5dbddde2349c35c65d70af11637e9c89a97a2b5a134f3e14bcf2a5dd82522a22", size = 5112 },
-]
-
-[[package]]
-name = "types-beautifulsoup4"
-version = "4.12.0.20250204"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "types-html5lib" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/11/6c/00fd71754ac3babe121c73b52e0de7ec05acd627edcb7ee652223c084d69/types_beautifulsoup4-4.12.0.20250204.tar.gz", hash = "sha256:f083d8edcbd01279f8c3995b56cfff2d01f1bb894c3b502ba118d36fbbc495bf", size = 16641 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b1/ec/9097e9f7f5901e4d7834c7e0bc8f775f9ffa448ae31471457a1ebafeb4c5/types_beautifulsoup4-4.12.0.20250204-py3-none-any.whl", hash = "sha256:57ce9e75717b63c390fd789c787d267a67eb01fa6d800a03b9bdde2e877ed1eb", size = 17061 },
-]
-
-[[package]]
-name = "types-html5lib"
-version = "1.1.11.20241018"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b6/9d/f6fbcc8246f5e46845b4f989c4e17e6fb3ce572f7065b185e515bf8a3be7/types-html5lib-1.1.11.20241018.tar.gz", hash = "sha256:98042555ff78d9e3a51c77c918b1041acbb7eb6c405408d8a9e150ff5beccafa", size = 11370 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ba/7c/f862b1dc31268ef10fe95b43dcdf216ba21a592fafa2d124445cd6b92e93/types_html5lib-1.1.11.20241018-py3-none-any.whl", hash = "sha256:3f1e064d9ed2c289001ae6392c84c93833abb0816165c6ff0abfc304a779f403", size = 17292 },
-]
-
-[[package]]
-name = "types-requests"
-version = "2.32.0.20250306"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/1a/beaeff79ef9efd186566ba5f0d95b44ae21f6d31e9413bcfbef3489b6ae3/types_requests-2.32.0.20250306.tar.gz", hash = "sha256:0962352694ec5b2f95fda877ee60a159abdf84a0fc6fdace599f20acb41a03d1", size = 23012 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/99/26/645d89f56004aa0ba3b96fec27793e3c7e62b40982ee069e52568922b6db/types_requests-2.32.0.20250306-py3-none-any.whl", hash = "sha256:25f2cbb5c8710b2022f8bbee7b2b66f319ef14aeea2f35d80f18c9dbf3b60a0b", size = 20673 },
 ]
 
 [[package]]

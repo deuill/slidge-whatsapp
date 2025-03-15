@@ -2,7 +2,7 @@ slidge-whatsapp
 ===============
 
 A
-`feature-rich <https://slidge.im/slidge-whatsapp/features.html>`_
+`feature-rich <https://slidge.im/docs/slidge-whatsapp/main/features.html>`_
 `WhatsApp <https://whatsapp.com>`_ to
 `XMPP <https://xmpp.org/>`_ puppeteering
 `gateway <https://xmpp.org/extensions/xep-0100.html>`_, based on

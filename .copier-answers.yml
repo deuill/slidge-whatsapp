@@ -1,0 +1,62 @@
+# Do not edit manually!
+# Changes here will be overwritten by copier.
+# https://copier.readthedocs.io/
+_commit: 1865b7e
+_src_path: git+https://codeberg.org/slidge/legacy-module-template
+authors:
+-   email: alex@deuill.org
+    name: deuill
+-   email: nicoco@nicoco.fr
+    name: nicoco
+ci_id: 14066
+custom_build_system: '[[tool.poetry.include]]
+
+    path = "slidge_whatsapp"
+
+
+    [[tool.poetry.include]]
+
+    path = "slidge_whatsapp/generated/*.py"
+
+    format = ["wheel"]
+
+
+    [[tool.poetry.include]]
+
+    path = "slidge_whatsapp/generated/*.so"
+
+    format = ["wheel"]
+
+
+    [tool.poetry.build]
+
+    script = "build.py"
+
+
+    [build-system]
+
+    requires = ["poetry-core", "pybindgen"]
+
+    build-backend = "poetry.core.masonry.api"
+
+    '
+custom_readme_head: ''
+custom_readme_tail: ''
+dependencies:
+- linkpreview>=0.11.0
+- slidge>=0.2.4,<0.3
+dev_dependencies: []
+intersphinx_mappings: []
+lint_excludes:
+- slidge_whatsapp/generated
+mypy_ignores:
+- linkpreview
+project_name: slidge-whatsapp
+requires_lottie: false
+silo:
+    lib:
+        name: whatsmeow
+        url: https://github.com/tulir/whatsmeow
+    name: WhatsApp
+    url: https://whatsapp.com
+uv_sources: []

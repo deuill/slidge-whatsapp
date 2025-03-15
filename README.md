@@ -1,7 +1,7 @@
 # slidge-whatsapp
 
 A
-[feature-rich](https://slidge.im/slidge-whatsapp/features.html)
+[feature-rich](https://slidge.im/docs/slidge-whatsapp/main/features.html)
 [WhatsApp](https://whatsapp.com) to
 [XMPP](https://xmpp.org/) puppeteering
 [gateway](https://xmpp.org/extensions/xep-0100.html), based on
@@ -10,7 +10,8 @@ A
 
 [![PyPI package version](https://badge.fury.io/py/slidge-whatsapp.svg)](https://pypi.org/project/slidge-whatsapp/)
 [![CI pipeline status](https://ci.codeberg.org/api/badges/14066/status.svg)](https://ci.codeberg.org/repos/14066)
-[![Chat](https://conference.nicoco.fr:5281/muc_badge/slidge@conference.nicoco.fr)](https://conference.nicoco.fr:5281/muc_log/slidge/)
+[![Chat](https://conference.nicoco.fr:5281/muc_badge/slidge@conference.nicoco.fr)](https://slidge.im/xmpp-web/#/guest?join=slidge@conference.nicoco.fr)
+
 
 ## Installation
 
@@ -19,11 +20,11 @@ for general info on how to set up an XMPP server component.
 
 ### Containers
 
-From [the codeberg package registry](https://codeberg.org/slidge/-/packages?q=&type=container)
+From [the codeberg package registry](https://codeberg.org/slidge/-/packages/container/slidge-whatsapp/latest)
 
 ```sh
 # use docker.io/ravermeister/slidge-whatsapp for arm64 (thanks raver! <3)
-docker run codeberg.org/slidge/slidge-whatsapp
+docker run codeberg.org/slidge/slidge-whatsapp  # works with podman too
 ```
 
 ### Python package
@@ -53,11 +54,14 @@ example, in Debian/Ubuntu:
 sudo apt install ffmpeg
 ```
 
+## Documentation
+
+Hosted on [codeberg pages](https://slidge.im/docs/slidge-whatsapp/main/).
+
 ## Dev
 
 ```sh
-git clone https://codeberg.org/slidge/slidge
 git clone https://codeberg.org/slidge/slidge-whatsapp
 cd slidge-whatsapp
-docker-compose up
+docker-compose up  # works with podman-compose too
 ```

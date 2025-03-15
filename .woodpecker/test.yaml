@@ -34,7 +34,7 @@ steps:
   mypy:
     image: *image
     commands:
-      - python -m mypy
+      - mypy
 
   test:
     image: *image
