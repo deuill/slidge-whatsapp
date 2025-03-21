@@ -63,3 +63,4 @@ steps:
       api_key:
         from_secret: CODEBERG_TOKEN
       note: CHANGELOG
+
