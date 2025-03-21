@@ -4,11 +4,18 @@ when:
   event: [ manual, cron ]
   cron: container-ci
 
+matrix:
+  PLATFORM:
+    - linux/amd64
+    - linux/arm64
+
+labels:
+  platform: ${PLATFORM}
+
 steps:
   build-and-push:
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      platforms: linux/amd64
       repo: codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}
       registry: codeberg.org
       auto_tag: true
@@ -17,4 +24,4 @@ steps:
       password:
         from_secret: CODEBERG_TOKEN
       cache_images:
-        - codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}:buildcache
+        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-${PLATFORM}

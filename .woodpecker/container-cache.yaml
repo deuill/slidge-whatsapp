@@ -10,7 +10,7 @@ when:
 matrix:
   PLATFORM:
     - arm64
-#    - amd64  # this is too slow
+    - amd64  # this is too slow
 
 steps:
   build-cache:

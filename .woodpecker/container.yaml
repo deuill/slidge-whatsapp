@@ -4,16 +4,17 @@ when:
   event: [ push, pull_request, tag ]
   path: [ "slidge_whatsapp/**/*", pyproject.toml, uv.lock, Dockerfile ]
 
+# noinspection StructuralWrap
 variables:
   - &settings
     registry: codeberg.org
     tags_file: .tags
     target: ${CI_REPO_NAME}
-    platforms: linux/amd64  #,linux/arm64  # arm64 builds are disabled because it's just too slow!
-    # Unfortunately we can only a single build cache image,
-    # cf https://codeberg.org/woodpecker-plugins/docker-buildx/pulls/186
+    platforms: linux/amd64  linux/arm64
+    # Unfortunately, we can only a single build cache image,
+    # cf. https://codeberg.org/woodpecker-plugins/docker-buildx/pulls/186
     # since codeberg CI is amd64-only let's use the cache for the arm64 platform…
-#    cache_from: type=registry,ref=codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-arm64
+    # cache_from: type=registry,ref=codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-arm64
 
 steps:
   version:
