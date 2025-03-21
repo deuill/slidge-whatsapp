@@ -6,11 +6,11 @@ when:
 
 matrix:
   PLATFORM:
-    - linux/amd64
-    - linux/arm64
+    - amd64
+    - arm64
 
 labels:
-  platform: ${PLATFORM}
+  platform: linux/${PLATFORM}
 
 steps:
   build-and-push:
