@@ -8,8 +8,13 @@ when:
     - pyproject.toml
     - uv.lock
 
+matrix:
+  ARCH:
+    - amd64
+    - arm64
+
 labels:
-  platform: linux/amd64
+  platform: linux/${ARCH}
 
 steps:
   version:
@@ -25,12 +30,7 @@ steps:
         from_secret: CODEBERG_TOKEN
       registry: codeberg.org
       tags_file: .tags
+      auto_tag_suffix: -${ARCH}
       target: ${CI_REPO_NAME}
-      platforms: linux/amd64,linux/arm64
-      # this only caches one of the two platforms unfortunately
-      # https://github.com/docker/buildx/discussions/1382
-      # https://github.com/docker/buildx/issues/1044
       cache_images:
-        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-arm64
-    when:
-      event: [push, tag]
+        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-${ARCH}

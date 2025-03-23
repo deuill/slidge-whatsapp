@@ -1,6 +1,6 @@
 ARG PYTHONVER=3.11
 ## Base build stage for Slidge, prepares and installs common dependencies.
-FROM docker.io/library/python:$PYTHONVER-bookworm AS builder
+FROM docker.io/library/python:$PYTHONVER-bookworm AS base
 ARG PYTHONVER
 ENV PATH="/venv/bin:/root/.local/bin:$PATH"
 ENV UV_PROJECT_ENVIRONMENT=/venv/
@@ -29,7 +29,8 @@ RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/
     libmujs-dev \
     libopenjp2-7-dev \
     rustc \
-    && apt-get install -y golang -t bookworm-backports
+    && apt-get install -y golang -t bookworm-backports \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -50,12 +51,13 @@ COPY ./slidge_whatsapp/media /build/media
 ENV CGO_LDFLAGS="-lgumbo -lfreetype -ljbig2dec -lharfbuzz -ljpeg -lmujs -lopenjp2"
 # for this base container we don't install all development dependencies,
 # but we need pybindgen for gopy anyway
-# We could
 RUN uv pip install pybindgen
+
+FROM base AS builder
 RUN gopy build -output=generated -no-make=true -build-tags="mupdf extlib static" /build/
 
 # CI environment for slidge
-FROM builder AS woodpecker-slidge-whatsapp
+FROM base AS woodpecker-slidge-whatsapp
 # In CI we sometimes move /venv to .venv, then update it for the whole workflow.
 ENV PATH=".venv/bin:$PATH"
 RUN uv sync --frozen --no-install-project --all-extras

@@ -8,23 +8,34 @@ when:
     - pyproject.toml
     - uv.lock
 
+matrix:
+  PYTHON_VERSION:
+    - "3.11"
+    - "3.12"
+    - "3.13"
+  ARCH:
+    - amd64
+    - arm64
+
 labels:
-  platform: linux/amd64
+  platform: linux/${ARCH}
 
 steps:
   build-and-push:
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      platforms: linux/amd64,linux/arm64
+      platforms: linux/${ARCH}
       repo: codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}
       registry: codeberg.org
-      auto_tag: true
+      tag: ${PYTHON_VERSION}-${ARCH}
       target: woodpecker-${CI_REPO_NAME}
       username: ${CI_REPO_OWNER}
+      build_args:
+        PYTHONVER: "${PYTHON_VERSION}"
       password:
         from_secret: CODEBERG_TOKEN
       # this only caches one of the two platforms unfortunately
       # https://github.com/docker/buildx/discussions/1382
       # https://github.com/docker/buildx/issues/1044
       cache_images:
-        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-woodpecker
+        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-woodpecker-${PYTHON_VERSION}-${ARCH}

@@ -1,13 +1,24 @@
 when:
   event: [push, tag, pull_request]
-  path: ["${CI_REPO_NAME}/**/*", "pyproject.toml", "README.md"]
+  path: ["slidge_whatsapp/**/*", "pyproject.toml", "README.md"]
 
 variables:
-  - &image codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
   - &only-main-tag
     when:
       branch: main
       event: tag
+
+matrix:
+  PYTHON_VERSION:
+    - "3.11"
+    - "3.12"
+    - "3.13"
+  ARCH:
+    - amd64
+    - arm64
+
+labels:
+  platform: linux/${ARCH}
 
 steps:
   version:
@@ -20,31 +31,61 @@ steps:
     pull: true
 
   build:
-    image: *image
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
     depends_on: version
     commands:
       - uv build
 
-  codeberg-pypi:
+  codeberg-pypi-wheel:
     when:
       event: [push, tag]
-    image: *image
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
+    pull: true
     depends_on: build
     environment:
       CODEBERG_TOKEN:
         from_secret: CODEBERG_TOKEN
     commands:
-      - uv publish --index codeberg --token $CODEBERG_TOKEN
+      - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.whl
 
-  pypi:
-    image: *image
+  codeberg-pypi-sdist:
+    when:
+      event: [push, tag]
+      matrix:
+        PYTHON_VERSION: "3.11"
+        ARCH: amd64
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
+    depends_on: build
+    environment:
+      CODEBERG_TOKEN:
+        from_secret: CODEBERG_TOKEN
+    commands:
+      - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.tar.gz
+
+  pypi-wheel:
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
     depends_on: build
     <<: *only-main-tag
     environment:
       PYPI_TOKEN:
         from_secret: PYPI_TOKEN
     commands:
-      - uv publish --token $PYPI_TOKEN
+      - uv publish --token $PYPI_TOKEN dist/*.whl
+
+  pypi-sdist:
+    when:
+      event: [tag]
+      branch: main
+      matrix:
+        PYTHON_VERSION: "3.11"
+        ARCH: amd64
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
+    depends_on: build
+    environment:
+      CODEBERG_TOKEN:
+        from_secret: CODEBERG_TOKEN
+    commands:
+      - uv publish --token $PYPI_TOKEN dist/*.tar.gz
 
   codeberg-release:
     image: woodpeckerci/plugin-release

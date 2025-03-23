@@ -2,9 +2,12 @@ when:
   event: [push, tag, pull_request]
   path: ["${CI_REPO_NAME}/**/*.py", "docs/**/*", "README.md"]
 
+labels:
+  platform: linux/amd64
+
 steps:
   build:
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}
+    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:3.11-amd64
     pull: true
     commands:
       # the first 2 commands update the virtualenv, which is a no-op unless uv.lock has been modified
