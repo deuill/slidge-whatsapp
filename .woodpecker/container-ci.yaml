@@ -1,14 +1,21 @@
 # Build a container with a virtualenv that can be used for tests and to build docs.
 
 when:
-  event: [ manual, cron ]
-  cron: container-ci
+  event: [push]
+  branch: main
+  path:
+    - Dockerfile
+    - pyproject.toml
+    - uv.lock
+
+labels:
+  platform: linux/amd64
 
 steps:
   build-and-push:
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      platforms: linux/amd64
+      platforms: linux/amd64,linux/arm64
       repo: codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}
       registry: codeberg.org
       auto_tag: true
@@ -16,5 +23,8 @@ steps:
       username: ${CI_REPO_OWNER}
       password:
         from_secret: CODEBERG_TOKEN
+      # this only caches one of the two platforms unfortunately
+      # https://github.com/docker/buildx/discussions/1382
+      # https://github.com/docker/buildx/issues/1044
       cache_images:
-        - codeberg.org/${CI_REPO_OWNER}/woodpecker-${CI_REPO_NAME}:buildcache
+        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-woodpecker

@@ -23,7 +23,6 @@ for general info on how to set up an XMPP server component.
 From [the codeberg package registry](https://codeberg.org/slidge/-/packages/container/slidge-whatsapp/latest)
 
 ```sh
-# use docker.io/ravermeister/slidge-whatsapp for arm64 (thanks raver! <3)
 docker run codeberg.org/slidge/slidge-whatsapp  # works with podman too
 ```
 
@@ -45,13 +44,6 @@ pipx install slidge-whatsapp==0.0.0.dev0 \
     --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/' --force
 
 slidge-whatsapp --help
-```
-
-Make sure to install `ffmpeg` for full outgoing media compatibility; for
-example, in Debian/Ubuntu:
-
-```sh
-sudo apt install ffmpeg
 ```
 
 ## Documentation

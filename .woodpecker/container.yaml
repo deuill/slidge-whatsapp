@@ -1,32 +1,20 @@
 # Build the production container
 
 when:
-  event: [ push, pull_request, tag ]
-  path: [ "slidge_whatsapp/**/*", pyproject.toml, uv.lock, Dockerfile ]
+  event: [push, tag]
+  path:
+    - "slidge_whatsapp/**/*"
+    - Dockerfile
+    - pyproject.toml
+    - uv.lock
 
-variables:
-  - &settings
-    registry: codeberg.org
-    tags_file: .tags
-    target: ${CI_REPO_NAME}
-    platforms: linux/amd64  #,linux/arm64  # arm64 builds are disabled because it's just too slow!
-    # Unfortunately we can only a single build cache image,
-    # cf https://codeberg.org/woodpecker-plugins/docker-buildx/pulls/186
-    # since codeberg CI is amd64-only let's use the cache for the arm64 platform…
-#    cache_from: type=registry,ref=codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-arm64
+labels:
+  platform: linux/amd64
 
 steps:
   version:
     image: codeberg.org/slidge/woodpecker-version
     pull: true
-
-  build:
-    image: woodpeckerci/plugin-docker-buildx
-    settings:
-      dry_run: true
-      <<: *settings
-    when:
-      event: pull_request
 
   build-and-push:
     image: woodpeckerci/plugin-docker-buildx
@@ -35,6 +23,14 @@ steps:
       username: ${CI_REPO_OWNER}
       password:
         from_secret: CODEBERG_TOKEN
-      <<: *settings
+      registry: codeberg.org
+      tags_file: .tags
+      target: ${CI_REPO_NAME}
+      platforms: linux/amd64,linux/arm64
+      # this only caches one of the two platforms unfortunately
+      # https://github.com/docker/buildx/discussions/1382
+      # https://github.com/docker/buildx/issues/1044
+      cache_images:
+        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-arm64
     when:
-      event: [ push, tag ]
+      event: [push, tag]
