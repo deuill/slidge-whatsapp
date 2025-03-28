@@ -59,7 +59,7 @@ format = ["wheel"]
 script = "build.py"
 
 [build-system]
-requires = ["poetry-core", "pybindgen"]
+requires = ["poetry-core", "pybindgen", "packaging"]
 build-backend = "poetry.core.masonry.api"
 
 
