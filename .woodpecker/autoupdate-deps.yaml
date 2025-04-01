@@ -1,5 +1,8 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 when:
-  event: [ cron, manual ]
+  event: [cron, manual]
   cron: lockfile
 
 steps:

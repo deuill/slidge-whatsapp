@@ -1,3 +1,6 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 import os
 from datetime import datetime
 from pathlib import Path

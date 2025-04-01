@@ -1,7 +1,7 @@
 # Do not edit manually!
 # Changes here will be overwritten by copier.
 # https://copier.readthedocs.io/
-_commit: fdaf5ad
+_commit: 54b4b8a
 _src_path: git+https://codeberg.org/slidge/legacy-module-template
 authors:
 -   email: alex@deuill.org

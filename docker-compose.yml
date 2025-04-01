@@ -1,18 +1,15 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 services:
   slidge:
     build:
       context: .
-      target: slidge-whatsapp-dev
-    command:
-     - --jid=slidge.localhost
-     - --secret=secret
-     - --upload-service=upload.localhost
-     - --debug
+      target: dev
     network_mode: service:prosody
     volumes:
-#      - ../slidge/slidge:/venv/lib/python/site-packages/slidge
-      - ./slidge_whatsapp:/venv/lib/python/site-packages/slidge_whatsapp
-      - ./persistent:/var/lib/slidge
+      - ./slidge_whatsapp:/build/slidge_whatsapp
+      - ./persistent:/var/lib/slidge/slidge.localhost
     depends_on:
       prosody:
         condition: service_started

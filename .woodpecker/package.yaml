@@ -1,12 +1,23 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 when:
-  event: [push, tag, pull_request]
-  path: ["slidge_whatsapp/**/*", "pyproject.toml", "README.md"]
+  event: [push, tag]
+  path: ["slidge-whatsapp/**/*", "pyproject.toml", "README.md"]
+  branch: main
 
 variables:
+  - &ci-image codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:ci-${ARCH}
   - &only-main-tag
     when:
-      branch: main
       event: tag
+
+clone:
+  - name: clone-deep
+    image: woodpeckerci/plugin-git
+    settings:
+      tags: true
+      partial: false
 
 matrix:
   PYTHON_VERSION:
@@ -21,49 +32,31 @@ labels:
   platform: linux/${ARCH}
 
 steps:
-  version:
-    image: codeberg.org/slidge/woodpecker-version
-    pull: true
-
   changelog:
-    depends_on: version
     image: codeberg.org/slidge/woodpecker-generate-changelog
     pull: true
 
   build:
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
-    depends_on: version
+    image: *ci-image
     commands:
+      - uv python install ${PYTHON_VERSION}
+      - uv python pin ${PYTHON_VERSION}
       - uv build
 
-  codeberg-pypi-wheel:
+  codeberg-pypi:
     when:
       event: [push, tag]
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
-    pull: true
+    image: *ci-image
     depends_on: build
     environment:
       CODEBERG_TOKEN:
         from_secret: CODEBERG_TOKEN
     commands:
       - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.whl
+      - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.tar.gz || echo "Failed to upload sdist."
 
-  codeberg-pypi-sdist:
-    when:
-      event: [push, tag]
-      matrix:
-        PYTHON_VERSION: "3.11"
-        ARCH: amd64
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
-    depends_on: build
-    environment:
-      CODEBERG_TOKEN:
-        from_secret: CODEBERG_TOKEN
-    commands:
-      - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.tar.gz
-
-  pypi-wheel:
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
+  pypi:
+    image: *ci-image
     depends_on: build
     <<: *only-main-tag
     environment:
@@ -71,21 +64,7 @@ steps:
         from_secret: PYPI_TOKEN
     commands:
       - uv publish --token $PYPI_TOKEN dist/*.whl
-
-  pypi-sdist:
-    when:
-      event: [tag]
-      branch: main
-      matrix:
-        PYTHON_VERSION: "3.11"
-        ARCH: amd64
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:${PYTHON_VERSION}-${ARCH}
-    depends_on: build
-    environment:
-      CODEBERG_TOKEN:
-        from_secret: CODEBERG_TOKEN
-    commands:
-      - uv publish --token $PYPI_TOKEN dist/*.tar.gz
+      - uv publish --token $PYPI_TOKEN dist/*.tar.gz || echo "Failed to upload sdist."
 
   codeberg-release:
     image: woodpeckerci/plugin-release
@@ -93,7 +72,7 @@ steps:
     <<: *only-main-tag
     settings:
       files:
-        - dist/${CI_REPO_NAME}*
+        - dist/slidge-whatsapp*
       api_key:
         from_secret: CODEBERG_TOKEN
       note: CHANGELOG

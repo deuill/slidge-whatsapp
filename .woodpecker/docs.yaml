@@ -1,21 +1,21 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 when:
   event: [push, tag, pull_request]
-  path: ["${CI_REPO_NAME}/**/*.py", "docs/**/*", "README.md"]
+  path: ["slidge-whatsapp/**/*.py", "docs/**/*", "README.md"]
 
 labels:
   platform: linux/amd64
 
 steps:
   build:
-    image: codeberg.org/slidge/woodpecker-${CI_REPO_NAME}:3.11-amd64
+    image: codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:ci-amd64
     pull: true
     commands:
-      # the first 2 commands update the virtualenv, which is a no-op unless uv.lock has been modified
-      - uv export > req.txt
-      - uv pip install --requirements req.txt
-      - uv pip install .
-      - cd docs
-      - make html
+      - cp -r /venv .venv
+      - uv sync --link-mode=copy --all-groups --all-extras
+      - cd docs && make html
 
   publish:
     image: codeberg.org/slidge/woodpecker-publish-pages

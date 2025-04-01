@@ -1,9 +1,10 @@
-# Build the production container
+# DO NOT EDIT
+# Generated from .copier-answers.yml
 
 when:
   event: [push, tag]
   path:
-    - "slidge_whatsapp/**/*"
+    - "slidge-whatsapp/**"
     - Dockerfile
     - pyproject.toml
     - uv.lock
@@ -16,21 +17,56 @@ matrix:
 labels:
   platform: linux/${ARCH}
 
-steps:
-  version:
-    image: codeberg.org/slidge/woodpecker-version
-    pull: true
+clone:
+  - name: clone-deep
+    image: woodpeckerci/plugin-git
+    settings:
+      tags: true
+      partial: false
 
-  build-and-push:
+variables:
+  - &settings
+    repo: codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp
+    username: ${CI_REPO_OWNER}
+    password:
+      from_secret: CODEBERG_TOKEN
+    registry: codeberg.org
+    target: slidge-whatsapp
+    # this only caches one of the two platforms unfortunately
+    # https://github.com/docker/buildx/discussions/1382
+    # https://github.com/docker/buildx/issues/1044
+    cache_images:
+      - codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:buildcache-${ARCH}
+
+
+steps:
+  build-tag:
+    image: woodpeckerci/plugin-docker-buildx
+    when:
+      event: [tag]
+    settings:
+      <<: *settings
+      tags:
+        - latest-${ARCH}
+        - ${CI_COMMIT_TAG}-${ARCH}
+
+  build-branch:
+    when:
+      event: [push]
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      repo: codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}
-      username: ${CI_REPO_OWNER}
-      password:
-        from_secret: CODEBERG_TOKEN
-      registry: codeberg.org
-      tags_file: .tags
-      auto_tag_suffix: -${ARCH}
-      target: ${CI_REPO_NAME}
+      <<: *settings
+      tags:
+        - ${CI_COMMIT_BRANCH}-${ARCH}
+
+  build-ci:
+    when:
+      event: [push]
+      branch: ${CI_REPO_DEFAULT_BRANCH}
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      <<: *settings
+      target: ci
+      tag: ci-${ARCH}
       cache_images:
-        - codeberg.org/${CI_REPO_OWNER}/${CI_REPO_NAME}:buildcache-${ARCH}
+        - codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:buildcache-ci-${ARCH}

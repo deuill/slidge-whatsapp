@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -886,6 +885,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pybindgen"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/8e/de441f26282eb869ac987c9a291af7e3773d93ffdb8e4add664b392ea439/PyBindGen-0.22.1.tar.gz", hash = "sha256:8c7f22391a49a84518f5a2ad06e3a5b1e839d10e34da7631519c8a28fcba3764", size = 449409 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/74/f4/5fa8144cd33bb1f02b7e3ca9fdd98abe5a92885a793330e866c08a83db19/PyBindGen-0.22.1-py2.py3-none-any.whl", hash = "sha256:e9c2dad3c3e9da7811c271b5d6dcbb59ee59a2fe7877b4277556f95a9aea296e", size = 152772 },
+]
+
+[[package]]
 name = "pycares"
 version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1125,7 +1133,6 @@ wheels = [
 
 [[package]]
 name = "slidge-whatsapp"
-version = "0.0.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "linkpreview" },
@@ -1136,6 +1143,7 @@ dependencies = [
 dev = [
     { name = "furo" },
     { name = "mypy" },
+    { name = "pybindgen" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -1154,6 +1162,7 @@ requires-dist = [
 dev = [
     { name = "furo", specifier = ">=2024.8.6" },
     { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pybindgen" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-asyncio", specifier = ">=0.25.3" },
     { name = "ruff", specifier = ">=0.9.1" },
