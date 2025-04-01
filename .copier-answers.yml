@@ -9,7 +9,58 @@ authors:
 -   email: nicoco@nicoco.fr
     name: nicoco
 ci_id: 14066
-custom_build_system: '[[tool.poetry.include]]
+container_build_files:
+- uv.lock
+- pyproject.toml
+- build.py
+container_build_native: true
+container_builder_deps:
+- git
+- make
+- build-essential
+- ca-certificates
+- cargo
+- curl
+- git
+- gcc
+- g++
+- libffi-dev
+- libssl-dev
+- pkg-config
+- python3-dev
+- libmupdf-dev
+- libgumbo-dev
+- libfreetype6-dev
+- libharfbuzz-dev
+- libjbig2dec0-dev
+- libjpeg62-turbo-dev
+- libmujs-dev
+- libopenjp2-7-dev
+- rustc
+container_builder_deps_backports:
+- golang
+container_debian_version: bookworm
+container_dev_custom_hot_reload: "\nCOPY ./watcher.py /build/\nENTRYPOINT [\"python\"\
+    , \"watcher.py\", \\\n            \"/venv/lib/python3.11/site-packages/slidge:/build/slidge_whatsapp\"\
+    , \\\n            \"--dev-mode\", \\\n            \"--legacy-module=slidge_whatsapp\"\
+    , \"--jid=slidge.localhost\", \"--secret=secret\"]\n"
+container_dev_extra_lines: 'ENV GOBIN="/usr/local/bin"
+
+    RUN go install -v github.com/go-python/gopy@master
+
+    RUN go install golang.org/x/tools/cmd/goimports@latest
+
+    '
+container_python_version: '3.11'
+container_requires_rustup: false
+container_runtime_deps:
+- ffmpeg
+custom_build_system: '[tool.poetry]
+
+    version = "0.0.0"
+
+
+    [[tool.poetry.include]]
 
     path = "slidge_whatsapp"
 
@@ -35,22 +86,35 @@ custom_build_system: '[[tool.poetry.include]]
 
     [build-system]
 
-    requires = ["poetry-core", "pybindgen"]
+    requires = ["poetry-core", "pybindgen", "packaging", "poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
 
-    build-backend = "poetry.core.masonry.api"
+    build-backend = "poetry_dynamic_versioning.backend"
 
-    '
+
+    [tool.poetry.requires-plugins]
+
+    poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"]
+    }
+
+
+    [tool.poetry-dynamic-versioning]
+
+    enable = true'
 custom_readme_head: ''
 custom_readme_tail: ''
 dependencies:
 - linkpreview>=0.11.0
 - slidge>=0.2.4,<0.3
-dev_dependencies: []
+dev_dependencies:
+- pybindgen
 intersphinx_mappings: []
 lint_excludes:
 - slidge_whatsapp/generated
 mypy_ignores:
 - linkpreview
+native_builds: false
+pre_commit_custom_hooks: "\n  - repo: https://github.com/tekwizely/pre-commit-golang\n\
+    \    rev: v1.0.0-rc.1\n    hooks:\n      - id: go-fmt\n        args: [-w]\n"
 project_name: slidge-whatsapp
 requires_lottie: false
 silo:
@@ -60,3 +124,4 @@ silo:
     name: WhatsApp
     url: https://whatsapp.com
 uv_sources: []
+wheels: true
