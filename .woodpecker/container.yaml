@@ -1,3 +1,6 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 when:
   event: [push, tag]
   path:
@@ -59,7 +62,7 @@ steps:
   build-ci:
     when:
       event: [push]
-#      branch: ${CI_REPO_DEFAULT_BRANCH}
+      branch: ${CI_REPO_DEFAULT_BRANCH}
     image: woodpeckerci/plugin-docker-buildx
     settings:
       <<: *settings

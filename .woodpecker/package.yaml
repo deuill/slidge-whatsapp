@@ -1,3 +1,6 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 when:
   event: [push, tag]
   path: ["slidge-whatsapp/**/*", "pyproject.toml", "README.md"]
@@ -38,6 +41,7 @@ steps:
     commands:
       - uv python install ${PYTHON_VERSION}
       - uv python pin ${PYTHON_VERSION}
+      - uv build
 
   codeberg-pypi:
     when:

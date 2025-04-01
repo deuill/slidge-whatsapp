@@ -1,3 +1,6 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 when:
   event: [push, tag, pull_request]
   path: ["slidge-whatsapp/**/*.py", "docs/**/*", "README.md"]

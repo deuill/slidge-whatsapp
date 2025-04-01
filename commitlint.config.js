@@ -1,3 +1,6 @@
+// DO NOT EDIT
+// Generated from .copier-answers.yml
+//
 // This files defines the allowed "headers" for the commit messages.
 // Following the rules makes the changelog generation easier.
 // They come from angular conventions, unless commented.

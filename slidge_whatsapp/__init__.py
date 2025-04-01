@@ -1,3 +1,6 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 from slidge import entrypoint
 from slidge.util.util import get_version  # noqa: F401
 

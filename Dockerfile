@@ -61,7 +61,7 @@ FROM builder AS ci
 
 # In CI we copy /venv to .venv, then update it for the whole workflow.
 RUN --mount=source=.git,target=/build/.git,type=bind \
-    uv sync --all-groups
+    uv sync --all-groups --no-install-project
 ENV UV_PROJECT_ENVIRONMENT=.venv
 ENV PATH=".venv/bin:$PATH"
 

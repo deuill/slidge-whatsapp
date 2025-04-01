@@ -1,3 +1,6 @@
+# DO NOT EDIT
+# Generated from .copier-answers.yml
+
 services:
   slidge:
     build:

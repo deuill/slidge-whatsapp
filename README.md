@@ -26,8 +26,8 @@ From [the codeberg package registry](https://codeberg.org/slidge/-/packages/cont
 docker run codeberg.org/slidge/slidge-whatsapp  # works with podman too
 ```
 
-Use the `:latest` tag for the latest release, `:vX.X.X` for release X.X.X, and `:main`
-for the bleeding edge.
+Use the `:latest-amd64` tag for the latest release, `:vX.X.X-amd64` for release X.X.X, and `:main-amd64`
+for the bleeding edge.`-arm64` images are also available.
 
 ### Python package
 
