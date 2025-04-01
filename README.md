@@ -26,8 +26,8 @@ From [the codeberg package registry](https://codeberg.org/slidge/-/packages/cont
 docker run codeberg.org/slidge/slidge-whatsapp  # works with podman too
 ```
 
-Use the `:latest-amd64` tag for the latest release, `:vX.X.X-amd64` for release X.X.X, and `:main-amd64`
-for the bleeding edge. You can substitute change `-amd64` to `-arm64` if necessary.
+Use the `:latest` tag for the latest release, `:vX.X.X` for release X.X.X, and `:main`
+for the bleeding edge.
 
 ### Python package
 
@@ -39,12 +39,8 @@ With [pipx](https://pypa.github.io/pipx/):
 pipx install slidge-whatsapp
 
 # for the bleeding edge
-pipx install slidge-whatsapp==0.0.0.dev0 \
+pipx install slidge-whatsapp \
     --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/'
-
-# to update bleeding edge installs
-pipx install slidge-whatsapp==0.0.0.dev0 \
-    --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/' --force
 
 slidge-whatsapp --help
 ```
