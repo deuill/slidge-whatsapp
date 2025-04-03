@@ -34,7 +34,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list && \
     apt-get update -y && \
-    apt-get install -y --no-install-recommends \        
+    apt-get install -y --no-install-recommends \
         golang \
     -t bookworm-backports && \
     rm -rf /var/lib/apt/lists/*
@@ -63,7 +63,8 @@ FROM builder AS ci
 RUN --mount=source=.git,target=/build/.git,type=bind \
     uv sync --all-groups --no-install-project
 ENV UV_PROJECT_ENVIRONMENT=.venv
-ENV PATH=".venv/bin:$PATH"
+ENV UV_LINK_MODE=copy
+ENV PATH="/woodpecker/src/codeberg.org/slidge/slidge_whatsapp/.venv/bin:$PATH"
 
 # Dev container
 # *************
@@ -106,7 +107,7 @@ RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
         libmagic1 \
         media-types \
-        shared-mime-info \        
+        shared-mime-info \
         ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 RUN addgroup --system --gid 10000 slidge

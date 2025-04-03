@@ -8,9 +8,6 @@ when:
 
 variables:
   - &ci-image codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:ci-${ARCH}
-  - &only-main-tag
-    when:
-      event: tag
 
 clone:
   - name: clone-deep
@@ -58,7 +55,8 @@ steps:
   pypi:
     image: *ci-image
     depends_on: build
-    <<: *only-main-tag
+    when:
+      event: tag
     environment:
       PYPI_TOKEN:
         from_secret: PYPI_TOKEN
@@ -69,7 +67,8 @@ steps:
   codeberg-release:
     image: woodpeckerci/plugin-release
     depends_on: [changelog, build]
-    <<: *only-main-tag
+    when:
+      event: tag
     settings:
       files:
         - dist/slidge-whatsapp*
