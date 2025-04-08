@@ -8,15 +8,11 @@ A
 [slidge](https://slidge.im) and
 [whatsmeow](https://github.com/tulir/whatsmeow).
 
-[![PyPI package version](https://badge.fury.io/py/slidge-whatsapp.svg)](https://pypi.org/project/slidge-whatsapp/)
 [![CI pipeline status](https://ci.codeberg.org/api/badges/14066/status.svg)](https://ci.codeberg.org/repos/14066)
 [![Chat](https://conference.nicoco.fr:5281/muc_badge/slidge@conference.nicoco.fr)](https://slidge.im/xmpp-web/#/guest?join=slidge@conference.nicoco.fr)
 
 
 ## Installation
-
-Refer to the [slidge admin documentation](https://slidge.im/docs/slidge/main/admin/)
-for general info on how to set up an XMPP server component.
 
 ### Containers
 
@@ -31,6 +27,8 @@ for the bleeding edge.`-arm64` images are also available.
 
 ### Python package
 
+[![PyPI package version](https://badge.fury.io/py/slidge-whatsapp.svg)](https://pypi.org/project/slidge-whatsapp/)
+
 With [pipx](https://pypa.github.io/pipx/):
 
 ```sh
@@ -44,6 +42,12 @@ pipx install slidge-whatsapp \
 
 slidge-whatsapp --help
 ```
+
+### Unofficial debian package
+
+If you are using debian you might be interested in installing the
+[unofficial slidge debian package](https://codeberg.org/slidge/debian)
+which bundles matridge.
 
 ## Documentation
 

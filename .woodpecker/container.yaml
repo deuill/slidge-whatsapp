@@ -4,10 +4,11 @@
 when:
   event: [push, tag]
   path:
-    - "slidge-whatsapp/**"
+    - "slidge_whatsapp/**"
     - Dockerfile
     - pyproject.toml
     - uv.lock
+    - .woodpecker/container.yaml
 
 matrix:
   ARCH:
