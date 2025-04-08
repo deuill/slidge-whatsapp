@@ -5,7 +5,6 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 
 from slidge import entrypoint
-from slidge.util.util import get_version  # noqa: F401
 
 # import everything for automatic subclasses discovery by slidge core
 from . import command, config, contact, gateway, group, session

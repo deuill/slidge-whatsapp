@@ -35,6 +35,7 @@ steps:
 
   build:
     image: *ci-image
+    pull: true
     commands:
       - uv python install ${PYTHON_VERSION}
       - uv python pin ${PYTHON_VERSION}

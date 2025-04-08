@@ -17,7 +17,7 @@ steps:
     pull: true
     commands:
       - cp -r /venv .venv
-      - uv sync --link-mode=copy --all-groups --all-extras
+      - uv sync --all-groups --all-extras
 
   ruff:
     image: *ci-image
