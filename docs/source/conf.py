@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from slidge.__version__ import __version__ as slidge_version
+from slidge import __version__ as slidge_version
 
 project = "slidge-whatsapp"
 copyright = f"{datetime.today().year}, the {project} contributors"

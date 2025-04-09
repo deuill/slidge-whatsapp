@@ -3,7 +3,7 @@
 
 when:
   event: [push, pull_request]
-  path: [pyproject.toml, uv.lock, "**/*.py"]
+  path: [pyproject.toml, uv.lock, "**/*.py", ".woodpecker/test.yaml"]
 
 labels:
   platform: linux/amd64
@@ -16,7 +16,6 @@ steps:
     image: *ci-image
     pull: true
     commands:
-      - cp -r /venv .venv
       - uv sync --all-groups --all-extras
 
   ruff:

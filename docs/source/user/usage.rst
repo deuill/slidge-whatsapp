@@ -1,9 +1,9 @@
-User docs
----------
+Usage
+=====
 
 .. note::
    Slidge uses WhatsApp's `Linked Devices <https://faq.whatsapp.com/378279804439436/>`_ feature,
-   which may require perioding re-linking against the official client. However, you can still not
+   which may require periodic re-linking against the official client. However, you can still not
    use or even uninstall the official client between re-linking.
 
 Roster

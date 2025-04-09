@@ -64,7 +64,7 @@ RUN --mount=source=.git,target=/build/.git,type=bind \
     uv sync --all-groups --no-install-project
 ENV UV_PROJECT_ENVIRONMENT=.venv
 ENV UV_LINK_MODE=copy
-ENV PATH="/woodpecker/src/codeberg.org/slidge/slidge_whatsapp/.venv/bin:$PATH"
+ENV PATH="/woodpecker/src/codeberg.org/slidge/slidge-whatsapp/.venv/bin:$PATH"
 
 # Dev container
 # *************

@@ -3,7 +3,7 @@
 
 when:
   event: [push, tag, pull_request]
-  path: ["slidge-whatsapp/**/*.py", "docs/**/*", "README.md"]
+  path: ["slidge-whatsapp/**/*.py", "docs/**/*", "uv.lock", ".woodpecker/docs.yaml"]
 
 labels:
   platform: linux/amd64
@@ -13,7 +13,6 @@ steps:
     image: codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:ci-amd64
     pull: true
     commands:
-      - cp -r /venv .venv
       - uv sync --all-groups --all-extras
       - cd docs && make html
 
