@@ -2,7 +2,7 @@
 ## explicit; go 1.20
 filippo.io/edwards25519
 filippo.io/edwards25519/field
-# github.com/ebitengine/purego v0.8.2
+# github.com/ebitengine/purego v0.8.4
 ## explicit; go 1.18
 github.com/ebitengine/purego
 github.com/ebitengine/purego/internal/cgo
@@ -29,7 +29,7 @@ github.com/h2non/filetype
 github.com/h2non/filetype/matchers
 github.com/h2non/filetype/matchers/isobmff
 github.com/h2non/filetype/types
-# github.com/jupiterrider/ffi v0.3.0
+# github.com/jupiterrider/ffi v0.4.1
 ## explicit; go 1.18
 github.com/jupiterrider/ffi
 # github.com/mattn/go-colorable v0.1.14
@@ -38,15 +38,19 @@ github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-sqlite3 v1.14.24
+# github.com/mattn/go-sqlite3 v1.14.28
 ## explicit; go 1.19
 github.com/mattn/go-sqlite3
-# github.com/rs/zerolog v1.33.0
+# github.com/petermattis/goid v0.0.0-20250508124226-395b08cebbdb
+## explicit; go 1.17
+github.com/petermattis/goid
+# github.com/rs/zerolog v1.34.0
 ## explicit; go 1.15
 github.com/rs/zerolog
 github.com/rs/zerolog/internal/cbor
 github.com/rs/zerolog/internal/json
-# go.mau.fi/libsignal v0.1.2
+github.com/rs/zerolog/log
+# go.mau.fi/libsignal v0.2.0
 ## explicit; go 1.23.0
 go.mau.fi/libsignal/cipher
 go.mau.fi/libsignal/ecc
@@ -74,13 +78,19 @@ go.mau.fi/libsignal/util/errorhelper
 go.mau.fi/libsignal/util/keyhelper
 go.mau.fi/libsignal/util/medium
 go.mau.fi/libsignal/util/optional
-# go.mau.fi/util v0.8.5
+# go.mau.fi/util v0.8.7
 ## explicit; go 1.23.0
+go.mau.fi/util/dbutil
+go.mau.fi/util/exerrors
+go.mau.fi/util/exhttp
+go.mau.fi/util/exsync
+go.mau.fi/util/exzerolog
 go.mau.fi/util/fallocate
 go.mau.fi/util/jsontime
+go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20250307203951-daf102be9698
+# go.mau.fi/whatsmeow v0.0.0-20250521125706-91ac75c2f61a
 ## explicit; go 1.23.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
@@ -114,6 +124,7 @@ go.mau.fi/whatsmeow/proto/waWeb
 go.mau.fi/whatsmeow/socket
 go.mau.fi/whatsmeow/store
 go.mau.fi/whatsmeow/store/sqlstore
+go.mau.fi/whatsmeow/store/sqlstore/upgrades
 go.mau.fi/whatsmeow/types
 go.mau.fi/whatsmeow/types/events
 go.mau.fi/whatsmeow/util/cbcutil
@@ -121,12 +132,15 @@ go.mau.fi/whatsmeow/util/gcmutil
 go.mau.fi/whatsmeow/util/hkdfutil
 go.mau.fi/whatsmeow/util/keys
 go.mau.fi/whatsmeow/util/log
-# golang.org/x/crypto v0.36.0
+# golang.org/x/crypto v0.38.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/pbkdf2
-# golang.org/x/image v0.25.0
+# golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
+## explicit; go 1.23.0
+golang.org/x/exp/constraints
+# golang.org/x/image v0.27.0
 ## explicit; go 1.23.0
 golang.org/x/image/draw
 golang.org/x/image/math/f64
@@ -134,16 +148,27 @@ golang.org/x/image/riff
 golang.org/x/image/vp8
 golang.org/x/image/vp8l
 golang.org/x/image/webp
-# golang.org/x/net v0.37.0
+# golang.org/x/net v0.40.0
 ## explicit; go 1.23.0
+golang.org/x/net/http/httpguts
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
+golang.org/x/net/idna
+golang.org/x/net/internal/httpcommon
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
-# golang.org/x/sys v0.31.0
+# golang.org/x/sys v0.33.0
 ## explicit; go 1.23.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# google.golang.org/protobuf v1.36.5
-## explicit; go 1.21
+# golang.org/x/text v0.25.0
+## explicit; go 1.23.0
+golang.org/x/text/secure/bidirule
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+# google.golang.org/protobuf v1.36.6
+## explicit; go 1.22
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt
