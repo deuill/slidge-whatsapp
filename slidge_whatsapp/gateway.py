@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 REGISTRATION_INSTRUCTIONS = (
     "Continue and scan the resulting QR codes on your main device, or alternatively, "
     "use the 'pair-phone' command to complete registration. More information at "
-    "https://slidge.im/slidge-whatsapp/user.html"
+    "https://slidge.im/docs/slidge-whatsapp/main/user/registration.html"
 )
 
 WELCOME_MESSAGE = (
@@ -49,7 +49,7 @@ class Gateway(BaseGateway):
 
         assert config.DB_PATH is not None
         Path(config.DB_PATH.parent).mkdir(exist_ok=True)
-        self.whatsapp.DBPath = str(config.DB_PATH)
+        self.whatsapp.DBPath = str(config.DB_PATH) + config.DB_PARAMS
 
         (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
         self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")

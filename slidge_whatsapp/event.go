@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"mime"
+	"slices"
 	"strings"
 
 	// Internal packages.
@@ -255,6 +256,7 @@ type Album struct {
 func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, *EventPayload) {
 	// Set basic data for message, to be potentially amended depending on the concrete version of
 	// the underlying message.
+	var ctx = context.Background()
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
@@ -358,7 +360,7 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	}
 
 	// Handle message attachments, if any.
-	if attach, context, err := getMessageAttachments(client, evt.Message); err != nil {
+	if attach, context, err := getMessageAttachments(ctx, client, evt.Message); err != nil {
 		client.Log.Errorf("Failed getting message attachments: %s", err)
 		return EventUnknown, nil
 	} else if len(attach) > 0 {
@@ -412,7 +414,7 @@ func getMessageWithContext(message Message, info *waE2E.ContextInfo) Message {
 
 // GetMessageAttachments fetches and decrypts attachments (images, audio, video, or documents) sent
 // via WhatsApp. Any failures in retrieving any attachment will return an error immediately.
-func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]Attachment, *waE2E.ContextInfo, error) {
+func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, message *waE2E.Message) ([]Attachment, *waE2E.ContextInfo, error) {
 	var result []Attachment
 	var info *waE2E.ContextInfo
 	var convertSpec *media.Spec
@@ -450,7 +452,7 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 		}
 
 		// Attempt to download and decrypt raw attachment data, if any.
-		data, err := client.Download(msg)
+		data, err := client.Download(ctx, msg)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -459,7 +461,7 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 
 		// Convert incoming data if a specification has been given, ignoring any errors that occur.
 		if convertSpec != nil {
-			data, err = media.Convert(context.Background(), a.Data, convertSpec)
+			data, err = media.Convert(ctx, a.Data, convertSpec)
 			if err == nil {
 				a.Data, a.MIME = data, string(convertSpec.MIME)
 			}
@@ -557,7 +559,7 @@ var (
 //
 // If the input MIME type is unknown, or conversion is impossible, the given attachment is not
 // changed.
-func convertAttachment(attach *Attachment) error {
+func convertAttachment(ctx context.Context, attach *Attachment) error {
 	var detectedMIME media.MIMEType
 	if t := media.DetectMIMEType(attach.Data); t != media.TypeUnknown {
 		detectedMIME = t
@@ -567,8 +569,6 @@ func convertAttachment(attach *Attachment) error {
 	}
 
 	var spec media.Spec
-	var ctx = context.Background()
-
 	switch detectedMIME {
 	case media.TypePNG, media.TypeWebP:
 		// Convert common image formats to JPEG for inline preview.
@@ -666,11 +666,9 @@ var knownMediaTypes = map[string]whatsmeow.MediaType{
 // type specified within. Attachments are handled as generic file uploads unless they're of a
 // specific format; in addition, certain MIME types may be automatically converted to a
 // well-supported type via FFmpeg (if available).
-func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Message, error) {
-	var ctx = context.Background()
+func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Attachment) (*waE2E.Message, error) {
 	var originalMIME = attach.MIME
-
-	if err := convertAttachment(attach); err != nil {
+	if err := convertAttachment(ctx, attach); err != nil {
 		client.Log.Warnf("failed to auto-convert attachment: %s", err)
 	}
 
@@ -836,6 +834,7 @@ func getBaseMediaType(typ string) string {
 func newEventFromHistory(client *whatsmeow.Client, info *waWeb.WebMessageInfo) (EventKind, *EventPayload) {
 	// Handle message as group message is remote JID is a group JID in the absence of any other,
 	// specific signal, or don't handle at all if no group JID is found.
+	var ctx = context.Background()
 	var jid = info.GetKey().GetRemoteJID()
 	if j, _ := types.ParseJID(jid); j.Server != types.GroupServer {
 		return EventUnknown, nil
@@ -898,7 +897,7 @@ func newEventFromHistory(client *whatsmeow.Client, info *waWeb.WebMessageInfo) (
 	}
 
 	// Handle message attachments, if any.
-	if attach, context, err := getMessageAttachments(client, info.GetMessage()); err != nil {
+	if attach, context, err := getMessageAttachments(ctx, client, info.GetMessage()); err != nil {
 		client.Log.Errorf("Failed getting message attachments: %s", err)
 		return EventUnknown, nil
 	} else if len(attach) > 0 {
@@ -967,9 +966,9 @@ type ChatState struct {
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
 func newChatStateEvent(evt *events.ChatPresence) (EventKind, *EventPayload) {
-	var state = ChatState{JID: evt.MessageSource.Sender.ToNonAD().String()}
-	if evt.MessageSource.IsGroup {
-		state.GroupJID = evt.MessageSource.Chat.ToNonAD().String()
+	var state = ChatState{JID: evt.Sender.ToNonAD().String()}
+	if evt.IsGroup {
+		state.GroupJID = evt.Chat.ToNonAD().String()
 	}
 	switch evt.State {
 	case types.ChatPresenceComposing:
@@ -1006,22 +1005,22 @@ type Receipt struct {
 // event given. Unknown or invalid receipts will return an [EventUnknown] event with nil data.
 func newReceiptEvent(evt *events.Receipt) (EventKind, *EventPayload) {
 	var receipt = Receipt{
-		MessageIDs: append([]string{}, evt.MessageIDs...),
-		JID:        evt.MessageSource.Sender.ToNonAD().String(),
+		MessageIDs: slices.Clone(evt.MessageIDs),
+		JID:        evt.Sender.ToNonAD().String(),
 		Timestamp:  evt.Timestamp.Unix(),
-		IsCarbon:   evt.MessageSource.IsFromMe,
+		IsCarbon:   evt.IsFromMe,
 	}
 
 	if len(receipt.MessageIDs) == 0 {
 		return EventUnknown, nil
 	}
 
-	if evt.MessageSource.Chat.Server == types.BroadcastServer {
-		receipt.JID = evt.MessageSource.BroadcastListOwner.ToNonAD().String()
-	} else if evt.MessageSource.IsGroup {
-		receipt.GroupJID = evt.MessageSource.Chat.ToNonAD().String()
+	if evt.Chat.Server == types.BroadcastServer {
+		receipt.JID = evt.BroadcastListOwner.ToNonAD().String()
+	} else if evt.IsGroup {
+		receipt.GroupJID = evt.Chat.ToNonAD().String()
 	} else if receipt.IsCarbon {
-		receipt.JID = evt.MessageSource.Chat.ToNonAD().String()
+		receipt.JID = evt.Chat.ToNonAD().String()
 	}
 
 	switch evt.Type {
@@ -1176,7 +1175,7 @@ func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
 	}
 	return Group{
 		JID:  info.JID.ToNonAD().String(),
-		Name: info.GroupName.Name,
+		Name: info.Name,
 		Subject: GroupSubject{
 			Subject:  info.Topic,
 			SetAt:    info.TopicSetAt.Unix(),

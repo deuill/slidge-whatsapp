@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	// Standard library.
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -69,7 +70,7 @@ func (w *Gateway) Init() error {
 		),
 	}
 
-	container, err := sqlstore.New("sqlite3", w.DBPath, w.logger)
+	container, err := sqlstore.New(context.Background(), "sqlite3", w.DBPath, w.logger)
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,9 @@ func (w *Gateway) Init() error {
 	}
 
 	if w.TempDir != "" {
-		media.SetTempDirectory(w.TempDir)
+		if err := media.SetTempDirectory(w.TempDir); err != nil {
+			return err
+		}
 	}
 
 	w.callChan = make(chan func(), maxConcurrentGatewayCalls)
@@ -107,7 +110,8 @@ func (w *Gateway) NewSession(device LinkedDevice) *Session {
 // CleanupSession will remove all invalid and obsolete references to the given device, and should be
 // used when pairing a new device or unregistering from the Gateway.
 func (w *Gateway) CleanupSession(device LinkedDevice) error {
-	devices, err := w.container.GetAllDevices()
+	ctx := context.Background()
+	devices, err := w.container.GetAllDevices(ctx)
 	if err != nil {
 		return err
 	}
@@ -115,11 +119,11 @@ func (w *Gateway) CleanupSession(device LinkedDevice) error {
 	for _, d := range devices {
 		if d.ID == nil {
 			w.logger.Infof("Removing invalid device %s from database", d.ID.String())
-			_ = d.Delete()
+			_ = d.Delete(ctx)
 		} else if device.ID != "" {
 			if jid := device.JID(); d.ID.ToNonAD() == jid.ToNonAD() && *d.ID != jid {
 				w.logger.Infof("Removing obsolete device %s from database", d.ID.String())
-				_ = d.Delete()
+				_ = d.Delete(ctx)
 			}
 		}
 	}
@@ -156,22 +160,22 @@ type logger struct {
 var _ walog.Logger = logger{}
 
 // Errorf handles the given message as representing a (typically) fatal error.
-func (l logger) Errorf(msg string, args ...interface{}) {
+func (l logger) Errorf(msg string, args ...any) {
 	l.logger.Error(fmt.Sprintf(msg, args...))
 }
 
 // Warn handles the given message as representing a non-fatal error or warning thereof.
-func (l logger) Warnf(msg string, args ...interface{}) {
+func (l logger) Warnf(msg string, args ...any) {
 	l.logger.Warn(fmt.Sprintf(msg, args...))
 }
 
 // Infof handles the given message as representing an informational notice.
-func (l logger) Infof(msg string, args ...interface{}) {
+func (l logger) Infof(msg string, args ...any) {
 	l.logger.Info(fmt.Sprintf(msg, args...))
 }
 
 // Debugf handles the given message as representing an internal-only debug message.
-func (l logger) Debugf(msg string, args ...interface{}) {
+func (l logger) Debugf(msg string, args ...any) {
 	l.logger.Debug(fmt.Sprintf(msg, args...))
 }
 

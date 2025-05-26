@@ -268,14 +268,14 @@ func convertAudioVideo(ctx context.Context, data []byte, spec *Spec) ([]byte, er
 		return nil, err
 	}
 
-	defer os.Remove(in)
+	defer func() { _ = os.Remove(in) }()
 
 	out, err := createTempFile(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	defer os.Remove(out)
+	defer func() { _ = os.Remove(out) }()
 
 	if err := ffmpeg(ctx, in, out, args...); err != nil {
 		return nil, err
@@ -364,12 +364,13 @@ func getAudioVideoSpec(ctx context.Context, data []byte) (*Spec, error) {
 		return nil, err
 	}
 
-	defer os.Remove(in)
+	defer func() { _ = os.Remove(in) }()
 	var result Spec
 
-	out, err := ffprobe(ctx, in,
-		"-show_entries", "stream=codec_name,width,height,sample_rate,duration",
-	)
+	out, err := ffprobe(ctx, in, "-show_entries", "stream=codec_name,width,height,sample_rate,duration")
+	if err != nil {
+		return nil, err
+	}
 
 	if s, ok := out["streams"].([]any); ok {
 		if len(s) == 0 {
@@ -475,7 +476,7 @@ func GetWaveform(ctx context.Context, data []byte, spec *Spec, maxSamples int) (
 		return nil, err
 	}
 
-	defer os.Remove(in)
+	defer func() { _ = os.Remove(in) }()
 
 	// Determine number of waveform to take based on duration and sample-rate of original file.
 	numSamples := strconv.Itoa(int(float64(spec.AudioSampleRate)*spec.Duration.Seconds()) / maxSamples)
@@ -484,6 +485,10 @@ func GetWaveform(ctx context.Context, data []byte, spec *Spec, maxSamples int) (
 		"-f", "lavfi",
 		"-show_entries", "frame_tags=lavfi.astats.Overall.Peak_level",
 	)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Get waveform with defined maximum number of samples, and scale these from a range of 0 to 100.
 	var samples = make([]byte, 0, maxSamples)
@@ -532,13 +537,14 @@ func createTempFile(data []byte) (string, error) {
 		return "", fmt.Errorf("failed creating temporary file: %w", err)
 	}
 
-	defer f.Close()
+	defer func() { _ = f.Close() }()
+
 	if len(data) > 0 {
 		if n, err := f.Write(data); err != nil {
-			os.Remove(f.Name())
+			_ = os.Remove(f.Name())
 			return "", fmt.Errorf("failed writing to temporary file: %w", err)
 		} else if n < len(data) {
-			os.Remove(f.Name())
+			_ = os.Remove(f.Name())
 			return "", fmt.Errorf("failed writing to temporary file: incomplete write, want %d, write %d bytes", len(data), n)
 		}
 	}

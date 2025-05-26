@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image/jpeg"
 	"math/rand"
+	"slices"
 	"time"
 
 	// Internal packages.
@@ -68,10 +69,11 @@ type Session struct {
 func (s *Session) Login() error {
 	var err error
 	var store *store.Device
+	var ctx = context.Background()
 
 	// Try to fetch existing device from given device JID.
 	if s.device.ID != "" {
-		store, err = s.gateway.container.GetDevice(s.device.JID())
+		store, err = s.gateway.container.GetDevice(ctx, s.device.JID())
 		if err != nil {
 			return err
 		}
@@ -153,7 +155,7 @@ func (s *Session) Logout() error {
 		return nil
 	}
 
-	err := s.client.Logout()
+	err := s.client.Logout(context.Background())
 	s.client = nil
 	close(s.presenceChan)
 
@@ -176,16 +178,17 @@ func (s *Session) Disconnect() error {
 // [Session] is already paired, or if the phone number given is empty or invalid.
 func (s *Session) PairPhone(phone string) (string, error) {
 	if s.client == nil {
-		return "", fmt.Errorf("Cannot pair for uninitialized session")
+		return "", fmt.Errorf("cannot pair for uninitialized session")
 	} else if s.client.Store.ID != nil {
-		return "", fmt.Errorf("Refusing to pair for connected session")
+		return "", fmt.Errorf("refusing to pair for connected session")
 	} else if phone == "" {
-		return "", fmt.Errorf("Cannot pair for empty phone number")
+		return "", fmt.Errorf("cannot pair for empty phone number")
 	}
 
-	code, err := s.client.PairPhone(phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+	var ctx = context.Background()
+	code, err := s.client.PairPhone(ctx, phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 	if err != nil {
-		return "", fmt.Errorf("Failed to pair with phone number: %s", err)
+		return "", fmt.Errorf("failed to pair with phone number: %s", err)
 	}
 
 	return code, nil
@@ -196,14 +199,15 @@ func (s *Session) PairPhone(phone string) (string, error) {
 // documentation for the [Message] type for more information.
 func (s *Session) SendMessage(message Message) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot send message for unauthenticated session")
+		return fmt.Errorf("cannot send message for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(message.JID)
 	if err != nil {
-		return fmt.Errorf("Could not parse sender JID for message: %s", err)
+		return fmt.Errorf("could not parse sender JID for message: %s", err)
 	}
 
+	var ctx = context.Background()
 	var payload *waE2E.Message
 	var extra whatsmeow.SendRequestExtra
 
@@ -215,13 +219,13 @@ func (s *Session) SendMessage(message Message) error {
 		}
 
 		// Upload attachment into WhatsApp before sending message.
-		if payload, err = uploadAttachment(s.client, &message.Attachments[0]); err != nil {
-			return fmt.Errorf("Failed uploading attachment: %s", err)
+		if payload, err = uploadAttachment(ctx, s.client, &message.Attachments[0]); err != nil {
+			return fmt.Errorf("failed uploading attachment: %s", err)
 		}
 		extra.ID = message.ID
 	case MessageEdit:
 		// Edit existing message by ID.
-		payload = s.client.BuildEdit(s.device.JID().ToNonAD(), message.ID, s.getMessagePayload(message))
+		payload = s.client.BuildEdit(s.device.JID().ToNonAD(), message.ID, s.getMessagePayload(ctx, message))
 	case MessageRevoke:
 		// Don't send message, but revoke existing message by ID.
 		var originJID types.JID
@@ -232,7 +236,7 @@ func (s *Session) SendMessage(message Message) error {
 			// A message moderation
 			originJID, err = types.ParseJID(message.OriginJID)
 			if err != nil {
-				return fmt.Errorf("Could not parse sender JID for message: %s", err)
+				return fmt.Errorf("could not parse sender JID for message: %s", err)
 			}
 		}
 		payload = s.client.BuildRevoke(jid, originJID, message.ID)
@@ -251,12 +255,12 @@ func (s *Session) SendMessage(message Message) error {
 			},
 		}
 	default:
-		payload = s.getMessagePayload(message)
+		payload = s.getMessagePayload(ctx, message)
 		extra.ID = message.ID
 	}
 
 	s.gateway.logger.Debugf("Sending message to JID '%s': %+v", jid, payload)
-	_, err = s.client.SendMessage(context.Background(), jid, payload, extra)
+	_, err = s.client.SendMessage(ctx, jid, payload, extra)
 	return err
 }
 
@@ -268,11 +272,9 @@ const (
 // GetMessagePayload returns a concrete WhatsApp protocol message for the given Message representation.
 // The specific fields set within the protocol message, as well as its type, can depend on specific
 // fields set in the Message type, and may be nested recursively (e.g. when replying to a reply).
-func (s *Session) getMessagePayload(message Message) *waE2E.Message {
-	var payload *waE2E.Message
-	var ctx = context.Background()
-
+func (s *Session) getMessagePayload(ctx context.Context, message Message) *waE2E.Message {
 	// Compose extended message when made as a reply to a different message.
+	var payload *waE2E.Message
 	if message.ReplyID != "" {
 		// Fall back to our own JID if no origin JID has been specified, in which case we assume
 		// we're replying to our own messages.
@@ -357,12 +359,12 @@ func (s *Session) GenerateMessageID() string {
 // contact specified within.
 func (s *Session) SendChatState(state ChatState) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot send chat state for unauthenticated session")
+		return fmt.Errorf("cannot send chat state for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(state.JID)
 	if err != nil {
-		return fmt.Errorf("Could not parse sender JID for chat state: %s", err)
+		return fmt.Errorf("could not parse sender JID for chat state: %s", err)
 	}
 
 	var presence types.ChatPresence
@@ -379,7 +381,7 @@ func (s *Session) SendChatState(state ChatState) error {
 // SendReceipt sends a read receipt to WhatsApp for the message IDs specified within.
 func (s *Session) SendReceipt(receipt Receipt) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot send receipt for unauthenticated session")
+		return fmt.Errorf("cannot send receipt for unauthenticated session")
 	}
 
 	var jid, senderJID types.JID
@@ -387,17 +389,17 @@ func (s *Session) SendReceipt(receipt Receipt) error {
 
 	if receipt.GroupJID != "" {
 		if senderJID, err = types.ParseJID(receipt.JID); err != nil {
-			return fmt.Errorf("Could not parse sender JID for receipt: %s", err)
+			return fmt.Errorf("could not parse sender JID for receipt: %s", err)
 		} else if jid, err = types.ParseJID(receipt.GroupJID); err != nil {
-			return fmt.Errorf("Could not parse group JID for receipt: %s", err)
+			return fmt.Errorf("could not parse group JID for receipt: %s", err)
 		}
 	} else {
 		if jid, err = types.ParseJID(receipt.JID); err != nil {
-			return fmt.Errorf("Could not parse sender JID for receipt: %s", err)
+			return fmt.Errorf("could not parse sender JID for receipt: %s", err)
 		}
 	}
 
-	ids := append([]types.MessageID{}, receipt.MessageIDs...)
+	ids := slices.Clone(receipt.MessageIDs)
 	return s.client.MarkRead(ids, time.Unix(receipt.Timestamp, 0), jid, senderJID)
 }
 
@@ -405,7 +407,7 @@ func (s *Session) SendReceipt(receipt Receipt) error {
 // user. An error is returned if setting availability fails for any reason.
 func (s *Session) SendPresence(presence PresenceKind, statusMessage string) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot send presence for unauthenticated session")
+		return fmt.Errorf("cannot send presence for unauthenticated session")
 	}
 
 	var err error
@@ -429,22 +431,23 @@ func (s *Session) SendPresence(presence PresenceKind, statusMessage string) erro
 // If `refresh` is `true`, FetchRoster will pull application state from the remote service and
 // synchronize any contacts found with the adapter.
 func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
+	var ctx = context.Background()
 	if s.client == nil || s.client.Store.ID == nil {
-		return nil, fmt.Errorf("Cannot get contacts for unauthenticated session")
+		return nil, fmt.Errorf("cannot get contacts for unauthenticated session")
 	}
 
 	// Synchronize remote application state with local state if requested.
 	if refresh {
-		err := s.client.FetchAppState(appstate.WAPatchCriticalUnblockLow, false, false)
+		err := s.client.FetchAppState(ctx, appstate.WAPatchCriticalUnblockLow, false, false)
 		if err != nil {
 			s.gateway.logger.Warnf("Could not get app state from server: %s", err)
 		}
 	}
 
 	// Synchronize local contact state with overarching gateway for all local contacts.
-	data, err := s.client.Store.Contacts.GetAllContacts()
+	data, err := s.client.Store.Contacts.GetAllContacts(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting local contacts: %s", err)
+		return nil, fmt.Errorf("failed getting local contacts: %s", err)
 	}
 
 	var contacts []Contact
@@ -464,12 +467,12 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 // information on present participants.
 func (s *Session) GetGroups() ([]Group, error) {
 	if s.client == nil || s.client.Store.ID == nil {
-		return nil, fmt.Errorf("Cannot get groups for unauthenticated session")
+		return nil, fmt.Errorf("cannot get groups for unauthenticated session")
 	}
 
 	data, err := s.client.GetJoinedGroups()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting groups: %s", err)
+		return nil, fmt.Errorf("failed getting groups: %s", err)
 	}
 
 	var groups []Group
@@ -484,14 +487,14 @@ func (s *Session) GetGroups() ([]Group, error) {
 // participant JIDs given.
 func (s *Session) CreateGroup(name string, participants []string) (Group, error) {
 	if s.client == nil || s.client.Store.ID == nil {
-		return Group{}, fmt.Errorf("Cannot create group for unauthenticated session")
+		return Group{}, fmt.Errorf("cannot create group for unauthenticated session")
 	}
 
 	var jids []types.JID
 	for _, p := range participants {
 		jid, err := types.ParseJID(p)
 		if err != nil {
-			return Group{}, fmt.Errorf("Could not parse participant JID: %s", err)
+			return Group{}, fmt.Errorf("could not parse participant JID: %s", err)
 		}
 
 		jids = append(jids, jid)
@@ -500,7 +503,7 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 	req := whatsmeow.ReqCreateGroup{Name: name, Participants: jids}
 	info, err := s.client.CreateGroup(req)
 	if err != nil {
-		return Group{}, fmt.Errorf("Could not create group: %s", err)
+		return Group{}, fmt.Errorf("could not create group: %s", err)
 	}
 
 	return newGroup(s.client, info), nil
@@ -509,12 +512,12 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 // LeaveGroup attempts to remove our own user from the given WhatsApp group, for the JID given.
 func (s *Session) LeaveGroup(resourceID string) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot leave group for unauthenticated session")
+		return fmt.Errorf("cannot leave group for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return fmt.Errorf("Could not parse JID for leaving group: %s", err)
+		return fmt.Errorf("could not parse JID for leaving group: %s", err)
 	}
 
 	return s.client.LeaveGroup(jid)
@@ -525,19 +528,19 @@ func (s *Session) LeaveGroup(resourceID string) error {
 // for the given ID has not changed.
 func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 	if s.client == nil || s.client.Store.ID == nil {
-		return Avatar{}, fmt.Errorf("Cannot get avatar for unauthenticated session")
+		return Avatar{}, fmt.Errorf("cannot get avatar for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return Avatar{}, fmt.Errorf("Could not parse JID for avatar: %s", err)
+		return Avatar{}, fmt.Errorf("could not parse JID for avatar: %s", err)
 	}
 
 	p, err := s.client.GetProfilePictureInfo(jid, &whatsmeow.GetProfilePictureParams{ExistingID: avatarID})
 	if errors.Is(err, whatsmeow.ErrProfilePictureNotSet) || errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized) {
 		return Avatar{}, nil
 	} else if err != nil {
-		return Avatar{}, fmt.Errorf("Could not get avatar: %s", err)
+		return Avatar{}, fmt.Errorf("could not get avatar: %s", err)
 	} else if p != nil {
 		return Avatar{ID: p.ID, URL: p.URL}, nil
 	}
@@ -550,7 +553,7 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 // typically used as a cache reference or in providing to future calls for [Session.GetAvatar].
 func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 	if s.client == nil || s.client.Store.ID == nil {
-		return "", fmt.Errorf("Cannot set avatar for unauthenticated session")
+		return "", fmt.Errorf("cannot set avatar for unauthenticated session")
 	}
 
 	var ctx = context.Background()
@@ -561,7 +564,7 @@ func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 	if resourceID == "" {
 		jid = types.EmptyJID
 	} else if jid, err = types.ParseJID(resourceID); err != nil {
-		return "", fmt.Errorf("Could not parse JID for avatar: %s", err)
+		return "", fmt.Errorf("could not parse JID for avatar: %s", err)
 	}
 
 	if len(avatar) == 0 {
@@ -570,7 +573,7 @@ func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 		// Ensure avatar is in JPEG format, and convert before setting if needed.
 		data, err := media.Convert(ctx, avatar, &media.Spec{MIME: media.TypeJPEG})
 		if err != nil {
-			return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
+			return "", fmt.Errorf("failed converting avatar to JPEG: %s", err)
 		}
 
 		return s.client.SetGroupPhoto(jid, data)
@@ -580,12 +583,12 @@ func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 // SetGroupName updates the name of a WhatsApp group for the Group JID given.
 func (s *Session) SetGroupName(resourceID, name string) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot set group name for unauthenticated session")
+		return fmt.Errorf("cannot set group name for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return fmt.Errorf("Could not parse JID for group name change: %s", err)
+		return fmt.Errorf("could not parse JID for group name change: %s", err)
 	}
 
 	return s.client.SetGroupName(jid, name)
@@ -594,12 +597,12 @@ func (s *Session) SetGroupName(resourceID, name string) error {
 // SetGroupName updates the topic of a WhatsApp group for the Group JID given.
 func (s *Session) SetGroupTopic(resourceID, topic string) error {
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot set group topic for unauthenticated session")
+		return fmt.Errorf("cannot set group topic for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return fmt.Errorf("Could not parse JID for group topic change: %s", err)
+		return fmt.Errorf("could not parse JID for group topic change: %s", err)
 	}
 
 	return s.client.SetGroupTopic(jid, "", "", topic)
@@ -610,26 +613,27 @@ func (s *Session) SetGroupTopic(resourceID, topic string) error {
 // removals, and changes to privileges. Participant JIDs given must be part of the authenticated
 // session's roster at least, and must also be active group participants for other types of changes.
 func (s *Session) UpdateGroupParticipants(resourceID string, participants []GroupParticipant) ([]GroupParticipant, error) {
+	var ctx = context.Background()
 	if s.client == nil || s.client.Store.ID == nil {
-		return nil, fmt.Errorf("Cannot update group participants for unauthenticated session")
+		return nil, fmt.Errorf("cannot update group participants for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse JID for group participant update: %s", err)
+		return nil, fmt.Errorf("could not parse JID for group participant update: %s", err)
 	}
 
 	var changes = make(map[whatsmeow.ParticipantChange][]types.JID)
 	for _, p := range participants {
 		participantJID, err := types.ParseJID(p.JID)
 		if err != nil {
-			return nil, fmt.Errorf("Could not parse participant JID for update: %s", err)
+			return nil, fmt.Errorf("could not parse participant JID for update: %s", err)
 		}
 
-		if c, err := s.client.Store.Contacts.GetContact(participantJID); err != nil {
-			return nil, fmt.Errorf("Could not fetch contact for participant: %s", err)
+		if c, err := s.client.Store.Contacts.GetContact(ctx, participantJID); err != nil {
+			return nil, fmt.Errorf("could not fetch contact for participant: %s", err)
 		} else if !c.Found {
-			return nil, fmt.Errorf("Cannot update group participant for contact '%s' not in roster", participantJID)
+			return nil, fmt.Errorf("cannot update group participant for contact '%s' not in roster", participantJID)
 		}
 
 		c := p.Action.toParticipantChange()
@@ -640,7 +644,7 @@ func (s *Session) UpdateGroupParticipants(resourceID string, participants []Grou
 	for change, participantJIDs := range changes {
 		participants, err := s.client.UpdateGroupParticipants(jid, participantJIDs, change)
 		if err != nil {
-			return nil, fmt.Errorf("Failed setting group affiliation: %s", err)
+			return nil, fmt.Errorf("failed setting group affiliation: %s", err)
 		}
 		for i := range participants {
 			p := newGroupParticipant(participants[i])
@@ -659,12 +663,13 @@ func (s *Session) UpdateGroupParticipants(resourceID string, participants []Grou
 // error is returned if no contact was found, but any unexpected errors will otherwise be returned
 // directly.
 func (s *Session) FindContact(phone string) (Contact, error) {
+	var ctx = context.Background()
 	if s.client == nil || s.client.Store.ID == nil {
-		return Contact{}, fmt.Errorf("Cannot find contact for unauthenticated session")
+		return Contact{}, fmt.Errorf("cannot find contact for unauthenticated session")
 	}
 
 	jid := types.NewJID(phone, DefaultUserServer)
-	if c, err := s.client.Store.Contacts.GetContact(jid); err == nil && c.Found {
+	if c, err := s.client.Store.Contacts.GetContact(ctx, jid); err == nil && c.Found {
 		if _, e := newContactEvent(jid, c); e != nil {
 			return e.Contact, nil
 		}
@@ -672,9 +677,9 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 
 	resp, err := s.client.IsOnWhatsApp([]string{phone})
 	if err != nil {
-		return Contact{}, fmt.Errorf("Failed looking up contact '%s': %s", phone, err)
+		return Contact{}, fmt.Errorf("failed looking up contact '%s': %s", phone, err)
 	} else if len(resp) != 1 {
-		return Contact{}, fmt.Errorf("Failed looking up contact '%s': invalid response", phone)
+		return Contact{}, fmt.Errorf("failed looking up contact '%s': invalid response", phone)
 	} else if !resp[0].IsIn || resp[0].JID.IsEmpty() {
 		return Contact{}, nil
 	}
@@ -687,13 +692,14 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 // history should then be handled as a `HistorySync` event of type `ON_DEMAND`, in the session-wide
 // event handler. An error will be returned if requesting history fails for any reason.
 func (s *Session) RequestMessageHistory(resourceID string, oldestMessage Message) error {
+	var ctx = context.Background()
 	if s.client == nil || s.client.Store.ID == nil {
-		return fmt.Errorf("Cannot request history for unauthenticated session")
+		return fmt.Errorf("cannot request history for unauthenticated session")
 	}
 
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
-		return fmt.Errorf("Could not parse JID for history request: %s", err)
+		return fmt.Errorf("could not parse JID for history request: %s", err)
 	}
 
 	info := &types.MessageInfo{
@@ -703,9 +709,9 @@ func (s *Session) RequestMessageHistory(resourceID string, oldestMessage Message
 	}
 
 	req := s.client.BuildHistorySyncRequest(info, maxHistorySyncMessages)
-	_, err = s.client.SendMessage(context.Background(), s.device.JID().ToNonAD(), req, whatsmeow.SendRequestExtra{Peer: true})
+	_, err = s.client.SendMessage(ctx, s.device.JID().ToNonAD(), req, whatsmeow.SendRequestExtra{Peer: true})
 	if err != nil {
-		return fmt.Errorf("Failed to request history for %s: %s", resourceID, err)
+		return fmt.Errorf("failed to request history for %s: %s", resourceID, err)
 	}
 
 	return nil
@@ -739,7 +745,8 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 // HandleEvent processes the given incoming WhatsApp event, checking its concrete type and
 // propagating it to the adapter event handler. Unknown or unhandled events are ignored, and any
 // errors that occur during processing are logged.
-func (s *Session) handleEvent(evt interface{}) {
+func (s *Session) handleEvent(evt any) {
+	var ctx = context.Background()
 	s.gateway.logger.Debugf("Handling event '%T': %+v", evt, evt)
 
 	switch evt := evt.(type) {
@@ -755,7 +762,7 @@ func (s *Session) handleEvent(evt interface{}) {
 		case events.ConnectFailureLoggedOut:
 			// These events are handled separately.
 		default:
-			s.gateway.logger.Errorf("Failed to connect: %s", evt.Message)
+			s.gateway.logger.Errorf("failed to connect: %s", evt.Message)
 			s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: evt.Message}})
 		}
 	case *events.Connected, *events.PushNameSetting:
@@ -806,7 +813,7 @@ func (s *Session) handleEvent(evt interface{}) {
 		s.propagateEvent(newCallEvent(callStateFromReason(evt.Reason), evt.BasicCallMeta))
 	case *events.LoggedOut:
 		s.client.Disconnect()
-		if err := s.client.Store.Delete(); err != nil {
+		if err := s.client.Store.Delete(ctx); err != nil {
 			s.gateway.logger.Warnf("Unable to delete local device state on logout: %s", err)
 		}
 		s.client = nil

@@ -21,6 +21,9 @@ DB_PATH__DOC = (
     "${SLIDGE_HOME_DIR}/whatsapp/whatsapp.db"
 )
 
+DB_PARAMS = "?_foreign_keys=true"
+DB_PARAMS__DOC = "Additional parameters to pass to database connection string."
+
 ALWAYS_SYNC_ROSTER = False
 ALWAYS_SYNC_ROSTER__DOC = (
     "Whether or not to perform a full sync of the WhatsApp roster on startup."
