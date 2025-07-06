@@ -462,7 +462,9 @@ func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, messag
 		// Convert incoming data if a specification has been given, ignoring any errors that occur.
 		if convertSpec != nil {
 			data, err = media.Convert(ctx, a.Data, convertSpec)
-			if err == nil {
+			if err != nil {
+				client.Log.Warnf("failed to convert incoming attachment: %s", err)
+			} else {
 				a.Data, a.MIME = data, string(convertSpec.MIME)
 			}
 		}
@@ -648,6 +650,10 @@ func convertAttachment(ctx context.Context, attach *Attachment) error {
 	}
 
 	attach.Data, attach.MIME = data, string(spec.MIME)
+	if i := strings.LastIndexByte(attach.Filename, '.'); i != -1 {
+		attach.Filename = attach.Filename[:i] + extensionByType(attach.MIME)
+	}
+
 	return nil
 }
 
@@ -669,7 +675,7 @@ var knownMediaTypes = map[string]whatsmeow.MediaType{
 func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Attachment) (*waE2E.Message, error) {
 	var originalMIME = attach.MIME
 	if err := convertAttachment(ctx, attach); err != nil {
-		client.Log.Warnf("failed to auto-convert attachment: %s", err)
+		client.Log.Warnf("failed to convert outgoing attachment: %s", err)
 	}
 
 	mediaType := knownMediaTypes[getBaseMediaType(attach.MIME)]

@@ -135,7 +135,11 @@ func (s Spec) commandLineArgs() ([]string, error) {
 			if s.AudioCodec != "" && s.AudioCodec != CodecOpus {
 				return nil, fmt.Errorf(errInvalidCodec, mime, CodecOpus, s.AudioCodec)
 			}
-			args = append(args, "-f", "ogg", "-c:a", "libopus")
+			args = append(args,
+				"-f", "ogg",
+				"-c:a", "libopus",
+				"-filter:a", "asetpts=N/SR/TB",
+			)
 		case TypeM4A:
 			if s.AudioCodec != "" && s.AudioCodec != CodecAAC {
 				return nil, fmt.Errorf(errInvalidCodec, mime, CodecAAC, s.AudioCodec)

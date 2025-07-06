@@ -80,6 +80,7 @@ RUN apt-get update -y \
         libmagic1 \
         media-types \
         shared-mime-info \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 ENV GOBIN="/usr/local/bin"
 RUN go install -v github.com/go-python/gopy@master
