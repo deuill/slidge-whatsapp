@@ -17,7 +17,7 @@ import (
 )
 
 func (cli *Client) handleStreamError(node *waBinary.Node) {
-	ctx := context.TODO()
+	ctx := cli.BackgroundEventCtx
 	cli.isLoggedIn.Store(false)
 	cli.clearResponseWaiters(node)
 	code, _ := node.Attrs["code"].(string)
@@ -58,7 +58,7 @@ func (cli *Client) handleStreamError(node *waBinary.Node) {
 		cli.Log.Infof("Got %s stream error, refreshing CAT before reconnecting...", code)
 		cli.socketLock.RLock()
 		defer cli.socketLock.RUnlock()
-		err := cli.RefreshCAT()
+		err := cli.RefreshCAT(ctx)
 		if err != nil {
 			cli.Log.Errorf("Failed to refresh CAT: %v", err)
 			cli.expectDisconnect()
@@ -94,7 +94,7 @@ func (cli *Client) handleIB(node *waBinary.Node) {
 }
 
 func (cli *Client) handleConnectFailure(node *waBinary.Node) {
-	ctx := context.TODO()
+	ctx := cli.BackgroundEventCtx
 	ag := node.AttrGetter()
 	reason := events.ConnectFailureReason(ag.Int("reason"))
 	message := ag.OptionalString("message")
@@ -136,7 +136,7 @@ func (cli *Client) handleConnectFailure(node *waBinary.Node) {
 		go cli.dispatchEvent(&events.ClientOutdated{})
 	} else if reason == events.ConnectFailureCATInvalid || reason == events.ConnectFailureCATExpired {
 		cli.Log.Infof("Got %d/%s connect failure, refreshing CAT before reconnecting...", int(reason), message)
-		err := cli.RefreshCAT()
+		err := cli.RefreshCAT(ctx)
 		if err != nil {
 			cli.Log.Errorf("Failed to refresh CAT: %v", err)
 			cli.expectDisconnect()
@@ -151,7 +151,7 @@ func (cli *Client) handleConnectFailure(node *waBinary.Node) {
 }
 
 func (cli *Client) handleConnectSuccess(node *waBinary.Node) {
-	ctx := context.TODO()
+	ctx := cli.BackgroundEventCtx
 	cli.Log.Infof("Successfully authenticated")
 	cli.LastSuccessfulConnect = time.Now()
 	cli.AutoReconnectErrors = 0
@@ -165,8 +165,10 @@ func (cli *Client) handleConnectSuccess(node *waBinary.Node) {
 		} else {
 			cli.Log.Infof("Updated LID to %s", cli.Store.LID)
 		}
-		cli.StoreLIDPNMapping(ctx, cli.Store.GetLID(), cli.Store.GetJID())
 	}
+	// Some users are missing their own LID-PN mapping even though it's already in the device table,
+	// so do this unconditionally for a few months to ensure everyone gets the row.
+	cli.StoreLIDPNMapping(ctx, cli.Store.GetLID(), cli.Store.GetJID())
 	go func() {
 		if dbCount, err := cli.Store.PreKeys.UploadedPreKeyCount(ctx); err != nil {
 			cli.Log.Errorf("Failed to get number of prekeys in database: %v", err)

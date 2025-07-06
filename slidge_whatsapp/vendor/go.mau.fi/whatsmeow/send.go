@@ -25,7 +25,6 @@ import (
 	"go.mau.fi/libsignal/protocol"
 	"go.mau.fi/libsignal/session"
 	"go.mau.fi/libsignal/signalerror"
-	"go.mau.fi/util/ptr"
 	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 
@@ -224,7 +223,7 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	}
 
 	isBotMode := isInlineBotMode || to.IsBot()
-	needsMessageSecret := isBotMode
+	needsMessageSecret := isBotMode || cli.shouldIncludeReportingToken(message)
 	var extraParams nodeExtraParams
 
 	if needsMessageSecret {
@@ -296,10 +295,6 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 			if cachedData.AddressingMode == types.AddressingModeLID {
 				ownID = cli.getOwnLID()
 				extraParams.addressingMode = types.AddressingModeLID
-				if req.Meta == nil {
-					req.Meta = &types.MsgMetaInfo{}
-				}
-				req.Meta.DeprecatedLIDSession = ptr.Ptr(false)
 			} else if cachedData.CommunityAnnouncementGroup && req.Meta != nil {
 				ownID = cli.getOwnLID()
 				// Why is this set to PN?
@@ -315,11 +310,6 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 		resp.DebugTimings.GetParticipants = time.Since(start)
 	} else if to.Server == types.HiddenUserServer {
 		ownID = cli.getOwnLID()
-		extraParams.addressingMode = types.AddressingModeLID
-		// if req.Meta == nil {
-		// 	req.Meta = &types.MsgMetaInfo{}
-		// }
-		// req.Meta.DeprecatedLIDSession = ptr.Ptr(false)
 	}
 	if req.Meta != nil {
 		extraParams.metaNode = &waBinary.Node{
@@ -361,8 +351,8 @@ func (cli *Client) SendMessage(ctx context.Context, to types.JID, message *waE2E
 	var data []byte
 	switch to.Server {
 	case types.GroupServer, types.BroadcastServer:
-		phash, data, err = cli.sendGroup(ctx, to, groupParticipants, req.ID, message, &resp.DebugTimings, extraParams)
-	case types.DefaultUserServer, types.BotServer:
+		phash, data, err = cli.sendGroup(ctx, ownID, to, groupParticipants, req.ID, message, &resp.DebugTimings, extraParams)
+	case types.DefaultUserServer, types.BotServer, types.HiddenUserServer:
 		if req.Peer {
 			data, err = cli.sendPeerMessage(ctx, to, req.ID, message, &resp.DebugTimings)
 		} else {
@@ -590,7 +580,7 @@ func ParseDisappearingTimerString(val string) (time.Duration, bool) {
 // In groups, the server will echo the change as a notification, so it'll show up as a *events.GroupInfo update.
 func (cli *Client) SetDisappearingTimer(chat types.JID, timer time.Duration) (err error) {
 	switch chat.Server {
-	case types.DefaultUserServer:
+	case types.DefaultUserServer, types.HiddenUserServer:
 		_, err = cli.SendMessage(context.TODO(), chat, &waE2E.Message{
 			ProtocolMessage: &waE2E.ProtocolMessage{
 				Type:                waE2E.ProtocolMessage_EPHEMERAL_SETTING.Enum(),
@@ -688,6 +678,7 @@ type nodeExtraParams struct {
 
 func (cli *Client) sendGroup(
 	ctx context.Context,
+	ownID,
 	to types.JID,
 	participants []types.JID,
 	id types.MessageID,
@@ -746,6 +737,9 @@ func (cli *Client) sendGroup(
 		skMsg.Attrs["mediatype"] = mediaType
 	}
 	node.Content = append(node.GetChildren(), skMsg)
+	if cli.shouldIncludeReportingToken(message) && message.GetMessageContextInfo().GetMessageSecret() != nil {
+		node.Content = append(node.GetChildren(), cli.getMessageReportingToken(plaintext, message, ownID, to, id))
+	}
 
 	start = time.Now()
 	data, err := cli.sendNodeAndGetData(*node)
@@ -799,6 +793,20 @@ func (cli *Client) sendDM(
 	if err != nil {
 		return nil, err
 	}
+
+	if cli.shouldIncludeReportingToken(message) && message.GetMessageContextInfo().GetMessageSecret() != nil {
+		node.Content = append(node.GetChildren(), cli.getMessageReportingToken(messagePlaintext, message, ownID, to, id))
+	}
+
+	if tcToken, err := cli.Store.PrivacyTokens.GetPrivacyToken(ctx, to); err != nil {
+		cli.Log.Warnf("Failed to get privacy token for %s: %v", to, err)
+	} else if tcToken != nil {
+		node.Content = append(node.GetChildren(), waBinary.Node{
+			Tag:     "tctoken",
+			Content: tcToken.Token,
+		})
+	}
+
 	start = time.Now()
 	data, err := cli.sendNodeAndGetData(*node)
 	timings.Send = time.Since(start)
@@ -983,8 +991,15 @@ func (cli *Client) preparePeerMessageNode(
 		err = fmt.Errorf("failed to marshal message: %w", err)
 		return nil, err
 	}
+	encryptionIdentity := to
+	if to.Server == types.DefaultUserServer {
+		encryptionIdentity, err = cli.Store.LIDs.GetLIDForPN(ctx, to)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get LID for PN %s: %w", to, err)
+		}
+	}
 	start = time.Now()
-	encrypted, isPreKey, err := cli.encryptMessageForDevice(ctx, plaintext, to, nil, nil)
+	encrypted, isPreKey, err := cli.encryptMessageForDevice(ctx, plaintext, encryptionIdentity, nil, nil)
 	timings.PeerEncrypt = time.Since(start)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt peer message for %s: %v", to, err)
@@ -1154,7 +1169,7 @@ func (cli *Client) encryptMessageForDevices(
 	for _, jid := range allDevices {
 		plaintext := msgPlaintext
 		if (jid.User == ownJID.User || jid.User == ownLID.User) && dsmPlaintext != nil {
-			if jid == ownJID {
+			if jid == ownJID || jid == ownLID {
 				continue
 			}
 			plaintext = dsmPlaintext
@@ -1273,7 +1288,7 @@ func (cli *Client) encryptMessageForDevice(
 	} else if contains, err := cli.Store.ContainsSession(ctx, to.SignalAddress()); err != nil {
 		return nil, false, err
 	} else if !contains {
-		return nil, false, ErrNoSession
+		return nil, false, fmt.Errorf("%w with %s", ErrNoSession, to.SignalAddress().String())
 	}
 	cipher := session.NewCipher(builder, to.SignalAddress())
 	ciphertext, err := cipher.Encrypt(ctx, padMessage(plaintext))

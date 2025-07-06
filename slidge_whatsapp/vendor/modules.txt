@@ -78,11 +78,12 @@ go.mau.fi/libsignal/util/errorhelper
 go.mau.fi/libsignal/util/keyhelper
 go.mau.fi/libsignal/util/medium
 go.mau.fi/libsignal/util/optional
-# go.mau.fi/util v0.8.7
+# go.mau.fi/util v0.8.8
 ## explicit; go 1.23.0
 go.mau.fi/util/dbutil
 go.mau.fi/util/exerrors
 go.mau.fi/util/exhttp
+go.mau.fi/util/exstrings
 go.mau.fi/util/exsync
 go.mau.fi/util/exzerolog
 go.mau.fi/util/fallocate
@@ -90,7 +91,7 @@ go.mau.fi/util/jsontime
 go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20250521125706-91ac75c2f61a
+# go.mau.fi/whatsmeow v0.0.0-20250701221811-9adf672adc90
 ## explicit; go 1.23.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
@@ -99,6 +100,17 @@ go.mau.fi/whatsmeow/binary
 go.mau.fi/whatsmeow/binary/token
 go.mau.fi/whatsmeow/proto
 go.mau.fi/whatsmeow/proto/armadilloutil
+go.mau.fi/whatsmeow/proto/instamadilloAddMessage
+go.mau.fi/whatsmeow/proto/instamadilloCoreTypeActionLog
+go.mau.fi/whatsmeow/proto/instamadilloCoreTypeAdminMessage
+go.mau.fi/whatsmeow/proto/instamadilloCoreTypeCollection
+go.mau.fi/whatsmeow/proto/instamadilloCoreTypeLink
+go.mau.fi/whatsmeow/proto/instamadilloCoreTypeMedia
+go.mau.fi/whatsmeow/proto/instamadilloCoreTypeText
+go.mau.fi/whatsmeow/proto/instamadilloDeleteMessage
+go.mau.fi/whatsmeow/proto/instamadilloSupplementMessage
+go.mau.fi/whatsmeow/proto/instamadilloTransportPayload
+go.mau.fi/whatsmeow/proto/instamadilloXmaContentRef
 go.mau.fi/whatsmeow/proto/waAdv
 go.mau.fi/whatsmeow/proto/waArmadilloApplication
 go.mau.fi/whatsmeow/proto/waArmadilloXMA
@@ -110,12 +122,14 @@ go.mau.fi/whatsmeow/proto/waConsumerApplication
 go.mau.fi/whatsmeow/proto/waDeviceCapabilities
 go.mau.fi/whatsmeow/proto/waE2E
 go.mau.fi/whatsmeow/proto/waHistorySync
+go.mau.fi/whatsmeow/proto/waLidMigrationSyncPayload
 go.mau.fi/whatsmeow/proto/waMediaTransport
 go.mau.fi/whatsmeow/proto/waMmsRetry
 go.mau.fi/whatsmeow/proto/waMsgApplication
 go.mau.fi/whatsmeow/proto/waMsgTransport
 go.mau.fi/whatsmeow/proto/waMultiDevice
 go.mau.fi/whatsmeow/proto/waServerSync
+go.mau.fi/whatsmeow/proto/waStatusAttributions
 go.mau.fi/whatsmeow/proto/waSyncAction
 go.mau.fi/whatsmeow/proto/waUserPassword
 go.mau.fi/whatsmeow/proto/waVnameCert
@@ -132,12 +146,12 @@ go.mau.fi/whatsmeow/util/gcmutil
 go.mau.fi/whatsmeow/util/hkdfutil
 go.mau.fi/whatsmeow/util/keys
 go.mau.fi/whatsmeow/util/log
-# golang.org/x/crypto v0.38.0
+# golang.org/x/crypto v0.39.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
+# golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476
 ## explicit; go 1.23.0
 golang.org/x/exp/constraints
 # golang.org/x/image v0.27.0
@@ -148,7 +162,7 @@ golang.org/x/image/riff
 golang.org/x/image/vp8
 golang.org/x/image/vp8l
 golang.org/x/image/webp
-# golang.org/x/net v0.40.0
+# golang.org/x/net v0.41.0
 ## explicit; go 1.23.0
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
@@ -161,7 +175,7 @@ golang.org/x/net/proxy
 ## explicit; go 1.23.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.25.0
+# golang.org/x/text v0.26.0
 ## explicit; go 1.23.0
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
