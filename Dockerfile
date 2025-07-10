@@ -90,7 +90,7 @@ COPY --from=ci /venv /venv
 COPY ./watcher.py /build/
 ENTRYPOINT ["python", "watcher.py", \
             "/venv/lib/python3.11/site-packages/slidge:/build/slidge_whatsapp", \
-            "--dev-mode", \
+            "--dev-mode", "--debug", \
             "--legacy-module=slidge_whatsapp", "--jid=slidge.localhost", "--secret=secret"]
 
 

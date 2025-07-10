@@ -42,7 +42,7 @@ container_builder_deps_backports:
 container_debian_version: bookworm
 container_dev_custom_hot_reload: "\nCOPY ./watcher.py /build/\nENTRYPOINT [\"python\"\
     , \"watcher.py\", \\\n            \"/venv/lib/python3.11/site-packages/slidge:/build/slidge_whatsapp\"\
-    , \\\n            \"--dev-mode\", \\\n            \"--legacy-module=slidge_whatsapp\"\
+    , \\\n            \"--dev-mode\", \"--debug\" \\\n            \"--legacy-module=slidge_whatsapp\"\
     , \"--jid=slidge.localhost\", \"--secret=secret\"]\n"
 container_dev_extra_lines: 'ENV GOBIN="/usr/local/bin"
 
