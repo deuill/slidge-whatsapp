@@ -334,7 +334,7 @@ func processImage(img image.Image, spec *Spec) ([]byte, error) {
 			o.Quality = jpeg.DefaultQuality
 		}
 
-		err = jpeg.Encode(&buf, img, nil)
+		err = jpeg.Encode(&buf, img, &o)
 	case TypePNG:
 		err = png.Encode(&buf, img)
 	}

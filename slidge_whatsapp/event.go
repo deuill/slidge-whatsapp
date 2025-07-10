@@ -424,6 +424,7 @@ func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, messag
 		message.GetVideoMessage(),
 		message.GetDocumentMessage(),
 		message.GetStickerMessage(),
+		message.GetPtvMessage(),
 	}
 
 	for _, msg := range kinds {
