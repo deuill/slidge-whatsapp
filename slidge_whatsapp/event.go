@@ -256,11 +256,15 @@ type Album struct {
 func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, *EventPayload) {
 	// Set basic data for message, to be potentially amended depending on the concrete version of
 	// the underlying message.
+
 	var ctx = context.Background()
+
+	jid := getPreferredSender(client, ctx, evt.Info.Sender, evt.Info.SenderAlt)
+
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
-		JID:       evt.Info.Sender.ToNonAD().String(),
+		JID:       jid.ToNonAD().String(),
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
 		IsCarbon:  evt.Info.IsFromMe,
@@ -1010,10 +1014,12 @@ type Receipt struct {
 
 // NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive receipt
 // event given. Unknown or invalid receipts will return an [EventUnknown] event with nil data.
-func newReceiptEvent(evt *events.Receipt) (EventKind, *EventPayload) {
+func newReceiptEvent(client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
+	jid := getPreferredSender(client, nil, evt.Sender, evt.SenderAlt)
+
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
-		JID:        evt.Sender.ToNonAD().String(),
+		JID:        jid.ToNonAD().String(),
 		Timestamp:  evt.Timestamp.Unix(),
 		IsCarbon:   evt.IsFromMe,
 	}
@@ -1234,4 +1240,33 @@ func newCallEvent(state CallState, meta types.BasicCallMeta) (EventKind, *EventP
 		JID:       meta.From.ToNonAD().String(),
 		Timestamp: meta.Timestamp.Unix(),
 	}}
+}
+
+// getPreferredSender returns either Sender or SenderAlt, prioritizing the one
+// whose JID.Server is not types.HiddenUserServer
+func getPreferredSender(client *whatsmeow.Client, ctx context.Context, sender types.JID, senderAlt types.JID) types.JID {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check if Sender exists and its server is not HiddenUserServer
+	if !sender.IsEmpty() && sender.Server != types.HiddenUserServer {
+		return sender
+	}
+
+	// Check if SenderAlt exists and its server is not HiddenUserServer
+	if !senderAlt.IsEmpty() && senderAlt.Server != types.HiddenUserServer {
+		return senderAlt
+	}
+
+	// Chat markers can send just hidden sender, let's try mapping to PN
+	if !sender.IsEmpty() && sender.Server == types.HiddenUserServer {
+		origSender, err := client.Store.LIDs.GetPNForLID(ctx, sender)
+		if err == nil {
+			return origSender
+		}
+	}
+
+	// Fallback to the default
+	return sender
 }

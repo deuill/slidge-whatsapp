@@ -796,7 +796,7 @@ func (s *Session) handleEvent(evt any) {
 	case *events.Message:
 		s.propagateEvent(newMessageEvent(s.client, evt))
 	case *events.Receipt:
-		s.propagateEvent(newReceiptEvent(evt))
+		s.propagateEvent(newReceiptEvent(s.client, evt))
 	case *events.Presence:
 		s.propagateEvent(newPresenceEvent(evt))
 	case *events.PushName:
