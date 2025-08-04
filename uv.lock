@@ -575,16 +575,13 @@ wheels = [
 
 [[package]]
 name = "linkpreview"
-version = "0.11.0"
+version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/15/e0/7add03bd40f7f20dc5661e11e6e2137dc0a1062b01070699b420859de899/linkpreview-0.11.0.tar.gz", hash = "sha256:af30d3d1d86358d8fce9fa7bf9976f0a7ef0b213645072f58e916a87782ccbb5", size = 15277 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a1/4b/04c4740668ee84b37a2cb7d5e38111a399407a7ac81bc1c3e7efe2950b94/linkpreview-0.11.0-py3-none-any.whl", hash = "sha256:9f4dbd9abf0cdff6a5c8ca0e4133509c02ecf531ed6ea8c9e31da7e1cc510e8e", size = 21654 },
-]
+sdist = { url = "https://files.pythonhosted.org/packages/e5/ce/b4aad50068ad0559f0090497fa7df61a859db75d005ad44231ca98f283af/linkpreview-0.12.0.tar.gz", hash = "sha256:eb14f7f032ef80095b3fe908a45ac81883cb11a97c76681f323360e6f102e675", size = 15189 }
 
 [[package]]
 name = "mako"
