@@ -256,15 +256,11 @@ type Album struct {
 func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, *EventPayload) {
 	// Set basic data for message, to be potentially amended depending on the concrete version of
 	// the underlying message.
-
 	var ctx = context.Background()
-
-	jid := getPreferredSender(client, ctx, evt.Info.Sender, evt.Info.SenderAlt)
-
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
-		JID:       jid.ToNonAD().String(),
+		JID:       getPreferredSender(ctx, client, evt.Info.Sender, evt.Info.SenderAlt).ToNonAD().String(),
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
 		IsCarbon:  evt.Info.IsFromMe,
@@ -1015,11 +1011,10 @@ type Receipt struct {
 // NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive receipt
 // event given. Unknown or invalid receipts will return an [EventUnknown] event with nil data.
 func newReceiptEvent(client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
-	jid := getPreferredSender(client, nil, evt.Sender, evt.SenderAlt)
-
+	var ctx = context.Background()
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
-		JID:        jid.ToNonAD().String(),
+		JID:        getPreferredSender(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
 		Timestamp:  evt.Timestamp.Unix(),
 		IsCarbon:   evt.IsFromMe,
 	}
@@ -1242,31 +1237,22 @@ func newCallEvent(state CallState, meta types.BasicCallMeta) (EventKind, *EventP
 	}}
 }
 
-// getPreferredSender returns either Sender or SenderAlt, prioritizing the one
-// whose JID.Server is not types.HiddenUserServer
-func getPreferredSender(client *whatsmeow.Client, ctx context.Context, sender types.JID, senderAlt types.JID) types.JID {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Check if Sender exists and its server is not HiddenUserServer
-	if !sender.IsEmpty() && sender.Server != types.HiddenUserServer {
-		return sender
-	}
-
-	// Check if SenderAlt exists and its server is not HiddenUserServer
-	if !senderAlt.IsEmpty() && senderAlt.Server != types.HiddenUserServer {
-		return senderAlt
-	}
-
-	// Chat markers can send just hidden sender, let's try mapping to PN
-	if !sender.IsEmpty() && sender.Server == types.HiddenUserServer {
-		origSender, err := client.Store.LIDs.GetPNForLID(ctx, sender)
-		if err == nil {
-			return origSender
+// GetPreferredSender returns one of the [type.JID] values for the given senders, preferring the
+// first non-empty, non-hidden sender; the first value given will be returned unchanged if no
+// eligible senders are found.
+func getPreferredSender(ctx context.Context, client *whatsmeow.Client, sender types.JID, alt ...types.JID) types.JID {
+	for _, s := range append([]types.JID{sender}, alt...) {
+		if !s.IsEmpty() && s.Server != types.HiddenUserServer {
+			return s
 		}
 	}
 
-	// Fallback to the default
+	// Chat markers can send just hidden sender, let's try mapping to phone number.
+	if !sender.IsEmpty() && sender.Server == types.HiddenUserServer {
+		if s, err := client.Store.LIDs.GetPNForLID(ctx, sender); err == nil {
+			return s
+		}
+	}
+
 	return sender
 }
