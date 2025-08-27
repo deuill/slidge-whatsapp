@@ -8,7 +8,7 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-var prepCif, prepCifVar, call, closureAlloc, closureFree, prepClosureLoc uintptr
+var prepCif, prepCifVar, call, closureAlloc, closureFree, prepClosureLoc, getStructOffsets, getVersion, getVersionNumber uintptr
 
 type Abi uint32
 
@@ -86,18 +86,6 @@ type Type struct {
 func NewType(elements ...*Type) Type {
 	elements = append(elements, nil)
 	return Type{Type: Struct, Elements: &elements[0]}
-}
-
-// Cif stands for "Call InterFace". It describes the signature of a function.
-//
-// Use [PrepCif] to initialize it.
-type Cif struct {
-	Abi      uint32
-	NArgs    uint32
-	ArgTypes **Type
-	RType    *Type
-	Bytes    uint32
-	Flags    uint32
 }
 
 // Closure can be used to create callbacks (function pointers) at runtime.
@@ -269,4 +257,54 @@ func ClosureFree(writable *Closure) {
 func PrepClosureLoc(closure *Closure, cif *Cif, fun uintptr, userData, codeLoc unsafe.Pointer) Status {
 	ret, _, _ := purego.SyscallN(prepClosureLoc, uintptr(unsafe.Pointer(closure)), uintptr(unsafe.Pointer(cif)), fun, uintptr(userData), uintptr(codeLoc))
 	return Status(ret)
+}
+
+// GetStructOffsets computes the offset of each element of the given structure type and sets the size and alignment.
+//
+// offsets is an optional out parameter (pointer to the first element of an array).
+// The array's length should be equal to the number of struct fields.
+func GetStructOffsets(abi Abi, structType *Type, offsets *uint64) Status {
+	ret, _, _ := purego.SyscallN(getStructOffsets, uintptr(abi), uintptr(unsafe.Pointer(structType)), uintptr(unsafe.Pointer(offsets)))
+	return Status(ret)
+}
+
+// GetVersion returns the version of the loaded libffi library (not the Go binding), or "" if not available.
+//
+// This function requires libffi 3.5.0 or newer.
+func GetVersion() string {
+	if getVersion == 0 {
+		return ""
+	}
+	ret, _, _ := purego.SyscallN(getVersion)
+	if ret == 0 {
+		return ""
+	}
+
+	// The following logic converts the null-terminated C-style string to a Go string
+	// by determining the position of the trailing null byte:
+	p := *(**byte)(unsafe.Pointer(&ret))
+	i := 0
+	for ptr := unsafe.Pointer(p); *(*byte)(unsafe.Add(ptr, i)) != 0; i++ {
+	}
+	return string(unsafe.Slice(p, i))
+}
+
+// GetVersionNumber returns the version number (major*10000 + minor*100 + patch) of the loaded libffi library (not the Go binding),
+// or 0 if not available.
+//
+// This function requires libffi 3.5.0 or newer.
+//
+// Example:
+//
+//	version := ffi.GetVersionNumber()
+//	major := version / 10000
+//	minor := version / 100 % 100
+//	patch := version % 100
+//	fmt.Printf("%d.%d.%d\n", major, minor, patch)
+func GetVersionNumber() uint64 {
+	if getVersionNumber == 0 {
+		return 0
+	}
+	ret, _, _ := purego.SyscallN(getVersionNumber)
+	return uint64(ret)
 }
