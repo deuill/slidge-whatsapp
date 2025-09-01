@@ -509,6 +509,16 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 	return newGroup(s.client, info), nil
 }
 
+// JoinGroup attempts to join a group for the invite code link given.
+func (s *Session) JoinGroup(code string) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("cannot join group for unauthenticated session")
+	}
+
+	_, err := s.client.JoinGroupWithLink(code)
+	return err
+}
+
 // LeaveGroup attempts to remove our own user from the given WhatsApp group, for the JID given.
 func (s *Session) LeaveGroup(resourceID string) error {
 	if s.client == nil || s.client.Store.ID == nil {

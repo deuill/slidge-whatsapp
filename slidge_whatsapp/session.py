@@ -276,6 +276,10 @@ class Session(BaseSession[str, Recipient]):
                 reply_to=reply_to,
                 carbon=message.IsCarbon,
             )
+        elif message.Kind == whatsapp.MessageGroupInvite:
+            muc = await self.bookmarks.by_legacy_id(message.GroupInvite.JID)
+            await muc.update_whatsapp_info(message.GroupInvite)
+            self.send_gateway_invite(muc=muc, password=message.GroupInvite.InviteCode)
         for receipt in message.Receipts:
             await self.handle_receipt(receipt)
         for reaction in message.Reactions:
@@ -515,6 +519,21 @@ class Session(BaseSession[str, Recipient]):
         )
         muc = await self.bookmarks.by_legacy_id(group.JID)
         return muc.legacy_id
+
+    async def on_invitation(
+        self,
+        contact: Contact,  # type:ignore
+        muc: MUC,  # type:ignore
+        reason: Optional[str],
+        password: Optional[str],
+    ):
+        """
+        Joins WhatsApp group with given invite code.
+        """
+        if not password:
+            raise ValueError("No invite code given")
+        self.whatsapp.JoinGroup(password)
+        await muc.on_set_affiliation(contact, "member", reason, None)
 
     async def on_leave_group(self, legacy_muc_id: str):  # type:ignore
         """
