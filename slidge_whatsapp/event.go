@@ -172,6 +172,7 @@ type Message struct {
 	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
 	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
 	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
+	IsHistory   bool         // Whether or not the message is derived from message history.
 }
 
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
@@ -856,6 +857,7 @@ func newEventFromHistory(client *whatsmeow.Client, info *waWeb.WebMessageInfo) (
 		Body:      info.GetMessage().GetConversation(),
 		Timestamp: int64(info.GetMessageTimestamp()),
 		IsCarbon:  info.GetKey().GetFromMe(),
+		IsHistory: true,
 	}
 
 	if info.Participant != nil {

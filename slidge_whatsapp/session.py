@@ -4,12 +4,14 @@ from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
+import sqlalchemy
 from typing import Any, Optional, Union, cast
 
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
 from slidge.contact.roster import ContactIsUser
+from slidge.db.models import ArchivedMessage
 from slidge.util import is_valid_phone_number
 from slidge.util.types import (
     LegacyAttachment,
@@ -217,6 +219,13 @@ class Session(BaseSession[str, Recipient]):
         """
         contact = await self.__get_contact_or_participant(message.JID, message.GroupJID)
         muc = getattr(contact, "muc", None)
+        # Skip handing message that's already in our message archive.
+        if (
+            muc is not None
+            and message.IsHistory
+            and self.__is_message_in_archive(message.ID)
+        ):
+            return
         reply_to = await self.__get_reply_to(message, muc)
         message_timestamp = (
             datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
@@ -674,6 +683,14 @@ class Session(BaseSession[str, Recipient]):
             Longitude=float(longitude),
             Accuracy=int(match.group("acc") or 0),
         )
+
+    async def __is_message_in_archive(self, legacy_msg_id: str) -> bool:
+        with self.xmpp.store.session() as orm:
+            return orm.scalar(
+                sqlalchemy.exists()
+                .where(ArchivedMessage.legacy_id == legacy_msg_id)
+                .select()
+            )
 
     async def __get_contact_or_participant(
         self, legacy_contact_id: str, legacy_group_jid: str
