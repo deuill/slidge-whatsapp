@@ -1,10 +1,8 @@
 import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, AsyncIterator, Optional
-import sqlalchemy
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.db.models import Room
 from slidge.util.archive_msg import HistoryMessage
 from slidge.util.types import Avatar, Hat, HoleBound, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
@@ -32,7 +30,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         try:
             unique_id = ""
             if self.avatar is not None:
-                unique_id = self.avatar.unique_id or ""
+                unique_id = self.avatar.unique_id or ""  # type:ignore[assignment]
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, unique_id)
             if avatar.URL and unique_id != avatar.ID:
                 await self.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
@@ -66,9 +64,14 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     def get_message_sender(self, legacy_msg_id: str):
         with self.xmpp.store.session() as orm:
-            stored = self.xmpp.store.mam.get_messages(
-                orm, self.stored.id, [legacy_msg_id]
-            )
+            try:
+                stored = next(
+                    self.xmpp.store.mam.get_messages(
+                        orm, self.stored.id, ids=[legacy_msg_id]
+                    )
+                )
+            except StopIteration:
+                stored = None
         if not stored:
             raise XMPPError("internal-server-error", "Unable to find message sender")
         msg = HistoryMessage(stored.stanza)
@@ -178,16 +181,14 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         reason: Optional[str],
         nickname: Optional[str],
     ):
-        assert contact.contact_pk is not None
-        assert self.pk is not None
         if affiliation == "member":
-            if (
-                self.xmpp.store.participants.get_by_contact(self.pk, contact.contact_pk)
-                is not None
-            ):
-                action = whatsapp.GroupParticipantActionDemote
-            else:
+            participant = await self.get_participant_by_contact(contact, create=False)
+            if participant is None or participant.affiliation in ("outcast", "none"):
                 action = whatsapp.GroupParticipantActionAdd
+            elif participant.affiliation == "member":
+                return
+            else:
+                action = whatsapp.GroupParticipantActionDemote
         elif affiliation == "admin":
             action = whatsapp.GroupParticipantActionPromote
         elif affiliation == "outcast" or affiliation == "none":
@@ -239,17 +240,10 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        if not self.__group_exists(whatsapp_group_id):
+        if not self.by_legacy_id(whatsapp_group_id, create=False):
             raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id
-
-    async def __group_exists(self, legacy_id: str) -> bool:
-        with self.xmpp.store.session() as orm:
-            return orm.scalar(
-                sqlalchemy.exists().where(Room.legacy_id == legacy_id).select()
-            )
-        return False
 
 
 def replace_xmpp_mentions(text: str, mentions: list[Mention]):

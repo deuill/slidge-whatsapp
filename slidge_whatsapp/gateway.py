@@ -62,7 +62,7 @@ class Gateway(BaseGateway):
         """
         pass
 
-    async def unregister(self, session: "Session"):
+    async def unregister(self, session: "Session"):  # type:ignore[override]
         """
         Logout from the active WhatsApp session. This will also force a remote log-out, and thus
         require pairing on next login. For simply disconnecting the active session, look at the
