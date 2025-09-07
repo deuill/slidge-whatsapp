@@ -240,7 +240,7 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        if not self.by_legacy_id(whatsapp_group_id, create=False):
+        if not await self.by_legacy_id(whatsapp_group_id, create=False):
             raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id
