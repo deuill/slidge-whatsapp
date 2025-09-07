@@ -817,7 +817,7 @@ func (s *Session) handleEvent(evt any) {
 			s.gateway.logger.Warnf("Unable to delete local device state on logout: %s", err)
 		}
 		s.client = nil
-		s.propagateEvent(EventLoggedOut, nil)
+		s.propagateEvent(EventLoggedOut, &EventPayload{LoggedOut: LoggedOut{Reason: evt.Reason.String()}})
 	case *events.PairSuccess:
 		if s.client.Store.ID == nil {
 			s.gateway.logger.Errorf("Pairing succeeded, but device ID is missing")

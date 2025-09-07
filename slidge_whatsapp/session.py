@@ -159,7 +159,10 @@ class Session(BaseSession[str, Recipient]):
                 )
         elif event == whatsapp.EventLoggedOut:
             self.logged = False
-            self.send_gateway_message(MESSAGE_LOGGED_OUT)
+            message = MESSAGE_LOGGED_OUT
+            if data.LoggedOut.Reason:
+                message += f"\nReason: {data.LoggedOut.Reason}"
+            self.send_gateway_message(message)
             self.send_gateway_status("Logged out", show="away")
         elif event == whatsapp.EventContact:
             contact = await self.contacts.add_whatsapp_contact(data.Contact)
@@ -691,6 +694,7 @@ class Session(BaseSession[str, Recipient]):
                 .where(ArchivedMessage.legacy_id == legacy_msg_id)
                 .select()
             )
+        return False
 
     async def __get_contact_or_participant(
         self, legacy_contact_id: str, legacy_group_jid: str

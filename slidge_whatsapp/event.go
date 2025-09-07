@@ -46,6 +46,7 @@ type EventPayload struct {
 	QRCode       string
 	PairDeviceID string
 	Connect      Connect
+	LoggedOut    LoggedOut
 	Contact      Contact
 	Presence     Presence
 	Message      Message
@@ -64,6 +65,11 @@ type HandleEventFunc func(EventKind, *EventPayload)
 type Connect struct {
 	JID   string // The device JID given for this connection.
 	Error string // The connection error, if any.
+}
+
+// LoggedOut repreents event data related to an explicit or implicit log-out event.
+type LoggedOut struct {
+	Reason string // The human-readable reason for logging out, if any.
 }
 
 // A Avatar represents a small image set for a Contact or Group.

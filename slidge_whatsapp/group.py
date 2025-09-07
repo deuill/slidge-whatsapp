@@ -30,9 +30,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     async def update_info(self):
         try:
-            if self.avatar is None:
-                unique_id = ""
-            else:
+            unique_id = ""
+            if self.avatar is not None:
                 unique_id = self.avatar.unique_id or ""
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, unique_id)
             if avatar.URL and unique_id != avatar.ID:
@@ -240,16 +239,17 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        with self.xmpp.store.session() as orm:
-            room = orm.scalar(
-                sqlalchemy.exists().where(Room.legacy_id == whatsapp_group_id).select()
-            )
-            if room is None:
-                raise XMPPError(
-                    "item-not-found", f"No group found for {whatsapp_group_id}"
-                )
+        if not self.__group_exists(whatsapp_group_id):
+            raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
 
         return whatsapp_group_id
+
+    async def __group_exists(self, legacy_id: str) -> bool:
+        with self.xmpp.store.session() as orm:
+            return orm.scalar(
+                sqlalchemy.exists().where(Room.legacy_id == legacy_id).select()
+            )
+        return False
 
 
 def replace_xmpp_mentions(text: str, mentions: list[Mention]):

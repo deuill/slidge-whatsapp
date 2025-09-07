@@ -55,9 +55,8 @@ class Roster(LegacyRoster[str, Contact]):
         contact.name = data.Name
         contact.is_friend = True
         try:
-            if contact.avatar is None:
-                unique_id = ""
-            else:
+            unique_id = ""
+            if contact.avatar is not None:
                 unique_id = contact.avatar.unique_id or ""
             avatar = self.session.whatsapp.GetAvatar(data.JID, unique_id)
             if avatar.URL and unique_id != avatar.ID:
