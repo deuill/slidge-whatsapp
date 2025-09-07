@@ -4,9 +4,9 @@ from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
-import sqlalchemy
 from typing import Any, Optional, Union, cast
 
+import sqlalchemy
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
@@ -172,7 +172,10 @@ class Session(BaseSession[str, Recipient]):
             await self.bookmarks.add_whatsapp_group(data.Group)
         elif event == whatsapp.EventPresence:
             contact = await self.contacts.by_legacy_id(data.Presence.JID)
-            await contact.update_presence(data.Presence.Kind, data.Presence.LastSeen)
+            if contact is not None:
+                await contact.update_presence(
+                    data.Presence.Kind, data.Presence.LastSeen
+                )
         elif event == whatsapp.EventChatState:
             await self.handle_chat_state(data.ChatState)
         elif event == whatsapp.EventReceipt:
@@ -555,15 +558,13 @@ class Session(BaseSession[str, Recipient]):
             items=[{"phone": cast(str, phone), "jid": contact.jid.bare}],
         )
 
-    def message_is_carbon(self, c: Recipient, legacy_msg_id: str):
-        stored: Any
-        if c.is_group:
-            assert isinstance(c, MUC)
-            assert c.pk is not None
-            stored = self.xmpp.store.sent.get_group_xmpp_id(c.pk, legacy_msg_id)
-        else:
-            stored = self.xmpp.store.sent.get_xmpp_id(self.user_pk, legacy_msg_id)
-        return stored is not None
+    def message_is_carbon(self, c: Recipient, legacy_msg_id: str) -> bool:
+        with self.xmpp.store.session() as orm:
+            return bool(
+                self.xmpp.store.id_map.get_xmpp(
+                    orm, c.stored.id, legacy_msg_id, c.is_group
+                )
+            )
 
     def __reset_connected(self):
         if hasattr(self, "_connected") and not self.__connected.done():
@@ -689,12 +690,13 @@ class Session(BaseSession[str, Recipient]):
 
     async def __is_message_in_archive(self, legacy_msg_id: str) -> bool:
         with self.xmpp.store.session() as orm:
-            return orm.scalar(
-                sqlalchemy.exists()
-                .where(ArchivedMessage.legacy_id == legacy_msg_id)
-                .select()
+            return bool(
+                orm.scalar(
+                    sqlalchemy.exists()
+                    .where(ArchivedMessage.legacy_id == legacy_msg_id)
+                    .select()
+                )
             )
-        return False
 
     async def __get_contact_or_participant(
         self, legacy_contact_id: str, legacy_group_jid: str
