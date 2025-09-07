@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from slidge import LegacyContact, LegacyRoster
+from slidge.util.types import Avatar
 from slixmpp.exceptions import XMPPError
 
 from . import config
@@ -54,9 +55,13 @@ class Roster(LegacyRoster[str, Contact]):
         contact.name = data.Name
         contact.is_friend = True
         try:
-            avatar = self.session.whatsapp.GetAvatar(data.JID, contact.avatar or "")
-            if avatar.URL and contact.avatar != avatar.ID:
-                await contact.set_avatar(avatar.URL, avatar.ID)
+            if contact.avatar is None:
+                unique_id = ""
+            else:
+                unique_id = contact.avatar.unique_id or ""
+            avatar = self.session.whatsapp.GetAvatar(data.JID, unique_id)
+            if avatar.URL and unique_id != avatar.ID:
+                await contact.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
             elif avatar.URL == "" and avatar.ID == "":
                 await contact.set_avatar(None)
         except RuntimeError as err:

@@ -2,7 +2,7 @@ from logging import getLevelName, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from slidge import BaseGateway, FormField, GatewayUser, global_config
+from slidge import BaseGateway, FormField, global_config
 
 from . import config
 from .generated import whatsapp
@@ -62,13 +62,12 @@ class Gateway(BaseGateway):
         """
         pass
 
-    async def unregister(self, user: GatewayUser):
+    async def unregister(self, session: "Session"):
         """
         Logout from the active WhatsApp session. This will also force a remote log-out, and thus
         require pairing on next login. For simply disconnecting the active session, look at the
         :meth:`.Session.disconnect` function.
         """
-        session: "Session" = self.get_session_from_user(user)  # type:ignore
         session.whatsapp.Logout()
         try:
             device_id = session.user.legacy_module_data["device_id"]

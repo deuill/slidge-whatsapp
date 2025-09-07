@@ -1,10 +1,12 @@
 import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, AsyncIterator, Optional
+import sqlalchemy
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
+from slidge.db.models import Room
 from slidge.util.archive_msg import HistoryMessage
-from slidge.util.types import Hat, HoleBound, Mention, MucAffiliation
+from slidge.util.types import Avatar, Hat, HoleBound, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
 from .generated import go, whatsapp
@@ -28,9 +30,13 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     async def update_info(self):
         try:
-            avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
-            if avatar.URL and self.avatar != avatar.ID:
-                await self.set_avatar(avatar.URL, avatar.ID)
+            if self.avatar is None:
+                unique_id = ""
+            else:
+                unique_id = self.avatar.unique_id or ""
+            avatar = self.session.whatsapp.GetAvatar(self.legacy_id, unique_id)
+            if avatar.URL and unique_id != avatar.ID:
+                await self.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
             elif avatar.URL == "" and avatar.ID == "":
                 await self.set_avatar(None)
         except RuntimeError as err:
@@ -60,9 +66,11 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
 
     def get_message_sender(self, legacy_msg_id: str):
-        assert self.pk is not None
-        stored = self.xmpp.store.mam.get_by_legacy_id(self.pk, legacy_msg_id)
-        if stored is None:
+        with self.xmpp.store.session() as orm:
+            stored = self.xmpp.store.mam.get_messages(
+                orm, self.stored.id, [legacy_msg_id]
+            )
+        if not stored:
             raise XMPPError("internal-server-error", "Unable to find message sender")
         msg = HistoryMessage(stored.stanza)
         occupant_id = msg.stanza["occupant-id"]["id"]
@@ -97,7 +105,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         self.n_participants = len(info.Participants)
         # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
         # we need to do that to actually update the participant list.
-        if self._participants_filled:
+        if self.participants_filled:
             async for _ in self.fill_participants():
                 pass
 
@@ -135,7 +143,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             t,
             participants=(
                 {
-                    p.contact.jid_username: p.nickname
+                    p.contact.jid.username: p.nickname
                     async for p in self.get_participants()
                     if p.contact is not None  # should not happen
                 }
@@ -232,13 +240,14 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
         )
 
-        if (
-            self.xmpp.store.rooms.get_by_legacy_id(
-                self.session.user_pk, whatsapp_group_id
+        with self.xmpp.store.session() as orm:
+            room = orm.scalar(
+                sqlalchemy.exists().where(Room.legacy_id == whatsapp_group_id).select()
             )
-            is None
-        ):
-            raise XMPPError("item-not-found", f"No group found for {whatsapp_group_id}")
+            if room is None:
+                raise XMPPError(
+                    "item-not-found", f"No group found for {whatsapp_group_id}"
+                )
 
         return whatsapp_group_id
 
