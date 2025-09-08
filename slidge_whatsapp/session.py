@@ -229,7 +229,7 @@ class Session(BaseSession[str, Recipient]):
         if (
             muc is not None
             and message.IsHistory
-            and self.__is_message_in_archive(message.ID)
+            and await self.__is_message_in_archive(message.ID)
         ):
             return
         reply_to = await self.__get_reply_to(message, muc)
