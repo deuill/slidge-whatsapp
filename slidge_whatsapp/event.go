@@ -1202,7 +1202,7 @@ func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Gr
 func newGroup(ctx context.Context, client *whatsmeow.Client, info *types.GroupInfo) Group {
 	var participants []GroupParticipant
 	for i := range info.Participants {
-		p := newGroupParticipant(client, info.Participants[i])
+		p := newGroupParticipant(ctx, client, info.Participants[i])
 		if p.JID == "" {
 			continue
 		}
