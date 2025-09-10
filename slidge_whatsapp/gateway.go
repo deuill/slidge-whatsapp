@@ -37,6 +37,12 @@ func (d LinkedDevice) JID() types.JID {
 	return jid
 }
 
+// IsAnonymousJID returns true if the JID given is not addressible, that is, if it's actually a LID.
+func IsAnonymousJID(id string) bool {
+	jid, _ := types.ParseJID(id)
+	return jid.Server == types.HiddenUserServer
+}
+
 // A Gateway represents a persistent process for establishing individual sessions between linked
 // devices and WhatsApp.
 type Gateway struct {

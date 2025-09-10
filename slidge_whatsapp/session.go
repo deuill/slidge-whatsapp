@@ -453,12 +453,16 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 
 	var contacts []Contact
 	for jid, info := range data {
+		c := newContact(jid, info)
+		if c.JID == "" {
+			continue
+		}
+
 		if err = s.client.SubscribePresence(jid); err != nil {
 			s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
 		}
 
-		_, c := newContactEvent(jid, info)
-		contacts = append(contacts, c.Contact)
+		contacts = append(contacts, c)
 	}
 
 	return contacts, nil
@@ -648,7 +652,7 @@ func (s *Session) UpdateGroupParticipants(resourceID string, participants []Grou
 			return nil, fmt.Errorf("failed setting group affiliation: %s", err)
 		}
 		for i := range participants {
-			p := newGroupParticipant(participants[i])
+			p := newGroupParticipant(s.client, participants[i])
 			if p.JID == "" {
 				continue
 			}
@@ -670,9 +674,9 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 	}
 
 	jid := types.NewJID(phone, DefaultUserServer)
-	if c, err := s.client.Store.Contacts.GetContact(ctx, jid); err == nil && c.Found {
-		if _, e := newContactEvent(jid, c); e != nil {
-			return e.Contact, nil
+	if info, err := s.client.Store.Contacts.GetContact(ctx, jid); err == nil && info.Found {
+		if c := newContact(jid, info); c.JID != "" {
+			return c, nil
 		}
 	}
 
@@ -805,7 +809,7 @@ func (s *Session) handleEvent(evt any) {
 	case *events.JoinedGroup:
 		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(s.client, &evt.GroupInfo)})
 	case *events.GroupInfo:
-		s.propagateEvent(newGroupEvent(evt))
+		s.propagateEvent(newGroupEvent(s.client, evt))
 	case *events.ChatPresence:
 		s.propagateEvent(newChatStateEvent(evt))
 	case *events.CallOffer:

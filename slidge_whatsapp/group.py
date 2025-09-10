@@ -119,7 +119,12 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             self.log.warning("No participants!")
             return
         for data in participants:
-            participant = await self.get_participant_by_legacy_id(data.JID)
+            if whatsapp.IsAnonymousJID(data.JID):
+                participant = await self.get_participant(data.JID)
+                if data.Nickname:
+                    participant.nickname = data.Nickname
+            else:
+                participant = await self.get_participant_by_legacy_id(data.JID)
             if data.Action == whatsapp.GroupParticipantActionRemove:
                 self.remove_participant(participant)
             else:

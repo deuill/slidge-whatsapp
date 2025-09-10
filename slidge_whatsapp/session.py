@@ -166,16 +166,17 @@ class Session(BaseSession[str, Recipient]):
             self.send_gateway_status("Logged out", show="away")
         elif event == whatsapp.EventContact:
             contact = await self.contacts.add_whatsapp_contact(data.Contact)
-            if contact is not None:
+            if contact is not None and contact.is_friend:
                 await contact.add_to_roster()
         elif event == whatsapp.EventGroup:
             await self.bookmarks.add_whatsapp_group(data.Group)
         elif event == whatsapp.EventPresence:
-            contact = await self.contacts.by_legacy_id(data.Presence.JID)
-            if contact is not None:
-                await contact.update_presence(
-                    data.Presence.Kind, data.Presence.LastSeen
-                )
+            if not whatsapp.IsAnonymousJID(data.Presence.JID):
+                contact = await self.contacts.by_legacy_id(data.Presence.JID)
+                if contact is not None:
+                    await contact.update_presence(
+                        data.Presence.Kind, data.Presence.LastSeen
+                    )
         elif event == whatsapp.EventChatState:
             await self.handle_chat_state(data.ChatState)
         elif event == whatsapp.EventReceipt:
@@ -706,7 +707,12 @@ class Session(BaseSession[str, Recipient]):
         """
         if legacy_group_jid:
             muc = await self.bookmarks.by_legacy_id(legacy_group_jid)
-            return await muc.get_participant_by_legacy_id(legacy_contact_id)
+            if whatsapp.IsAnonymousJID(legacy_contact_id):
+                return await muc.get_participant(legacy_contact_id)
+            else:
+                return await muc.get_participant_by_legacy_id(legacy_contact_id)
+        elif whatsapp.IsAnonymousJID(legacy_contact_id):
+            raise ValueError("Contact for anonymous JID")
         else:
             return await self.contacts.by_legacy_id(legacy_contact_id)
 

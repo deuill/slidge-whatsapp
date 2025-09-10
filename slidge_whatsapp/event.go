@@ -88,10 +88,25 @@ type Contact struct {
 // NewContactEvent returns event data meant for [Session.propagateEvent] for the contact information
 // given. Unknown or invalid contact information will return an [EventUnknown] event with nil data.
 func newContactEvent(jid types.JID, info types.ContactInfo) (EventKind, *EventPayload) {
-	var contact = Contact{
-		JID: jid.ToNonAD().String(),
+	contact := newContact(jid, info)
+	if contact.JID == "" {
+		return EventUnknown, nil
 	}
 
+	return EventContact, &EventPayload{Contact: contact}
+}
+
+// NewContact returns a concrete [Contact] instance for the JID and additional information given.
+// In cases where a valid contact can't be returned, [Contact.JID] will be left empty.
+func newContact(jid types.JID, info types.ContactInfo) Contact {
+	// Don't instantiate hidden contacts, as these are better handled as group participants
+	if jid.Server == types.HiddenUserServer {
+		return Contact{}
+	}
+
+	// Find valid contact name from list of alternatives, or return empty contact if none could
+	// be found.
+	var contact = Contact{JID: jid.ToNonAD().String()}
 	for _, n := range []string{info.FullName, info.FirstName, info.BusinessName, info.PushName} {
 		if n != "" {
 			contact.Name = n
@@ -99,12 +114,11 @@ func newContactEvent(jid types.JID, info types.ContactInfo) (EventKind, *EventPa
 		}
 	}
 
-	// Don't attempt to synchronize contacts with no user-readable name.
 	if contact.Name == "" {
-		return EventUnknown, nil
+		return Contact{}
 	}
 
-	return EventContact, &EventPayload{Contact: contact}
+	return contact
 }
 
 // PresenceKind represents the different kinds of activity states possible in WhatsApp.
@@ -267,7 +281,7 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
-		JID:       getPreferredSender(ctx, client, evt.Info.Sender, evt.Info.SenderAlt).ToNonAD().String(),
+		JID:       getPreferredJID(ctx, client, evt.Info.Sender, evt.Info.SenderAlt).ToNonAD().String(),
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
 		IsCarbon:  evt.Info.IsFromMe,
@@ -1022,7 +1036,7 @@ func newReceiptEvent(client *whatsmeow.Client, evt *events.Receipt) (EventKind, 
 	var ctx = context.Background()
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
-		JID:        getPreferredSender(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
+		JID:        getPreferredJID(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
 		Timestamp:  evt.Timestamp.Unix(),
 		IsCarbon:   evt.IsFromMe,
 	}
@@ -1106,10 +1120,11 @@ func (a GroupParticipantAction) toParticipantChange() whatsmeow.ParticipantChang
 }
 
 // A GroupParticipant represents a contact who is currently joined in a given group. Participants in
-// WhatsApp can always be derived back to their individual [Contact]; there are no anonymous groups
+// WhatsApp can generally be derived back to their individual [Contact]; there are no anonymous groups
 // in WhatsApp.
 type GroupParticipant struct {
 	JID         string                 // The WhatsApp JID for this participant.
+	Nickname    string                 // The user-set name for this participant, typically only set for anonymous participants.
 	Affiliation GroupAffiliation       // The set of priviledges given to this specific participant.
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
 }
@@ -1117,35 +1132,42 @@ type GroupParticipant struct {
 // NewGroupParticipant returns a [GroupParticipant], filling fields from the internal participant
 // type. This is a no-op if [types.GroupParticipant.Error] is non-zero, and other fields may only
 // be set optionally.
-func newGroupParticipant(p types.GroupParticipant) GroupParticipant {
-	if p.Error > 0 {
+func newGroupParticipant(client *whatsmeow.Client, participant types.GroupParticipant) GroupParticipant {
+	if participant.Error > 0 {
 		return GroupParticipant{}
 	}
-	var affiliation = GroupAffiliationNone
-	if p.IsSuperAdmin {
-		affiliation = GroupAffiliationOwner
-	} else if p.IsAdmin {
-		affiliation = GroupAffiliationAdmin
+	var ctx = context.Background()
+	var p = GroupParticipant{
+		JID: participant.JID.ToNonAD().String(),
 	}
-	return GroupParticipant{
-		JID:         p.JID.ToNonAD().String(),
-		Affiliation: affiliation,
+	if participant.IsSuperAdmin {
+		p.Affiliation = GroupAffiliationOwner
+	} else if participant.IsAdmin {
+		p.Affiliation = GroupAffiliationAdmin
 	}
+	if IsAnonymousJID(p.JID) {
+		if c, err := client.Store.Contacts.GetContact(ctx, participant.JID); err == nil {
+			p.Nickname = c.PushName
+		}
+	}
+	return p
 }
 
 // NewGroupEvent returns event data meant for [Session.propagateEvent] for the primive group event
 // given. Group data returned by this function can be partial, and callers should take care to only
 // handle non-empty values.
-func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
+func newGroupEvent(client *whatsmeow.Client, evt *events.GroupInfo) (EventKind, *EventPayload) {
+	var ctx = context.Background()
 	var group = Group{JID: evt.JID.ToNonAD().String()}
 	if evt.Name != nil {
 		group.Name = evt.Name.Name
 	}
 	if evt.Topic != nil {
+		jid := getPreferredJID(ctx, client, types.EmptyJID, evt.Topic.TopicSetBy, evt.Topic.TopicSetByPN)
 		group.Subject = GroupSubject{
 			Subject:  evt.Topic.Topic,
 			SetAt:    evt.Topic.TopicSetAt.Unix(),
-			SetByJID: evt.Topic.TopicSetBy.ToNonAD().String(),
+			SetByJID: jid.ToNonAD().String(),
 		}
 	}
 	for _, p := range evt.Join {
@@ -1181,25 +1203,32 @@ func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 // populate fields with as much data as is available from the remote, and is therefore should not
 // be called when partial data is to be returned.
 func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
+	var ctx = context.Background()
 	var participants []GroupParticipant
 	for i := range info.Participants {
-		p := newGroupParticipant(info.Participants[i])
+		p := newGroupParticipant(client, info.Participants[i])
 		if p.JID == "" {
 			continue
 		}
 		participants = append(participants, p)
 	}
-	return Group{
+
+	var topicJID = getPreferredJID(ctx, client, info.TopicSetBy, info.TopicSetByPN)
+	var group = Group{
 		JID:  info.JID.ToNonAD().String(),
 		Name: info.Name,
 		Subject: GroupSubject{
-			Subject:  info.Topic,
-			SetAt:    info.TopicSetAt.Unix(),
-			SetByJID: info.TopicSetBy.ToNonAD().String(),
+			Subject: info.Topic,
+			SetAt:   info.TopicSetAt.Unix(),
 		},
 		Nickname:     client.Store.PushName,
 		Participants: participants,
 	}
+	if topicJID.Server != types.HiddenUserServer {
+		group.Subject.SetByJID = topicJID.ToNonAD().String()
+	}
+
+	return group
 }
 
 // CallState represents the state of the call to synchronize with.
@@ -1245,22 +1274,24 @@ func newCallEvent(state CallState, meta types.BasicCallMeta) (EventKind, *EventP
 	}}
 }
 
-// GetPreferredSender returns one of the [type.JID] values for the given senders, preferring the
-// first non-empty, non-hidden sender; the first value given will be returned unchanged if no
-// eligible senders are found.
-func getPreferredSender(ctx context.Context, client *whatsmeow.Client, sender types.JID, alt ...types.JID) types.JID {
-	for _, s := range append([]types.JID{sender}, alt...) {
+// GetPreferredJID returns one of the [type.JID] values for the given senders, preferring the first
+// non-empty, non-hidden sender; if none are found, mappings from LID to JID are tried, or otherwise,
+// the first JID given is returned.
+func getPreferredJID(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) types.JID {
+	var jids = append([]types.JID{def}, alt...)
+	for _, s := range jids {
 		if !s.IsEmpty() && s.Server != types.HiddenUserServer {
 			return s
 		}
 	}
 
-	// Chat markers can send just hidden sender, let's try mapping to phone number.
-	if !sender.IsEmpty() && sender.Server == types.HiddenUserServer {
-		if s, err := client.Store.LIDs.GetPNForLID(ctx, sender); err == nil {
-			return s
+	for _, s := range jids {
+		if !s.IsEmpty() && s.Server == types.HiddenUserServer {
+			if p, err := client.Store.LIDs.GetPNForLID(ctx, s); err == nil {
+				return p
+			}
 		}
 	}
 
-	return sender
+	return def
 }

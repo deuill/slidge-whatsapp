@@ -29,6 +29,12 @@ class Contact(LegacyContact[str]):
         else:
             self.online(last_seen=last_seen)
 
+    async def update_info(self) -> None:
+        if whatsapp.IsAnonymousJID(self.legacy_id):
+            self.log.error(
+                "Contact for anonymous participant added: %s", self.legacy_id
+            )
+
 
 class Roster(LegacyRoster[str, Contact]):
     session: "Session"
