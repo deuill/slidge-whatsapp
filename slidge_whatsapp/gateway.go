@@ -3,9 +3,6 @@ package whatsapp
 import (
 	// Standard library.
 	"context"
-	"fmt"
-	"log/slog"
-	"os"
 	"runtime"
 
 	// Internal packages.
@@ -63,13 +60,7 @@ func NewGateway() *Gateway {
 // Init performs initialization procedures for the Gateway, and is expected to be run before any
 // calls to [Gateway.Session].
 func (w *Gateway) Init() error {
-	w.logger = logger{
-		module: "Slidge",
-		logger: slog.New(
-			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel(w.LogLevel)}),
-		),
-	}
-
+	w.logger = walog.Stdout("slidge", w.LogLevel, false)
 	container, err := sqlstore.New(context.Background(), "sqlite3", w.DBPath, w.logger)
 	if err != nil {
 		return err
@@ -129,57 +120,4 @@ func (w *Gateway) CleanupSession(device LinkedDevice) error {
 	}
 
 	return nil
-}
-
-// A LogLevel represents a mapping between Python standard logging levels and Go standard logging
-// levels.
-type logLevel string
-
-var _ slog.Leveler = logLevel("")
-
-// Level returns the Go equivalent logging level for the Python logging level represented.
-func (l logLevel) Level() slog.Level {
-	switch l {
-	case "FATAL", "CRITICAL", "ERROR":
-		return slog.LevelError
-	case "WARN", "WARNING":
-		return slog.LevelWarn
-	case "DEBUG":
-		return slog.LevelDebug
-	default:
-		return slog.LevelInfo
-	}
-}
-
-// A Logger represents a mapping between a WhatsMeow logger and Go standard logging functions.
-type logger struct {
-	module string
-	logger *slog.Logger
-}
-
-var _ walog.Logger = logger{}
-
-// Errorf handles the given message as representing a (typically) fatal error.
-func (l logger) Errorf(msg string, args ...any) {
-	l.logger.Error(fmt.Sprintf(msg, args...))
-}
-
-// Warn handles the given message as representing a non-fatal error or warning thereof.
-func (l logger) Warnf(msg string, args ...any) {
-	l.logger.Warn(fmt.Sprintf(msg, args...))
-}
-
-// Infof handles the given message as representing an informational notice.
-func (l logger) Infof(msg string, args ...any) {
-	l.logger.Info(fmt.Sprintf(msg, args...))
-}
-
-// Debugf handles the given message as representing an internal-only debug message.
-func (l logger) Debugf(msg string, args ...any) {
-	l.logger.Debug(fmt.Sprintf(msg, args...))
-}
-
-// Sub is a no-op and will return the receiver itself.
-func (l logger) Sub(module string) walog.Logger {
-	return logger{logger: l.logger.With(slog.String("module", l.module+"."+module))}
 }

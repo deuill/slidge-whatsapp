@@ -4,6 +4,7 @@ import (
 	// Standard library.
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image/jpeg"
@@ -747,7 +748,7 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 // errors that occur during processing are logged.
 func (s *Session) handleEvent(evt any) {
 	var ctx = context.Background()
-	s.gateway.logger.Debugf("Handling event '%T': %+v", evt, evt)
+	s.gateway.logger.Debugf("Handling event '%T': %+v", evt, jsonStringer{evt})
 
 	switch evt := evt.(type) {
 	case *events.AppStateSyncComplete:
@@ -852,6 +853,16 @@ func (s *Session) handleEvent(evt any) {
 			}()
 		}
 	}
+}
+
+// a JSONStringer is a value that returns a JSON-encoded, multi-line version of itself in calls to
+// [String].
+type jsonStringer struct{ v any }
+
+// String returns a multi-line, indented, JSON representation of the [jsonStringer] value.
+func (j jsonStringer) String() string {
+	buf, _ := json.MarshalIndent(j.v, "", "    ")
+	return string(buf)
 }
 
 // PtrTo returns a pointer to the given value, and is used for convenience when converting between
