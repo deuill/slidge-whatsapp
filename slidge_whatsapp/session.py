@@ -239,6 +239,9 @@ class Session(BaseSession[str, Recipient]):
             if message.Timestamp > 0
             else None
         )
+        if message.GroupInvite.JID:
+            text = f"Received group invite for xmpp:{message.GroupInvite.JID} from {contact.name}, auto-joining..."
+            self.send_gateway_message(text)
         if message.Kind == whatsapp.MessagePlain:
             body = await self.__get_body(message, muc)
             contact.send_text(

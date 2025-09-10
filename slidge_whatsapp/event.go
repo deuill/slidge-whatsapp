@@ -189,6 +189,7 @@ type Message struct {
 	Location    Location     // The location metadata for messages, if any.
 	Poll        Poll         // The multiple-choice poll contained in the message, if any.
 	Album       Album        // The image album message, if any.
+	GroupInvite Group        // Group information for the invite group included in this message, if any.
 	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
 	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
 	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
@@ -398,7 +399,18 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 			message.Body = e.GetText()
 		}
 
-		message = getMessageWithContext(message, e.GetContextInfo())
+		// Handle group-chat invite link in text message.
+		if code, ok := strings.CutPrefix(e.GetMatchedText(), whatsmeow.InviteLinkPrefix); ok {
+			if info, err := client.GetGroupInfoFromLink(e.GetMatchedText()); err != nil {
+				client.Log.Errorf("Failed getting group info from invite: %s", err)
+			} else if _, err := client.JoinGroupWithLink(code); err != nil {
+				client.Log.Errorf("Failed joining group with invite: %s", err)
+			} else {
+				message.GroupInvite = newGroup(ctx, client, info)
+			}
+		} else {
+			message = getMessageWithContext(message, e.GetContextInfo())
+		}
 	}
 
 	// Ignore obviously invalid messages.
@@ -1080,6 +1092,7 @@ type Group struct {
 	Subject      GroupSubject       // The longer-form, user-defined description for this group.
 	Nickname     string             // Our own nickname in this group-chat.
 	Participants []GroupParticipant // The list of participant contacts for this group, including ourselves.
+	InviteCode   string             // The code for inviting members to this group-chat.
 }
 
 // A GroupSubject represents the user-defined group description and attached metadata thereof, for a
