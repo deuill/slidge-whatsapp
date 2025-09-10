@@ -274,10 +274,9 @@ type Album struct {
 
 // NewMessageEvent returns event data meant for [Session.propagateEvent] for the primive message
 // event given. Unknown or invalid messages will return an [EventUnknown] event with nil data.
-func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, *EventPayload) {
+func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Message) (EventKind, *EventPayload) {
 	// Set basic data for message, to be potentially amended depending on the concrete version of
 	// the underlying message.
-	var ctx = context.Background()
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
@@ -859,10 +858,9 @@ func getBaseMediaType(typ string) string {
 //
 // Typically, this will return [EventMessage] events with appropriate [Message] payloads; unknown or
 // invalid messages will return an [EventUnknown] event with nil data.
-func newEventFromHistory(client *whatsmeow.Client, info *waWeb.WebMessageInfo) (EventKind, *EventPayload) {
+func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *waWeb.WebMessageInfo) (EventKind, *EventPayload) {
 	// Handle message as group message is remote JID is a group JID in the absence of any other,
 	// specific signal, or don't handle at all if no group JID is found.
-	var ctx = context.Background()
 	var jid = info.GetKey().GetRemoteJID()
 	if j, _ := types.ParseJID(jid); j.Server != types.GroupServer {
 		return EventUnknown, nil
@@ -1032,8 +1030,7 @@ type Receipt struct {
 
 // NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive receipt
 // event given. Unknown or invalid receipts will return an [EventUnknown] event with nil data.
-func newReceiptEvent(client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
-	var ctx = context.Background()
+func newReceiptEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
 		JID:        getPreferredJID(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
@@ -1088,9 +1085,9 @@ type Group struct {
 // A GroupSubject represents the user-defined group description and attached metadata thereof, for a
 // given [Group].
 type GroupSubject struct {
-	Subject  string // The user-defined group description.
-	SetAt    int64  // The exact time this group description was set at, as a timestamp.
-	SetByJID string // The JID of the user that set the subject.
+	Subject string // The user-defined group description.
+	SetAt   int64  // The exact time this group description was set at, as a timestamp.
+	SetBy   string // The name of the user that set the subject.
 }
 
 // GroupParticipantAction represents the distinct set of actions that can be taken when encountering
@@ -1132,11 +1129,10 @@ type GroupParticipant struct {
 // NewGroupParticipant returns a [GroupParticipant], filling fields from the internal participant
 // type. This is a no-op if [types.GroupParticipant.Error] is non-zero, and other fields may only
 // be set optionally.
-func newGroupParticipant(client *whatsmeow.Client, participant types.GroupParticipant) GroupParticipant {
+func newGroupParticipant(ctx context.Context, client *whatsmeow.Client, participant types.GroupParticipant) GroupParticipant {
 	if participant.Error > 0 {
 		return GroupParticipant{}
 	}
-	var ctx = context.Background()
 	var p = GroupParticipant{
 		JID: participant.JID.ToNonAD().String(),
 	}
@@ -1156,18 +1152,19 @@ func newGroupParticipant(client *whatsmeow.Client, participant types.GroupPartic
 // NewGroupEvent returns event data meant for [Session.propagateEvent] for the primive group event
 // given. Group data returned by this function can be partial, and callers should take care to only
 // handle non-empty values.
-func newGroupEvent(client *whatsmeow.Client, evt *events.GroupInfo) (EventKind, *EventPayload) {
-	var ctx = context.Background()
+func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.GroupInfo) (EventKind, *EventPayload) {
 	var group = Group{JID: evt.JID.ToNonAD().String()}
 	if evt.Name != nil {
 		group.Name = evt.Name.Name
 	}
 	if evt.Topic != nil {
-		jid := getPreferredJID(ctx, client, types.EmptyJID, evt.Topic.TopicSetBy, evt.Topic.TopicSetByPN)
+		topicJID := getPreferredJID(ctx, client, evt.Topic.TopicSetBy, evt.Topic.TopicSetByPN)
 		group.Subject = GroupSubject{
-			Subject:  evt.Topic.Topic,
-			SetAt:    evt.Topic.TopicSetAt.Unix(),
-			SetByJID: jid.ToNonAD().String(),
+			Subject: evt.Topic.Topic,
+			SetAt:   evt.Topic.TopicSetAt.Unix(),
+		}
+		if c, err := client.Store.Contacts.GetContact(ctx, topicJID); err == nil {
+			group.Subject.SetBy = c.PushName
 		}
 	}
 	for _, p := range evt.Join {
@@ -1202,8 +1199,7 @@ func newGroupEvent(client *whatsmeow.Client, evt *events.GroupInfo) (EventKind, 
 // NewGroup returns a concrete [Group] for the primitive data given. This function will generally
 // populate fields with as much data as is available from the remote, and is therefore should not
 // be called when partial data is to be returned.
-func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
-	var ctx = context.Background()
+func newGroup(ctx context.Context, client *whatsmeow.Client, info *types.GroupInfo) Group {
 	var participants []GroupParticipant
 	for i := range info.Participants {
 		p := newGroupParticipant(client, info.Participants[i])
@@ -1224,8 +1220,8 @@ func newGroup(client *whatsmeow.Client, info *types.GroupInfo) Group {
 		Nickname:     client.Store.PushName,
 		Participants: participants,
 	}
-	if topicJID.Server != types.HiddenUserServer {
-		group.Subject.SetByJID = topicJID.ToNonAD().String()
+	if c, err := client.Store.Contacts.GetContact(ctx, topicJID); err == nil {
+		group.Subject.SetBy = c.PushName
 	}
 
 	return group

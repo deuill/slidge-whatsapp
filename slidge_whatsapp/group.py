@@ -97,12 +97,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             if info.Subject.SetAt:
                 set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
                 self.subject_date = set_at
-            if info.Subject.SetByJID:
-                participant = await self.get_participant_by_legacy_id(
-                    info.Subject.SetByJID
-                )
-                if name := participant.nickname:
-                    self.subject_setter = name
+            if info.Subject.SetBy:
+                self.subject_setter = info.Subject.SetBy
         self.session.whatsapp_participants[self.legacy_id] = info.Participants
         self.n_participants = len(info.Participants)
         # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,

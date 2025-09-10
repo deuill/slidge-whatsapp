@@ -471,6 +471,7 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 // GetGroups returns a list of all group-chats currently joined in WhatsApp, along with additional
 // information on present participants.
 func (s *Session) GetGroups() ([]Group, error) {
+	var ctx = context.Background()
 	if s.client == nil || s.client.Store.ID == nil {
 		return nil, fmt.Errorf("cannot get groups for unauthenticated session")
 	}
@@ -482,7 +483,7 @@ func (s *Session) GetGroups() ([]Group, error) {
 
 	var groups []Group
 	for _, info := range data {
-		groups = append(groups, newGroup(s.client, info))
+		groups = append(groups, newGroup(ctx, s.client, info))
 	}
 
 	return groups, nil
@@ -491,6 +492,7 @@ func (s *Session) GetGroups() ([]Group, error) {
 // CreateGroup attempts to create a new WhatsApp group for the given human-readable name and
 // participant JIDs given.
 func (s *Session) CreateGroup(name string, participants []string) (Group, error) {
+	var ctx = context.Background()
 	if s.client == nil || s.client.Store.ID == nil {
 		return Group{}, fmt.Errorf("cannot create group for unauthenticated session")
 	}
@@ -511,7 +513,7 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 		return Group{}, fmt.Errorf("could not create group: %s", err)
 	}
 
-	return newGroup(s.client, info), nil
+	return newGroup(ctx, s.client, info), nil
 }
 
 // LeaveGroup attempts to remove our own user from the given WhatsApp group, for the JID given.
@@ -652,7 +654,7 @@ func (s *Session) UpdateGroupParticipants(resourceID string, participants []Grou
 			return nil, fmt.Errorf("failed setting group affiliation: %s", err)
 		}
 		for i := range participants {
-			p := newGroupParticipant(s.client, participants[i])
+			p := newGroupParticipant(ctx, s.client, participants[i])
 			if p.JID == "" {
 				continue
 			}
@@ -794,22 +796,22 @@ func (s *Session) handleEvent(evt any) {
 		case waHistorySync.HistorySync_INITIAL_BOOTSTRAP, waHistorySync.HistorySync_RECENT, waHistorySync.HistorySync_ON_DEMAND:
 			for _, c := range evt.Data.GetConversations() {
 				for _, msg := range c.GetMessages() {
-					s.propagateEvent(newEventFromHistory(s.client, msg.GetMessage()))
+					s.propagateEvent(newEventFromHistory(ctx, s.client, msg.GetMessage()))
 				}
 			}
 		}
 	case *events.Message:
-		s.propagateEvent(newMessageEvent(s.client, evt))
+		s.propagateEvent(newMessageEvent(ctx, s.client, evt))
 	case *events.Receipt:
-		s.propagateEvent(newReceiptEvent(s.client, evt))
+		s.propagateEvent(newReceiptEvent(ctx, s.client, evt))
 	case *events.Presence:
 		s.propagateEvent(newPresenceEvent(evt))
 	case *events.PushName:
 		s.propagateEvent(newContactEvent(evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
 	case *events.JoinedGroup:
-		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(s.client, &evt.GroupInfo)})
+		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(ctx, s.client, &evt.GroupInfo)})
 	case *events.GroupInfo:
-		s.propagateEvent(newGroupEvent(s.client, evt))
+		s.propagateEvent(newGroupEvent(ctx, s.client, evt))
 	case *events.ChatPresence:
 		s.propagateEvent(newChatStateEvent(evt))
 	case *events.CallOffer:
