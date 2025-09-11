@@ -42,7 +42,7 @@ variables:
 
 steps:
   build-tag:
-    image: woodpeckerci/plugin-docker-buildx
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
     when:
       event: [tag]
     settings:
@@ -54,7 +54,7 @@ steps:
   build-branch:
     when:
       event: [push]
-    image: woodpeckerci/plugin-docker-buildx
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
       tags:
@@ -64,7 +64,7 @@ steps:
     when:
       event: [push]
       branch: ${CI_REPO_DEFAULT_BRANCH}
-    image: woodpeckerci/plugin-docker-buildx
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
       target: ci
