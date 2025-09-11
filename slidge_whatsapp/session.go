@@ -508,7 +508,7 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 	}
 
 	req := whatsmeow.ReqCreateGroup{Name: name, Participants: jids}
-	info, err := s.client.CreateGroup(req)
+	info, err := s.client.CreateGroup(ctx, req)
 	if err != nil {
 		return Group{}, fmt.Errorf("could not create group: %s", err)
 	}
