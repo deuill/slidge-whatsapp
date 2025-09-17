@@ -10,7 +10,6 @@ authors:
     name: nicoco
 ci_id: 14066
 container_build_files:
-- uv.lock
 - pyproject.toml
 - build.py
 container_build_native: true
