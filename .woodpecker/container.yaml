@@ -1,14 +1,6 @@
 # DO NOT EDIT
 # Generated from .copier-answers.yml
 
-when:
-  event: [push, tag]
-  path:
-    - "slidge_whatsapp/**"
-    - Dockerfile
-    - pyproject.toml
-    - uv.lock
-    - .woodpecker/container.yaml
 
 matrix:
   ARCH:
@@ -42,7 +34,7 @@ variables:
 
 steps:
   build-tag:
-    image: woodpeckerci/plugin-docker-buildx:6.0.2
+    image: woodpeckerci/plugin-docker-buildx
     when:
       event: [tag]
     settings:
@@ -53,8 +45,15 @@ steps:
 
   build-branch:
     when:
-      event: [push]
-    image: woodpeckerci/plugin-docker-buildx:6.0.2
+      - event: push
+        path:
+          - "slidge_whatsapp/**"
+          - Dockerfile
+          - pyproject.toml
+          - .woodpecker/container.yaml
+      - event: cron
+        cron: container-main
+    image: woodpeckerci/plugin-docker-buildx
     settings:
       <<: *settings
       tags:
@@ -62,9 +61,14 @@ steps:
 
   build-ci:
     when:
-      event: [push]
-      branch: ${CI_REPO_DEFAULT_BRANCH}
-    image: woodpeckerci/plugin-docker-buildx:6.0.2
+      - event: push
+        path:
+          - "slidge_whatsapp/**"
+          - Dockerfile
+          - pyproject.toml
+          - .woodpecker/container.yaml
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+    image: woodpeckerci/plugin-docker-buildx
     settings:
       <<: *settings
       target: ci
