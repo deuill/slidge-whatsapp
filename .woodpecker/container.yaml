@@ -34,7 +34,7 @@ variables:
 
 steps:
   build-tag:
-    image: woodpeckerci/plugin-docker-buildx
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
     when:
       event: [tag]
     settings:
@@ -53,7 +53,7 @@ steps:
           - .woodpecker/container.yaml
       - event: cron
         cron: container-main
-    image: woodpeckerci/plugin-docker-buildx
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
       tags:
@@ -68,7 +68,7 @@ steps:
           - pyproject.toml
           - .woodpecker/container.yaml
         branch: ${CI_REPO_DEFAULT_BRANCH}
-    image: woodpeckerci/plugin-docker-buildx
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
       target: ci
