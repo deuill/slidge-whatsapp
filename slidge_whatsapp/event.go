@@ -142,6 +142,10 @@ type Presence struct {
 // NewPresenceEvent returns event data meant for [Session.propagateEvent] for the primitive presence
 // event given.
 func newPresenceEvent(evt *events.Presence) (EventKind, *EventPayload) {
+	if evt.From.Server == types.HiddenUserServer {
+		return EventUnknown, nil
+	}
+
 	var presence = Presence{
 		JID:      evt.From.ToNonAD().String(),
 		Kind:     PresenceAvailable,
@@ -891,7 +895,11 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	}
 
 	if info.Participant != nil {
-		message.JID = info.GetParticipant()
+		jid, err := types.ParseJID(info.GetParticipant())
+		if err != nil {
+			return EventUnknown, nil
+		}
+		message.JID = getPreferredJID(ctx, client, jid).ToNonAD().String()
 	} else if info.GetKey().GetFromMe() {
 		message.JID = client.Store.ID.ToNonAD().String()
 	} else {
@@ -953,7 +961,15 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		if client.Store.ID.ToNonAD().String() == r.GetUserJID() {
 			continue
 		}
-		var receipt = Receipt{MessageIDs: []string{message.ID}, JID: r.GetUserJID(), GroupJID: message.GroupJID}
+		jid, err := types.ParseJID(r.GetUserJID())
+		if err != nil {
+			continue
+		}
+		var receipt = Receipt{
+			JID:        getPreferredJID(ctx, client, jid).ToNonAD().String(),
+			GroupJID:   message.GroupJID,
+			MessageIDs: []string{message.ID},
+		}
 		switch info.GetStatus() {
 		case waWeb.WebMessageInfo_DELIVERY_ACK:
 			receipt.Kind = ReceiptDelivered
@@ -1004,8 +1020,10 @@ type ChatState struct {
 
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
-func newChatStateEvent(evt *events.ChatPresence) (EventKind, *EventPayload) {
-	var state = ChatState{JID: evt.Sender.ToNonAD().String()}
+func newChatStateEvent(ctx context.Context, client *whatsmeow.Client, evt *events.ChatPresence) (EventKind, *EventPayload) {
+	var state = ChatState{
+		JID: getPreferredJID(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
+	}
 	if evt.IsGroup {
 		state.GroupJID = evt.Chat.ToNonAD().String()
 	}
@@ -1146,8 +1164,9 @@ func newGroupParticipant(ctx context.Context, client *whatsmeow.Client, particip
 	if participant.Error > 0 {
 		return GroupParticipant{}
 	}
+	var jid = getPreferredJID(ctx, client, participant.JID, participant.PhoneNumber)
 	var p = GroupParticipant{
-		JID: participant.JID.ToNonAD().String(),
+		JID: jid.ToNonAD().String(),
 	}
 	if participant.IsSuperAdmin {
 		p.Affiliation = GroupAffiliationOwner
@@ -1182,26 +1201,26 @@ func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Gr
 	}
 	for _, p := range evt.Join {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:    p.ToNonAD().String(),
+			JID:    getPreferredJID(ctx, client, p).ToNonAD().String(),
 			Action: GroupParticipantActionAdd,
 		})
 	}
 	for _, p := range evt.Leave {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:    p.ToNonAD().String(),
+			JID:    getPreferredJID(ctx, client, p).ToNonAD().String(),
 			Action: GroupParticipantActionRemove,
 		})
 	}
 	for _, p := range evt.Promote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:         p.ToNonAD().String(),
+			JID:         getPreferredJID(ctx, client, p).ToNonAD().String(),
 			Action:      GroupParticipantActionPromote,
 			Affiliation: GroupAffiliationAdmin,
 		})
 	}
 	for _, p := range evt.Demote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:         p.ToNonAD().String(),
+			JID:         getPreferredJID(ctx, client, p).ToNonAD().String(),
 			Action:      GroupParticipantActionDemote,
 			Affiliation: GroupAffiliationNone,
 		})

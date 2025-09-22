@@ -813,7 +813,7 @@ func (s *Session) handleEvent(evt any) {
 	case *events.GroupInfo:
 		s.propagateEvent(newGroupEvent(ctx, s.client, evt))
 	case *events.ChatPresence:
-		s.propagateEvent(newChatStateEvent(evt))
+		s.propagateEvent(newChatStateEvent(ctx, s.client, evt))
 	case *events.CallOffer:
 		s.propagateEvent(newCallEvent(CallIncoming, evt.BasicCallMeta))
 	case *events.CallTerminate:
