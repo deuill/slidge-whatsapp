@@ -914,9 +914,13 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	case waWeb.WebMessageInfo_CIPHERTEXT:
 		return EventUnknown, nil
 	case waWeb.WebMessageInfo_CALL_MISSED_VOICE, waWeb.WebMessageInfo_CALL_MISSED_VIDEO:
+		jid, err := types.ParseJID(info.GetKey().GetParticipant())
+		if err != nil {
+			return EventUnknown, nil
+		}
 		return EventCall, &EventPayload{Call: Call{
 			State:     CallMissed,
-			JID:       info.GetKey().GetRemoteJID(),
+			JID:       getPreferredJID(ctx, client, jid).ToNonAD().String(),
 			Timestamp: int64(info.GetMessageTimestamp()),
 		}}
 	case waWeb.WebMessageInfo_REVOKE:
@@ -932,10 +936,14 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	// Handle emoji reaction to existing message.
 	for _, r := range info.GetReactions() {
 		if r.GetText() != "" {
+			jid, err := types.ParseJID(r.GetKey().GetParticipant())
+			if err != nil {
+				continue
+			}
 			message.Reactions = append(message.Reactions, Message{
 				Kind:      MessageReaction,
 				ID:        r.GetKey().GetID(),
-				JID:       r.GetKey().GetRemoteJID(),
+				JID:       getPreferredJID(ctx, client, jid).ToNonAD().String(),
 				Body:      r.GetText(),
 				Timestamp: r.GetSenderTimestampMS() / 1000,
 				IsCarbon:  r.GetKey().GetFromMe(),
@@ -987,7 +995,6 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		if message.Body == "" {
 			message.Body = e.GetText()
 		}
-
 		message = getMessageWithContext(message, e.GetContextInfo())
 	}
 
@@ -1315,7 +1322,7 @@ func getPreferredJID(ctx context.Context, client *whatsmeow.Client, def types.JI
 
 	for _, s := range jids {
 		if !s.IsEmpty() && s.Server == types.HiddenUserServer {
-			if p, err := client.Store.LIDs.GetPNForLID(ctx, s); err == nil {
+			if p, _ := client.Store.LIDs.GetPNForLID(ctx, s); !p.IsEmpty() {
 				return p
 			}
 		}
