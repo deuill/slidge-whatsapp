@@ -14,7 +14,7 @@ github.com/beeper/argo-go/pkg/buf
 github.com/beeper/argo-go/pkg/varint
 github.com/beeper/argo-go/wire
 github.com/beeper/argo-go/wirecodec
-# github.com/ebitengine/purego v0.8.4
+# github.com/ebitengine/purego v0.9.0
 ## explicit; go 1.18
 github.com/ebitengine/purego
 github.com/ebitengine/purego/internal/cgo
@@ -96,11 +96,13 @@ go.mau.fi/libsignal/util/errorhelper
 go.mau.fi/libsignal/util/keyhelper
 go.mau.fi/libsignal/util/medium
 go.mau.fi/libsignal/util/optional
-# go.mau.fi/util v0.9.0
+# go.mau.fi/util v0.9.1
 ## explicit; go 1.24.0
 go.mau.fi/util/dbutil
+go.mau.fi/util/exbytes
 go.mau.fi/util/exerrors
 go.mau.fi/util/exhttp
+go.mau.fi/util/exslices
 go.mau.fi/util/exstrings
 go.mau.fi/util/exsync
 go.mau.fi/util/exzerolog
@@ -109,7 +111,7 @@ go.mau.fi/util/jsontime
 go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20250905121447-8d6da61ecbfa
+# go.mau.fi/whatsmeow v0.0.0-20251003154939-d562355c4d82
 ## explicit; go 1.24.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
@@ -130,10 +132,10 @@ go.mau.fi/whatsmeow/proto/instamadilloDeleteMessage
 go.mau.fi/whatsmeow/proto/instamadilloSupplementMessage
 go.mau.fi/whatsmeow/proto/instamadilloTransportPayload
 go.mau.fi/whatsmeow/proto/instamadilloXmaContentRef
+go.mau.fi/whatsmeow/proto/waAICommon
 go.mau.fi/whatsmeow/proto/waAdv
 go.mau.fi/whatsmeow/proto/waArmadilloApplication
 go.mau.fi/whatsmeow/proto/waArmadilloXMA
-go.mau.fi/whatsmeow/proto/waBotMetadata
 go.mau.fi/whatsmeow/proto/waCert
 go.mau.fi/whatsmeow/proto/waChatLockSettings
 go.mau.fi/whatsmeow/proto/waCommon
@@ -171,7 +173,7 @@ go.mau.fi/whatsmeow/util/log
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20250911091902-df9299821621
+# golang.org/x/exp v0.0.0-20251002181428-27f1f14c8bb9
 ## explicit; go 1.24.0
 golang.org/x/exp/constraints
 # golang.org/x/image v0.31.0
@@ -201,7 +203,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# google.golang.org/protobuf v1.36.9
+# google.golang.org/protobuf v1.36.10
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire

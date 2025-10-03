@@ -476,7 +476,7 @@ func (s *Session) GetGroups() ([]Group, error) {
 		return nil, fmt.Errorf("cannot get groups for unauthenticated session")
 	}
 
-	data, err := s.client.GetJoinedGroups()
+	data, err := s.client.GetJoinedGroups(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting groups: %s", err)
 	}

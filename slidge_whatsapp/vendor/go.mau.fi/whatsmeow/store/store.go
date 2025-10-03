@@ -29,6 +29,7 @@ type IdentityStore interface {
 type SessionStore interface {
 	GetSession(ctx context.Context, address string) ([]byte, error)
 	HasSession(ctx context.Context, address string) (bool, error)
+	HasManySessions(ctx context.Context, addresses []string) (map[string]bool, error)
 	PutSession(ctx context.Context, address string, session []byte) error
 	DeleteAllSessions(ctx context.Context, phone string) error
 	DeleteSession(ctx context.Context, address string) error
@@ -82,11 +83,25 @@ type ContactEntry struct {
 	FullName  string
 }
 
+func (ce ContactEntry) GetMassInsertValues() [3]any {
+	return [...]any{ce.JID.String(), ce.FirstName, ce.FullName}
+}
+
+type RedactedPhoneEntry struct {
+	JID           types.JID
+	RedactedPhone string
+}
+
+func (rpe RedactedPhoneEntry) GetMassInsertValues() [2]any {
+	return [...]any{rpe.JID.String(), rpe.RedactedPhone}
+}
+
 type ContactStore interface {
 	PutPushName(ctx context.Context, user types.JID, pushName string) (bool, string, error)
 	PutBusinessName(ctx context.Context, user types.JID, businessName string) (bool, string, error)
 	PutContactName(ctx context.Context, user types.JID, fullName, firstName string) error
 	PutAllContactNames(ctx context.Context, contacts []ContactEntry) error
+	PutManyRedactedPhones(ctx context.Context, entries []RedactedPhoneEntry) error
 	GetContact(ctx context.Context, user types.JID) (types.ContactInfo, error)
 	GetAllContacts(ctx context.Context) (map[types.JID]types.ContactInfo, error)
 }
@@ -148,11 +163,16 @@ type LIDMapping struct {
 	PN  types.JID
 }
 
+func (lm LIDMapping) GetMassInsertValues() [2]any {
+	return [...]any{lm.LID.User, lm.PN.User}
+}
+
 type LIDStore interface {
 	PutManyLIDMappings(ctx context.Context, mappings []LIDMapping) error
 	PutLIDMapping(ctx context.Context, lid, jid types.JID) error
 	GetPNForLID(ctx context.Context, lid types.JID) (types.JID, error)
 	GetLIDForPN(ctx context.Context, pn types.JID) (types.JID, error)
+	GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (map[types.JID]types.JID, error)
 }
 
 type AllSessionSpecificStores interface {

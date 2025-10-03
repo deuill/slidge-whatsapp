@@ -57,12 +57,12 @@ func (cli *Client) handleEncryptedMessage(node *waBinary.Node) {
 		if len(info.PushName) > 0 && info.PushName != "-" && (cli.MessengerConfig == nil || info.PushName != "username") {
 			go cli.updatePushName(cli.BackgroundEventCtx, info.Sender, info, info.PushName)
 		}
-		var cancelled bool
-		defer cli.maybeDeferredAck(ctx, node)(&cancelled)
 		if info.Sender.Server == types.NewsletterServer {
+			var cancelled bool
+			defer cli.maybeDeferredAck(ctx, node)(&cancelled)
 			cancelled = cli.handlePlaintextMessage(ctx, info, node)
 		} else {
-			cancelled = cli.decryptMessages(ctx, info, node)
+			cli.decryptMessages(ctx, info, node)
 		}
 	}
 }
@@ -95,6 +95,29 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 		}
 		if from.Server == types.BroadcastServer {
 			source.BroadcastListOwner = ag.OptionalJIDOrEmpty("recipient")
+			participants, ok := node.GetOptionalChildByTag("participants")
+			if ok && source.IsFromMe {
+				children := participants.GetChildren()
+				source.BroadcastRecipients = make([]types.BroadcastRecipient, 0, len(children))
+				for _, child := range children {
+					if child.Tag != "to" {
+						continue
+					}
+					cag := child.AttrGetter()
+					mainJID := cag.JID("jid")
+					if mainJID.Server == types.HiddenUserServer {
+						source.BroadcastRecipients = append(source.BroadcastRecipients, types.BroadcastRecipient{
+							LID: mainJID,
+							PN:  cag.OptionalJIDOrEmpty("peer_recipient_pn"),
+						})
+					} else {
+						source.BroadcastRecipients = append(source.BroadcastRecipients, types.BroadcastRecipient{
+							LID: cag.OptionalJIDOrEmpty("peer_recipient_lid"),
+							PN:  mainJID,
+						})
+					}
+				}
+			}
 		}
 	} else if from.Server == types.NewsletterServer {
 		source.Chat = from
@@ -263,15 +286,17 @@ func (cli *Client) migrateSessionStore(ctx context.Context, pn, lid types.JID) {
 	}
 }
 
-func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo, node *waBinary.Node) (handlerFailed bool) {
+func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo, node *waBinary.Node) {
 	unavailableNode, ok := node.GetOptionalChildByTag("unavailable")
 	if ok && len(node.GetChildrenByTag("enc")) == 0 {
 		uType := events.UnavailableType(unavailableNode.AttrGetter().String("type"))
 		cli.Log.Warnf("Unavailable message %s from %s (type: %q)", info.ID, info.SourceString(), uType)
 		if cli.SynchronousAck {
 			cli.immediateRequestMessageFromPhone(ctx, info)
+			cli.sendAck(node)
 		} else {
 			go cli.delayedRequestMessageFromPhone(info)
+			go cli.sendAck(node)
 		}
 		cli.dispatchEvent(&events.UndecryptableMessage{Info: *info, IsUnavailable: true, UnavailableType: uType})
 		return
@@ -279,7 +304,6 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 
 	children := node.GetChildren()
 	cli.Log.Debugf("Decrypting message from %s", info.SourceString())
-	handled := false
 	containsDirectMsg := false
 	senderEncryptionJID := info.Sender
 	if info.Sender.Server == types.DefaultUserServer && !info.Sender.IsBot() {
@@ -346,22 +370,19 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 
 		if errors.Is(err, EventAlreadyProcessed) {
 			cli.Log.Debugf("Ignoring message %s from %s: %v", info.ID, info.SourceString(), err)
-			return
+			continue
 		} else if err != nil {
 			cli.Log.Warnf("Error decrypting message %s from %s: %v", info.ID, info.SourceString(), err)
 			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
-				handlerFailed = true
 				return
 			}
 			isUnavailable := encType == "skmsg" && !containsDirectMsg && errors.Is(err, signalerror.ErrNoSenderKeyForUser)
-			if encType != "msmsg" {
-				if cli.SynchronousAck {
-					cli.sendRetryReceipt(ctx, node, info, isUnavailable)
-				} else {
-					go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
-				}
+			if cli.SynchronousAck {
+				cli.sendRetryReceipt(ctx, node, info, isUnavailable)
+			} else {
+				go cli.sendRetryReceipt(context.WithoutCancel(ctx), node, info, isUnavailable)
 			}
-			handlerFailed = cli.dispatchEvent(&events.UndecryptableMessage{
+			cli.dispatchEvent(&events.UndecryptableMessage{
 				Info:            *info,
 				IsUnavailable:   isUnavailable,
 				DecryptFailMode: events.DecryptFailMode(ag.OptionalString("decrypt-fail")),
@@ -372,33 +393,37 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 		cli.cancelDelayedRequestFromPhone(info.ID)
 
 		var msg waE2E.Message
+		var handlerFailed bool
 		switch ag.Int("v") {
 		case 2:
+			// TODO send nack instead of receipt for proto unmarshal errors (both this one and armadillo)
 			err = proto.Unmarshal(decrypted, &msg)
 			if err != nil {
 				cli.Log.Warnf("Error unmarshaling decrypted message from %s: %v", info.SourceString(), err)
 				continue
 			}
 			handlerFailed = cli.handleDecryptedMessage(ctx, info, &msg, retryCount)
-			handled = true
 		case 3:
-			handled, handlerFailed = cli.handleDecryptedArmadillo(ctx, info, decrypted, retryCount)
+			handlerFailed = cli.handleDecryptedArmadillo(ctx, info, decrypted, retryCount)
 		default:
 			cli.Log.Warnf("Unknown version %d in decrypted message from %s", ag.Int("v"), info.SourceString())
 		}
 		if handlerFailed {
 			cli.Log.Warnf("Handler for %s failed", info.ID)
+			return
 		}
-		if ciphertextHash != nil && cli.EnableDecryptedEventBuffer && !handlerFailed {
+		if ciphertextHash != nil && cli.EnableDecryptedEventBuffer {
 			// Use the context passed to decryptMessages
 			err = cli.Store.EventBuffer.ClearBufferedEventPlaintext(ctx, *ciphertextHash)
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).
 					Hex("ciphertext_hash", ciphertextHash[:]).
+					Str("message_id", info.ID).
 					Msg("Failed to clear buffered event plaintext")
 			} else {
 				zerolog.Ctx(ctx).Debug().
 					Hex("ciphertext_hash", ciphertextHash[:]).
+					Str("message_id", info.ID).
 					Msg("Deleted event plaintext from buffer")
 			}
 
@@ -413,7 +438,9 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			}
 		}
 	}
-	if handled && !handlerFailed {
+	if cli.SynchronousAck {
+		cli.sendMessageReceipt(info)
+	} else {
 		go cli.sendMessageReceipt(info)
 	}
 	return
