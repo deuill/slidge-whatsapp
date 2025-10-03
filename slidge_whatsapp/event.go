@@ -392,7 +392,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 		message.Attachments = append(message.Attachments, attach...)
 		message.Kind = MessageAttachment
 		if context != nil {
-			message = getMessageWithContext(message, context)
+			message = getMessageWithContext(ctx, client, message, context)
 		}
 	}
 
@@ -413,7 +413,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 				message.GroupInvite = newGroup(ctx, client, info)
 			}
 		} else {
-			message = getMessageWithContext(message, e.GetContextInfo())
+			message = getMessageWithContext(ctx, client, message, e.GetContextInfo())
 		}
 	}
 
@@ -428,20 +428,43 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 // GetMessageWithContext processes the given [Message] and applies any context metadata might be
 // useful; examples of context include messages being quoted. If no context is found, the original
 // message is returned unchanged.
-func getMessageWithContext(message Message, info *waE2E.ContextInfo) Message {
+func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, message Message, info *waE2E.ContextInfo) Message {
 	if info == nil {
 		return message
 	}
 
+	originJID, err := types.ParseJID(info.GetParticipant())
+	if err != nil {
+		return message
+	}
+
 	message.ReplyID = info.GetStanzaID()
-	message.OriginJID = info.GetParticipant()
+	message.OriginJID = getPreferredJID(ctx, client, originJID).ToNonAD().String()
 	message.IsForwarded = info.GetIsForwarded()
 
+	// Handle reply messages.
 	if q := info.GetQuotedMessage(); q != nil {
 		if qe := q.GetExtendedTextMessage(); qe != nil {
 			message.ReplyBody = qe.GetText()
 		} else {
 			message.ReplyBody = q.GetConversation()
+		}
+	}
+
+	// Replace LIDs with JIDs in message mentions, if possible.
+	if m := info.GetMentionedJID(); len(m) > 0 {
+		for i := range m {
+			mentionLID, err := types.ParseJID(m[i])
+			if err != nil || mentionLID.Server != types.HiddenUserServer {
+				continue
+			}
+
+			mentionJID := getPreferredJID(ctx, client, mentionLID)
+			if mentionLID == mentionJID {
+				continue
+			}
+
+			message.Body = strings.ReplaceAll(message.Body, "@"+mentionLID.User, "@"+mentionJID.User)
 		}
 	}
 
@@ -959,7 +982,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		message.Attachments = append(message.Attachments, attach...)
 		message.Kind = MessageAttachment
 		if context != nil {
-			message = getMessageWithContext(message, context)
+			message = getMessageWithContext(ctx, client, message, context)
 		}
 	}
 
@@ -995,7 +1018,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		if message.Body == "" {
 			message.Body = e.GetText()
 		}
-		message = getMessageWithContext(message, e.GetContextInfo())
+		message = getMessageWithContext(ctx, client, message, e.GetContextInfo())
 	}
 
 	// Ignore obviously invalid messages.
@@ -1297,14 +1320,15 @@ type Call struct {
 }
 
 // NewCallEvent returns event data meant for [Session.propagateEvent] for the call metadata given.
-func newCallEvent(state CallState, meta types.BasicCallMeta) (EventKind, *EventPayload) {
-	if state == CallUnknown || meta.From.IsEmpty() {
+func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState, meta types.BasicCallMeta) (EventKind, *EventPayload) {
+	if state == CallUnknown {
 		return EventUnknown, nil
 	}
 
+	jid := getPreferredJID(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt)
 	return EventCall, &EventPayload{Call: Call{
 		State:     state,
-		JID:       meta.From.ToNonAD().String(),
+		JID:       jid.ToNonAD().String(),
 		Timestamp: meta.Timestamp.Unix(),
 	}}
 }

@@ -815,9 +815,9 @@ func (s *Session) handleEvent(evt any) {
 	case *events.ChatPresence:
 		s.propagateEvent(newChatStateEvent(ctx, s.client, evt))
 	case *events.CallOffer:
-		s.propagateEvent(newCallEvent(CallIncoming, evt.BasicCallMeta))
+		s.propagateEvent(newCallEvent(ctx, s.client, CallIncoming, evt.BasicCallMeta))
 	case *events.CallTerminate:
-		s.propagateEvent(newCallEvent(callStateFromReason(evt.Reason), evt.BasicCallMeta))
+		s.propagateEvent(newCallEvent(ctx, s.client, callStateFromReason(evt.Reason), evt.BasicCallMeta))
 	case *events.LoggedOut:
 		s.client.Disconnect()
 		if err := s.client.Store.Delete(ctx); err != nil {
