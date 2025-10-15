@@ -31,6 +31,20 @@ variables:
     cache_images:
       - codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:buildcache-${ARCH}
 
+  - &paths
+    - "slidge_whatsapp/**"
+    - Dockerfile
+    - pyproject.toml
+    - .woodpecker/container.yaml
+
+when:
+  - event: tag
+  - event: push
+    path: *paths
+  - event: cron
+    cron: container-main
+  - event: cron
+    cron: container-latest
 
 steps:
   build-tag:
@@ -46,27 +60,20 @@ steps:
   build-branch:
     when:
       - event: push
-        path:
-          - "slidge_whatsapp/**"
-          - Dockerfile
-          - pyproject.toml
-          - .woodpecker/container.yaml
+        path: *paths
       - event: cron
         cron: container-main
     image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
+      build_args:
+        SLIDGE_PRERELEASE: "1"
       tags:
         - ${CI_COMMIT_BRANCH}-${ARCH}
 
   build-ci:
     when:
-      - event: push
-        path:
-          - "slidge_whatsapp/**"
-          - Dockerfile
-          - pyproject.toml
-          - .woodpecker/container.yaml
+        path: *paths
         branch: ${CI_REPO_DEFAULT_BRANCH}
     image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
@@ -75,3 +82,22 @@ steps:
       tag: ci-${ARCH}
       cache_images:
         - codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:buildcache-ci-${ARCH}
+
+  checkout-latest-tag:
+    image: woodpeckerci/plugin-git
+    when:
+      - event: cron
+        cron: container-latest
+    commands:
+      - export TAG=$(git describe --tags --abbrev=0)
+      - git checkout $TAG
+      - git reset --hard
+      - echo latest-${ARCH} > .tags
+
+  rebuild-tag:
+    image: woodpeckerci/plugin-docker-buildx:6.0.2
+    when:
+      - event: cron
+        cron: container-latest
+    settings:
+      <<: *settings

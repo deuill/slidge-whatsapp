@@ -1,7 +1,7 @@
 # Do not edit manually!
 # Changes here will be overwritten by copier.
 # https://copier.readthedocs.io/
-_commit: 787361e
+_commit: 3539be6
 _src_path: git+https://codeberg.org/slidge/legacy-module-template
 authors:
 -   email: alex@deuill.org
@@ -118,6 +118,10 @@ mypy_ignores:
 - linkpreview
 - slidge_whatsapp.generated
 native_builds: false
+netbsd:
+    dependencies: []
+    enable: false
+    pyver: '3.13'
 pre_commit_custom_hooks: "\n  - repo: https://github.com/tekwizely/pre-commit-golang\n\
     \    rev: v1.0.0-rc.1\n    hooks:\n      - id: go-fmt\n        args: [-w]\n"
 project_name: slidge-whatsapp

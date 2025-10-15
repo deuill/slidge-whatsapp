@@ -76,22 +76,17 @@ enable = true
 [tool.poetry-dynamic-versioning.substitution]
 files = []
 
-# this should not be any problem and fixes compatibility with pycharm
-# when installing anything (such as slidge core) in editable mode
-[tool.uv]
-config-settings = { editable_mode = "compat" }
-
 [tool.uv.sources]
 slidge-sphinx-extensions = { index = "codeberg" }
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple"
 
 [[tool.uv.index]]
 name = "codeberg"
 url = "https://codeberg.org/api/packages/slidge/pypi/simple"
 publish-url = "https://codeberg.org/api/packages/slidge/pypi"
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
 
 [tool.mypy]
 files = ["slidge_whatsapp"]

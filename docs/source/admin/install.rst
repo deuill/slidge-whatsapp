@@ -47,6 +47,7 @@ Bleeding edge versions are also available on `codeberg's python index <https://c
        --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/ --pre'
 
 
+
 Unofficial debian package
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -55,8 +56,9 @@ If you are using debian you might be interested in installing the
 package <https://codeberg.org/slidge/debian>`__ which bundles slidge-whatsapp
 along with other slidge-based XMPP gateways.
 
-Follow the instructions in the repository README; edit
-``/etc/slidge/conf.d/common.conf`` and
-``/etc/slidge/whatsapp.conf``; run
-``sudo systemctl start slidge@whatsapp``; watch the logs with
-``sudo journalctl -u slidge@whatsapp -f``.
+Follow the instructions in the repository README. In short:
+
+- edit ``/etc/slidge/conf.d/common.conf``;
+- edit ``/etc/slidge/whatsapp.conf``;
+- run ``sudo systemctl start slidge@whatsapp``;
+- watch the logs with ``sudo journalctl -u slidge@whatsapp -f``.
