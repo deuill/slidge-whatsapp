@@ -12,7 +12,7 @@ license = "AGPL-3.0-or-later"
 classifiers = [
     "Topic :: Internet :: XMPP",
 ]
-requires-python = ">= 3.13"
+requires-python = ">= 3.11"
 keywords = ["xmpp", "gateway", "bridge", "instant messaging", "chat", "whatsapp"]
 dynamic = ["version"]
 dependencies = [
