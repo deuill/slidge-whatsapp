@@ -95,10 +95,13 @@ ENV PATH="/venv/bin:$PATH"
 STOPSIGNAL SIGINT
 WORKDIR /var/lib/slidge
 # libmagic1: to guess mime type from files
+# libmupdf25.1: support for PDF file previews
 # media-types: to determine file name suffix based on file type
+# ffmpeg: incoming and outgoing media conversion
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
         libmagic1 \
+        libmupdf25.1 \
         media-types \
         shared-mime-info \
         ffmpeg \
