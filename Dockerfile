@@ -81,7 +81,7 @@ RUN uv pip install watchdog[watchmedo]
 COPY --from=ci /venv /venv
 COPY ./watcher.py /build/
 ENTRYPOINT ["python", "watcher.py", \
-            "/venv/lib/python3.11/site-packages/slidge:/build/slidge_whatsapp", \
+            "/venv/lib/python3.13/site-packages/slidge:/build/slidge_whatsapp", \
             "--dev-mode", "--debug", \
             "--legacy-module=slidge_whatsapp", "--jid=slidge.localhost", "--secret=secret"]
 
@@ -107,5 +107,5 @@ RUN addgroup --system --gid 10000 slidge
 RUN adduser --system --uid 10000 --ingroup slidge --home /var/lib/slidge slidge
 USER slidge
 COPY --from=builder /venv /venv
-COPY --from=builder /build/slidge_whatsapp /venv/lib/python3.11/site-packages/slidge_whatsapp
+COPY --from=builder /build/slidge_whatsapp /venv/lib/python3.13/site-packages/slidge_whatsapp
 ENTRYPOINT ["slidge-whatsapp"]
