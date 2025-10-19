@@ -16,12 +16,7 @@ if __name__ == "__main__":
         patterns=["*.py"],
         ignore_patterns=["generated/*.py"],
     )
-    os.environ["CGO_LDFLAGS"] = (
-        "-lgumbo -lfreetype -ljbig2dec -lharfbuzz -ljpeg -lmujs -lopenjp2"
-    )
-    gopy_cmd = (
-        'gopy build -output=generated -no-make=true -build-tags="mupdf extlib static" .'
-    )
+    gopy_cmd = 'gopy build -output=generated -no-make=true -build-tags="mupdf extlib" .'
     gopy_build = ShellCommandTrick(
         shell_command='cd "$(dirname ${watch_src_path})" && '
         + gopy_cmd

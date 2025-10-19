@@ -33,9 +33,6 @@ def main():
             "Make you sure install golang, via your package manager or https://go.dev/dl/"
         )
     os.environ["PATH"] = os.path.expanduser("~/go/bin") + ":" + os.environ["PATH"]
-    os.environ["CGO_LDFLAGS"] = (
-        "-lgumbo -lfreetype -ljbig2dec -lharfbuzz -ljpeg -lmujs -lopenjp2"
-    )
     subprocess.run(["go", "install", "github.com/go-python/gopy@master"], check=True)
     subprocess.run(
         ["go", "install", "golang.org/x/tools/cmd/goimports@latest"], check=True
@@ -47,7 +44,7 @@ def main():
             "build",
             "-output=generated",
             "-no-make=true",
-            '-build-tags="mupdf extlib static"',
+            '-build-tags="mupdf extlib"',
             ".",
         ],
         cwd=src_path,
