@@ -3,7 +3,7 @@
 
 # Builder
 # *******
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS builder
 
 # install git for setuptools scm
 RUN apt-get update -y && \
@@ -16,6 +16,7 @@ RUN apt-get update -y && \
         curl \
         git \
         gcc \
+        golang \
         g++ \
         libffi-dev \
         libssl-dev \
@@ -31,12 +32,6 @@ RUN apt-get update -y && \
         libopenjp2-7-dev \
         rustc \
         -y --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
-RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list && \
-    apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-        golang \
-    -t bookworm-backports && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 ENV UV_PROJECT_ENVIRONMENT=/venv
@@ -93,7 +88,7 @@ ENTRYPOINT ["python", "watcher.py", \
 
 # Prod container
 # **************
-FROM docker.io/python:3.11-slim-bookworm AS slidge-whatsapp
+FROM docker.io/python:3.13-slim-trixie AS slidge-whatsapp
 
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/venv/bin:$PATH"
