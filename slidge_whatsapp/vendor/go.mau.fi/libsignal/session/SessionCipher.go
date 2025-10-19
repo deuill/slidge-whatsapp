@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.mau.fi/libsignal/cipher"
@@ -253,12 +254,16 @@ func (d *Cipher) DecryptWithRecord(ctx context.Context, sessionRecord *record.Se
 
 	// If we received an error using the current session state, loop
 	// through all previous states.
-	if err != nil {
+	if errors.Is(err, signalerror.ErrOldCounter) {
+		return nil, nil, err
+	} else if err != nil {
 		logger.Warning(err)
 		for i, state := range previousStates {
 			// Try decrypting the message with previous states
 			plaintext, messageKeys, err = d.DecryptWithState(ctx, state, ciphertext)
-			if err != nil {
+			if errors.Is(err, signalerror.ErrOldCounter) {
+				return nil, nil, err
+			} else if err != nil {
 				continue
 			}
 

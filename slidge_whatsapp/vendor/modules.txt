@@ -68,8 +68,8 @@ github.com/rs/zerolog/log
 # github.com/vektah/gqlparser/v2 v2.5.30
 ## explicit; go 1.22
 github.com/vektah/gqlparser/v2/ast
-# go.mau.fi/libsignal v0.2.0
-## explicit; go 1.23.0
+# go.mau.fi/libsignal v0.2.1
+## explicit; go 1.24.0
 go.mau.fi/libsignal/cipher
 go.mau.fi/libsignal/ecc
 go.mau.fi/libsignal/groups
@@ -96,7 +96,7 @@ go.mau.fi/libsignal/util/errorhelper
 go.mau.fi/libsignal/util/keyhelper
 go.mau.fi/libsignal/util/medium
 go.mau.fi/libsignal/util/optional
-# go.mau.fi/util v0.9.1
+# go.mau.fi/util v0.9.2
 ## explicit; go 1.24.0
 go.mau.fi/util/dbutil
 go.mau.fi/util/exbytes
@@ -111,7 +111,7 @@ go.mau.fi/util/jsontime
 go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20251003154939-d562355c4d82
+# go.mau.fi/whatsmeow v0.0.0-20251016095441-02c50743e601
 ## explicit; go 1.24.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
@@ -168,15 +168,15 @@ go.mau.fi/whatsmeow/util/gcmutil
 go.mau.fi/whatsmeow/util/hkdfutil
 go.mau.fi/whatsmeow/util/keys
 go.mau.fi/whatsmeow/util/log
-# golang.org/x/crypto v0.42.0
+# golang.org/x/crypto v0.43.0
 ## explicit; go 1.24.0
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20251002181428-27f1f14c8bb9
+# golang.org/x/exp v0.0.0-20251017212417-90e834f514db
 ## explicit; go 1.24.0
 golang.org/x/exp/constraints
-# golang.org/x/image v0.31.0
+# golang.org/x/image v0.32.0
 ## explicit; go 1.24.0
 golang.org/x/image/draw
 golang.org/x/image/math/f64
@@ -184,7 +184,7 @@ golang.org/x/image/riff
 golang.org/x/image/vp8
 golang.org/x/image/vp8l
 golang.org/x/image/webp
-# golang.org/x/net v0.44.0
+# golang.org/x/net v0.46.0
 ## explicit; go 1.24.0
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
@@ -193,11 +193,11 @@ golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
-# golang.org/x/sys v0.36.0
+# golang.org/x/sys v0.37.0
 ## explicit; go 1.24.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.29.0
+# golang.org/x/text v0.30.0
 ## explicit; go 1.24.0
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
