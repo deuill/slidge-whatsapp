@@ -18,7 +18,6 @@ dynamic = ["version"]
 dependencies = [
     "linkpreview>=0.11.0",
     "slidge>=0.3.0beta2,<0.4",
-    "slixmpp==1.11.0",
 ]
 
 [project.urls]
