@@ -805,7 +805,7 @@ func (s *Session) handleEvent(evt any) {
 	case *events.Receipt:
 		s.propagateEvent(newReceiptEvent(ctx, s.client, evt))
 	case *events.Presence:
-		s.propagateEvent(newPresenceEvent(evt))
+		s.propagateEvent(newPresenceEvent(ctx, s.client, evt))
 	case *events.PushName:
 		s.propagateEvent(newContactEvent(evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
 	case *events.JoinedGroup:

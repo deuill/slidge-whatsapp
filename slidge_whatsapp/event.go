@@ -141,13 +141,13 @@ type Presence struct {
 
 // NewPresenceEvent returns event data meant for [Session.propagateEvent] for the primitive presence
 // event given.
-func newPresenceEvent(evt *events.Presence) (EventKind, *EventPayload) {
+func newPresenceEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Presence) (EventKind, *EventPayload) {
 	if evt.From.Server == types.HiddenUserServer {
 		return EventUnknown, nil
 	}
 
 	var presence = Presence{
-		JID:      evt.From.ToNonAD().String(),
+		JID:      getPreferredJID(ctx, client, evt.From).ToNonAD().String(),
 		Kind:     PresenceAvailable,
 		LastSeen: evt.LastSeen.Unix(),
 	}
