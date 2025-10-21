@@ -34,6 +34,9 @@ class Contact(LegacyContact[str]):
             self.log.error(
                 "Contact for anonymous participant added: %s", self.legacy_id
             )
+            raise XMPPError(
+                "item-not-found", f"LIDs are not valid contact IDs: {self.legacy_id}"
+            )
 
 
 class Roster(LegacyRoster[str, Contact]):
