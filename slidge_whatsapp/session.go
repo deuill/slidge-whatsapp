@@ -785,7 +785,7 @@ func (s *Session) handleEvent(evt any) {
 		case waHistorySync.HistorySync_PUSH_NAME:
 			for _, n := range evt.Data.GetPushnames() {
 				jid, err := types.ParseJID(n.GetID())
-				if err != nil {
+				if err != nil || jid.Server == types.HiddenUserServer {
 					continue
 				}
 				s.propagateEvent(newContactEvent(jid, types.ContactInfo{FullName: n.GetPushname()}))

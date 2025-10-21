@@ -171,12 +171,8 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventGroup:
             await self.bookmarks.add_whatsapp_group(data.Group)
         elif event == whatsapp.EventPresence:
-            if not whatsapp.IsAnonymousJID(data.Presence.JID):
-                contact = await self.contacts.by_legacy_id(data.Presence.JID)
-                if contact is not None:
-                    await contact.update_presence(
-                        data.Presence.Kind, data.Presence.LastSeen
-                    )
+            contact = await self.contacts.by_legacy_id(data.Presence.JID)
+            await contact.update_presence(data.Presence.Kind, data.Presence.LastSeen)
         elif event == whatsapp.EventChatState:
             await self.handle_chat_state(data.ChatState)
         elif event == whatsapp.EventReceipt:

@@ -142,12 +142,13 @@ type Presence struct {
 // NewPresenceEvent returns event data meant for [Session.propagateEvent] for the primitive presence
 // event given.
 func newPresenceEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Presence) (EventKind, *EventPayload) {
-	if evt.From.Server == types.HiddenUserServer {
+	var jid = getPreferredJID(ctx, client, evt.From)
+	if jid.Server == types.HiddenUserServer {
 		return EventUnknown, nil
 	}
 
 	var presence = Presence{
-		JID:      getPreferredJID(ctx, client, evt.From).ToNonAD().String(),
+		JID:      jid.ToNonAD().String(),
 		Kind:     PresenceAvailable,
 		LastSeen: evt.LastSeen.Unix(),
 	}
@@ -300,7 +301,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 	} else if evt.Info.IsGroup {
 		message.GroupJID = evt.Info.Chat.ToNonAD().String()
 	} else if message.IsCarbon {
-		message.JID = evt.Info.Chat.ToNonAD().String()
+		message.JID = getPreferredJID(ctx, client, evt.Info.Chat).ToNonAD().String()
 	}
 
 	// Handle handle protocol messages (such as message deletion or editing).
@@ -315,9 +316,13 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 				return EventUnknown, nil
 			}
 		case waE2E.ProtocolMessage_REVOKE:
+			originJID, err := types.ParseJID(p.Key.GetParticipant())
+			if err != nil {
+				return EventUnknown, nil
+			}
 			message.Kind = MessageRevoke
 			message.ID = p.Key.GetID()
-			message.OriginJID = p.Key.GetParticipant()
+			message.OriginJID = getPreferredJID(ctx, client, originJID).ToNonAD().String()
 			return EventMessage, &EventPayload{Message: message}
 		}
 	}
@@ -1103,11 +1108,11 @@ func newReceiptEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 	}
 
 	if evt.Chat.Server == types.BroadcastServer {
-		receipt.JID = evt.BroadcastListOwner.ToNonAD().String()
+		receipt.JID = getPreferredJID(ctx, client, evt.BroadcastListOwner).ToNonAD().String()
 	} else if evt.IsGroup {
 		receipt.GroupJID = evt.Chat.ToNonAD().String()
 	} else if receipt.IsCarbon {
-		receipt.JID = evt.Chat.ToNonAD().String()
+		receipt.JID = getPreferredJID(ctx, client, evt.Chat).ToNonAD().String()
 	}
 
 	switch evt.Type {

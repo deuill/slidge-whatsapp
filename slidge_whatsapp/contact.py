@@ -30,18 +30,14 @@ class Contact(LegacyContact[str]):
             self.online(last_seen=last_seen)
 
     async def update_info(self) -> None:
-        # If we receive presences, the status will be updated accordingly.
-        # But presences do not work reliably, and having contacts offline has annoying
-        # side effects, such as contacts not appearing in the participant list of
-        # groups.
-        self.online()
         if whatsapp.IsAnonymousJID(self.legacy_id):
-            self.log.error(
-                "Contact for anonymous participant added: %s", self.legacy_id
-            )
             raise XMPPError(
                 "item-not-found", f"LIDs are not valid contact IDs: {self.legacy_id}"
             )
+        # If we receive presences, the status will be updated accordingly. But presences do not
+        # work reliably, and having contacts offline has annoying side effects, such as contacts not
+        # appearing in the participant list of groups.
+        self.online()
 
 
 class Roster(LegacyRoster[str, Contact]):
