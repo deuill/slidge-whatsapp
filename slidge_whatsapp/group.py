@@ -26,6 +26,25 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     HAS_DESCRIPTION = False
     REACTIONS_SINGLE_EMOJI = True
 
+    _history_requested: bool = False
+
+    @property
+    def history_requested(self) -> bool:
+        return self._history_requested
+
+    @history_requested.setter
+    def history_requested(self, flag: bool) -> None:
+        if self._history_requested == flag:
+            return
+        self._history_requested = flag
+        self.commit()
+
+    def serialize_extra_attributes(self) -> dict[str, bool]:
+        return {"history_requested": self._history_requested}
+
+    def deserialize_extra_attributes(self, data: dict[str, bool]) -> None:
+        self._history_requested = data.get("history_requested", False)
+
     async def update_info(self):
         try:
             unique_id = ""
@@ -54,6 +73,11 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             return
             # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
 
+        if self.history_requested:
+            return
+            # With whatsmeow, we don't have to fill holes due to slidge downtime: we receive missed messages
+            # on startup, as long as we have not been logged out by WhatsApp
+
         assert isinstance(before.id, str)
         oldest_message = whatsapp.Message(
             ID=before.id,
@@ -61,6 +85,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             Timestamp=int(before.timestamp.timestamp()),
         )
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
+        self.history_requested = True
 
     def get_message_sender(self, legacy_msg_id: str):
         with self.xmpp.store.session() as orm:

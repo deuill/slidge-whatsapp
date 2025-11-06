@@ -164,6 +164,11 @@ class Session(BaseSession[str, Recipient]):
                 message += f"\nReason: {data.LoggedOut.Reason}"
             self.send_gateway_message(message)
             self.send_gateway_status("Logged out", show="away")
+            for muc in self.bookmarks:
+                # When we are logged out, the initial history sync may not completely
+                # cover the "hole" between logout and re-pair, so we want to request
+                # more history.
+                muc.history_requested = False  # type:ignore[attr-defined]
         elif event == whatsapp.EventContact:
             contact = await self.contacts.add_whatsapp_contact(data.Contact)
             if contact is not None and contact.is_friend:
@@ -228,6 +233,10 @@ class Session(BaseSession[str, Recipient]):
             and message.IsHistory
             and await self.__is_message_in_archive(message.ID)
         ):
+            # FIXME: this only works for messages with a body
+            # Messages without body have no "legacy_msg_id" attached to them. In practice, this means
+            # we fill our MAM table with (hopefully just a few) duplicate rows for all reactions, receipts,
+            # displayed markers, retractions and corrections.
             return
         reply_to = await self.__get_reply_to(message, muc)
         message_timestamp = (
