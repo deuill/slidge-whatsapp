@@ -199,6 +199,7 @@ type Message struct {
 	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
 	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
 	IsHistory   bool         // Whether or not the message is derived from message history.
+	ReferenceID string       // A message referenced in this message, for edits.
 }
 
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
@@ -310,8 +311,8 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 		case waE2E.ProtocolMessage_MESSAGE_EDIT:
 			if m := p.GetEditedMessage(); m != nil {
 				message.Kind = MessageEdit
-				message.ID = p.Key.GetID()
 				message.Body = m.GetConversation()
+				message.ReferenceID = p.Key.GetID()
 			} else {
 				return EventUnknown, nil
 			}

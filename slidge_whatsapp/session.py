@@ -264,11 +264,12 @@ class Session(BaseSession[str, Recipient]):
                     Path(attachment.path).unlink(missing_ok=True)
         elif message.Kind == whatsapp.MessageEdit:
             contact.correct(
-                legacy_msg_id=message.ID,
+                legacy_msg_id=message.ReferenceID,
                 new_text=message.Body,
                 when=message_timestamp,
                 reply_to=reply_to,
                 carbon=message.IsCarbon,
+                correction_event_id=message.ID,
             )
         elif message.Kind == whatsapp.MessageRevoke:
             if muc is None or message.OriginJID == message.JID:
