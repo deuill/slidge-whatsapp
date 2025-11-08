@@ -83,6 +83,7 @@ type Avatar struct {
 type Contact struct {
 	JID  string // The WhatsApp JID for this contact.
 	Name string // The user-set, human-readable name for this contact.
+	IsFriend bool // Whether this contact is in the user's contact list.
 }
 
 // NewContactEvent returns event data meant for [Session.propagateEvent] for the contact information
@@ -116,6 +117,10 @@ func newContact(jid types.JID, info types.ContactInfo) Contact {
 
 	if contact.Name == "" {
 		return Contact{}
+	}
+
+	if info.FullName != "" {
+		contact.IsFriend = true
 	}
 
 	return contact

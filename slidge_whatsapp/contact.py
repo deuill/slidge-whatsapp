@@ -51,7 +51,7 @@ class Roster(LegacyRoster[str, Contact]):
         contacts = self.session.whatsapp.GetContacts(refresh=config.ALWAYS_SYNC_ROSTER)
         for contact in contacts:
             c = await self.add_whatsapp_contact(contact)
-            if c is not None:
+            if c is not None and c.is_friend:
                 yield c
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:
@@ -62,8 +62,9 @@ class Roster(LegacyRoster[str, Contact]):
         if data.JID == self.user_legacy_id:
             return None
         contact = await self.by_legacy_id(data.JID)
+        self.session.log.debug("User named %s, friend: %s", data.Name, data.IsFriend)
         contact.name = data.Name
-        contact.is_friend = True
+        contact.is_friend = data.IsFriend
         try:
             unique_id = ""
             if contact.avatar is not None:
