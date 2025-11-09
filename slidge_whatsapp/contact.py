@@ -64,7 +64,7 @@ class Roster(LegacyRoster[str, Contact]):
         contact = await self.by_legacy_id(data.JID)
         self.session.log.debug("User named %s, friend: %s", data.Name, data.IsFriend)
         contact.name = data.Name
-        contact.is_friend = data.IsFriend
+        contact.is_friend = data.IsFriend or config.ADD_GROUP_PARTICIPANTS_TO_ROSTER
         try:
             unique_id = ""
             if contact.avatar is not None:

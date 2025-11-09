@@ -81,9 +81,9 @@ type Avatar struct {
 // A Contact represents any entity that be communicated with directly in WhatsApp. This typically
 // represents people, but may represent a business or bot as well, but not a group-chat.
 type Contact struct {
-	JID  string // The WhatsApp JID for this contact.
-	Name string // The user-set, human-readable name for this contact.
-	IsFriend bool // Whether this contact is in the user's contact list.
+	JID      string // The WhatsApp JID for this contact.
+	Name     string // The user-set, human-readable name for this contact.
+	IsFriend bool   // Whether this contact is in the user's contact list.
 }
 
 // NewContactEvent returns event data meant for [Session.propagateEvent] for the contact information
@@ -105,10 +105,13 @@ func newContact(jid types.JID, info types.ContactInfo) Contact {
 		return Contact{}
 	}
 
-	// Find valid contact name from list of alternatives, or return empty contact if none could
-	// be found.
-	var contact = Contact{JID: jid.ToNonAD().String()}
-	for _, n := range []string{info.FullName, info.FirstName, info.BusinessName, info.PushName} {
+	var contact = Contact{
+		JID:      jid.ToNonAD().String(),
+		IsFriend: info.FullName != "", // Only trusted contacts have full names attached on WhatsApp.
+	}
+
+	// Find valid contact name from list of alternatives, or return empty contact if none could be found.
+	for _, n := range []string{info.FullName, info.FirstName, info.BusinessName, info.PushName, info.RedactedPhone} {
 		if n != "" {
 			contact.Name = n
 			break
@@ -117,10 +120,6 @@ func newContact(jid types.JID, info types.ContactInfo) Contact {
 
 	if contact.Name == "" {
 		return Contact{}
-	}
-
-	if info.FullName != "" {
-		contact.IsFriend = true
 	}
 
 	return contact
