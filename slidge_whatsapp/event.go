@@ -415,9 +415,9 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 
 		// Handle group-chat invite link in text message.
 		if code, ok := strings.CutPrefix(e.GetMatchedText(), whatsmeow.InviteLinkPrefix); ok {
-			if info, err := client.GetGroupInfoFromLink(e.GetMatchedText()); err != nil {
+			if info, err := client.GetGroupInfoFromLink(ctx, e.GetMatchedText()); err != nil {
 				client.Log.Errorf("Failed getting group info from invite: %s", err)
-			} else if _, err := client.JoinGroupWithLink(code); err != nil {
+			} else if _, err := client.JoinGroupWithLink(ctx, code); err != nil {
 				client.Log.Errorf("Failed joining group with invite: %s", err)
 			} else {
 				message.GroupInvite = newGroup(ctx, client, info)
