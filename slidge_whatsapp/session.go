@@ -145,8 +145,13 @@ func (s *Session) Login() error {
 			switch e.Event {
 			case whatsmeow.QRChannelEventCode:
 				s.propagateEvent(EventQRCode, &EventPayload{QRCode: e.Code})
+				// According to <https://pkg.go.dev/go.mau.fi/whatsmeow#Client.GetQRChannel>,
+				// I think we should actually hit this path after the last QR expires, but
+				// it does not seem to be the case.
 			case whatsmeow.QRChannelEventError:
 				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: e.Error.Error()}})
+			case "timeout":
+				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: "You did not flash the QR code in time. Use re-login when you are ready."}})
 			}
 		}
 	}()
