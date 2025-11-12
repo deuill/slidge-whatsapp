@@ -191,6 +191,7 @@ class Session(BaseSession[str, Recipient]):
         contact = await self.__get_contact_or_participant(state.JID, state.GroupJID)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
+            contact.online(last_seen=datetime.now())
         elif state.Kind == whatsapp.ChatStatePaused:
             contact.paused()
 
@@ -204,6 +205,7 @@ class Session(BaseSession[str, Recipient]):
                 contact.received(message_id)
             elif receipt.Kind == whatsapp.ReceiptRead:
                 contact.displayed(legacy_msg_id=message_id, carbon=receipt.IsCarbon)
+                contact.online(last_seen=datetime.now())
 
     async def handle_call(self, call: whatsapp.Call):
         contact = await self.contacts.by_legacy_id(call.JID)
@@ -238,6 +240,7 @@ class Session(BaseSession[str, Recipient]):
             # we fill our MAM table with (hopefully just a few) duplicate rows for all reactions, receipts,
             # displayed markers, retractions and corrections.
             return
+        contact.online(last_seen=datetime.now())
         reply_to = await self.__get_reply_to(message, muc)
         message_timestamp = (
             datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)

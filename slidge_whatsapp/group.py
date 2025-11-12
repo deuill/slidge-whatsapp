@@ -18,6 +18,16 @@ class Participant(LegacyParticipant):
     contact: "Contact"
     muc: "MUC"
 
+    def online(
+        self,
+        status: Optional[str] = None,
+        last_seen: Optional[datetime] = None,
+    ) -> None:
+        if self.contact is None and not self.is_user:
+            super().online(status, last_seen)
+        else:
+            self.contact.online(status, last_seen)
+
 
 class MUC(LegacyMUC[str, str, Participant, str]):
     session: "Session"
