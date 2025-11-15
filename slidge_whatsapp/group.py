@@ -23,7 +23,12 @@ class Participant(LegacyParticipant):
         status: Optional[str] = None,
         last_seen: Optional[datetime] = None,
     ) -> None:
-        if self.contact is None and not self.is_user:
+        if self.is_user:
+            # "user participant" presences are not something we want to bridge
+            # on joining a MUC, slidge sends a basic "online" presence for the user,
+            # and we have no reason to ever send another one.
+            return
+        if self.contact is None:
             super().online(status, last_seen)
         else:
             self.contact.online(status, last_seen)
