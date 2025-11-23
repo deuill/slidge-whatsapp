@@ -1,7 +1,7 @@
 # Do not edit manually!
 # Changes here will be overwritten by copier.
 # https://copier.readthedocs.io/
-_commit: 3539be6
+_commit: 8a0ef93
 _src_path: git+https://codeberg.org/slidge/legacy-module-template
 authors:
 -   email: alex@deuill.org
@@ -9,9 +9,6 @@ authors:
 -   email: nicoco@nicoco.fr
     name: nicoco
 ci_id: 14066
-container_build_files:
-- pyproject.toml
-- build.py
 container_build_native: true
 container_builder_deps:
 - git
@@ -37,6 +34,7 @@ container_builder_deps:
 - libmujs-dev
 - libopenjp2-7-dev
 - rustc
+container_builder_deps_backports: []
 container_debian_version: trixie
 container_dev_custom_hot_reload: "\nCOPY ./watcher.py /build/\nENTRYPOINT [\"python\"\
     , \"watcher.py\", \\\n            \"/venv/lib/python3.13/site-packages/slidge:/build/slidge_whatsapp\"\
@@ -105,32 +103,19 @@ custom_build_system: '[tool.poetry]
 custom_readme_head: ''
 custom_readme_tail: ''
 debian_bundle: true
-dependencies:
-- linkpreview>=0.11.0
-- slidge>=0.3.0,<0.4
-dev_dependencies:
-- pybindgen
-intersphinx_mappings: []
 lint_excludes:
 - slidge_whatsapp/generated
-mypy_ignores:
-- linkpreview
-- slidge_whatsapp.generated
 native_builds: false
 netbsd:
     dependencies: []
     enable: false
     pyver: '3.13'
-pre_commit_custom_hooks: "\n  - repo: https://github.com/tekwizely/pre-commit-golang\n\
-    \    rev: v1.0.0-rc.1\n    hooks:\n      - id: go-fmt\n        args: [-w]\n"
 project_name: slidge-whatsapp
 repology: ''
-requires_lottie: false
 silo:
     lib:
         name: whatsmeow
         url: https://github.com/tulir/whatsmeow
     name: WhatsApp
     url: https://whatsapp.com
-uv_sources: []
 wheels: true
