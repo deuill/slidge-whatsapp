@@ -101,13 +101,7 @@ func (w *Gateway) Init() error {
 // NewSession returns a new [Session] for the LinkedDevice given. If the linked device does not have
 // a valid ID, a pair operation will be required, as described in [Session.Login].
 func (w *Gateway) NewSession(device LinkedDevice) *Session {
-	ctx, cancel := context.WithCancelCause(context.Background())
-	return &Session{
-		device:    device,
-		gateway:   w,
-		ctx:       ctx,
-		ctxCancel: cancel,
-	}
+	return &Session{device: device, gateway: w}
 }
 
 // CleanupSession will remove all invalid and obsolete references to the given device, and should be

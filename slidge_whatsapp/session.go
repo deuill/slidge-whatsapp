@@ -72,10 +72,11 @@ type Session struct {
 // or by initiating a pairing session for a new linked device. Callers are expected to have set an
 // event handler in order to receive any incoming events from the underlying WhatsApp session.
 func (s *Session) Login() error {
-	var err error
 	var store *store.Device
+	var err error
 
 	// Try to fetch existing device from given device JID.
+	s.ctx, s.ctxCancel = context.WithCancelCause(context.Background())
 	if s.device.ID != "" {
 		store, err = s.gateway.container.GetDevice(s.ctx, s.device.JID())
 		if err != nil {
