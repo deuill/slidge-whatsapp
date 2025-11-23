@@ -37,8 +37,10 @@ WORKDIR /build
 ENV UV_PROJECT_ENVIRONMENT=/venv
 ENV PATH="/venv/bin:/root/.cargo/bin:$PATH"
 RUN uv venv $UV_PROJECT_ENVIRONMENT
-COPY pyproject.toml build.py README.md .
+COPY pyproject.toml uv.lock build.py README.md .
 COPY slidge_whatsapp slidge_whatsapp
+ARG SLIDGE_USE_LOCKFILE=
+RUN [ -z "$SLIDGE_USE_LOCKFILE" ] && rm uv.lock || true
 # install dependencies in /venv
 # .git/ needs to be mounted for setuptools-scm to set the version
 RUN --mount=source=.git,target=/build/.git,type=bind \

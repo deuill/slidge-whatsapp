@@ -53,6 +53,8 @@ steps:
       event: [tag]
     settings:
       <<: *settings
+      build_args:
+        SLIDGE_USE_LOCKFILE: "1"
       tags:
         - latest-${ARCH}
         - ${CI_COMMIT_TAG}-${ARCH}
@@ -78,6 +80,8 @@ steps:
     image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
+      build_args:
+        SLIDGE_USE_LOCKFILE: "1"
       target: ci
       tag: ci-${ARCH}
       cache_images:
