@@ -9,7 +9,7 @@ A
 [whatsmeow](https://github.com/tulir/whatsmeow).
 
 [![CI pipeline status](https://ci.codeberg.org/api/badges/14066/status.svg)](https://ci.codeberg.org/repos/14066)
-[![Chat](https://conference.nicoco.fr:5281/muc_badge/slidge@conference.nicoco.fr)](https://slidge.im/xmpp-web/#/guest?join=slidge@conference.nicoco.fr)
+[![Chat](https://rooms.slidge.im:5281/muc_badge/support@rooms.slidge.im)](https://slidge.im/xmpp-web/#/guest?join=support@rooms.slidge.im)
 [![PyPI package version](https://badge.fury.io/py/slidge-whatsapp.svg)](https://pypi.org/project/slidge-whatsapp/)
 
 
