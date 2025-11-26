@@ -138,6 +138,7 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventConnect:
             # On re-pair, Session.login() is not called by slidge core, so the status message is
             # not updated.
+            print(data.Connect, data.Connect.Error, self.__connected)
             if self.__connected.done():
                 if data.Connect.Error != "":
                     self.send_gateway_status("Connection error", show="dnd")

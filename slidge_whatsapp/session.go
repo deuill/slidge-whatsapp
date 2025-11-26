@@ -142,6 +142,7 @@ func (s *Session) Login() error {
 			if !s.client.IsConnected() {
 				return
 			}
+			fmt.Print(e.Event)
 			switch e.Event {
 			case whatsmeow.QRChannelEventCode:
 				s.propagateEvent(EventQRCode, &EventPayload{QRCode: e.Code})
