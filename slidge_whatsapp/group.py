@@ -36,7 +36,6 @@ class Participant(LegacyParticipant):
 
 class MUC(LegacyMUC[str, str, Participant, str]):
     session: "Session"
-    type = MucType.GROUP
 
     HAS_DESCRIPTION = False
     REACTIONS_SINGLE_EMOJI = True
@@ -128,6 +127,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         Set MUC information based on WhatsApp group information, which may or may not be partial in
         case of updates to existing MUCs.
         """
+        self.type = MucType.GROUP
         if info.Nickname:
             self.user_nick = info.Nickname
         if info.Name:
