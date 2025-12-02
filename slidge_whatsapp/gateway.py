@@ -82,4 +82,4 @@ class Gateway(BaseGateway):
 log = getLogger(__name__)
 
 # workaround until slidge core does something for anon/nonanon mixed troups
-warnings.filterwarnings("ignore", ".*Public group but.*")
+warnings.filterwarnings("ignore", ".*Private group but.*")
