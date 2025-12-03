@@ -77,7 +77,7 @@ class Roster(LegacyRoster[str, Contact]):
         )
         for wa_contact in wa_contacts:
             contact = await self.add_whatsapp_contact(wa_contact)
-            if contact is not None and contact.is_friend:
+            if contact is not None:
                 yield contact
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:

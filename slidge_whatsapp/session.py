@@ -169,9 +169,7 @@ class Session(BaseSession[str, Recipient]):
                 # more history.
                 muc.history_requested = False  # type:ignore[attr-defined]
         elif event == whatsapp.EventContact:
-            contact = await self.contacts.add_whatsapp_contact(data.Contact)
-            if contact is not None and contact.is_friend:
-                await contact.add_to_roster()
+            await self.contacts.add_whatsapp_contact(data.Contact)
         elif event == whatsapp.EventGroup:
             await self.bookmarks.add_whatsapp_group(data.Group)
         elif event == whatsapp.EventPresence:
