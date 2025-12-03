@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, AsyncIterator, Optional
+from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slidge.util.archive_msg import HistoryMessage
@@ -39,6 +39,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     HAS_DESCRIPTION = False
     REACTIONS_SINGLE_EMOJI = True
+    _ALL_INFO_FILLED_ON_STARTUP = True
 
     _history_requested: bool = False
 
@@ -122,7 +123,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             return jid_username.removeprefix("+") + "@" + whatsapp.DefaultUserServer
         raise XMPPError("internal-server-error", "Unable to find message sender")
 
-    async def update_whatsapp_info(self, info: whatsapp.Group):
+    async def update_whatsapp_info(self, info: whatsapp.Group) -> None:
         """
         Set MUC information based on WhatsApp group information, which may or may not be partial in
         case of updates to existing MUCs.
@@ -139,22 +140,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 self.subject_date = set_at
             if info.Subject.SetBy:
                 self.subject_setter = info.Subject.SetBy
-        self.session.whatsapp_participants[self.legacy_id] = info.Participants
         self.n_participants = len(info.Participants)
-        # Since whatsmeow does always emit a whatsapp.Group event even for participant changes,
-        # we need to do that to actually update the participant list.
-        if self.participants_filled:
-            async for _ in self.fill_participants():
-                pass
-
-    async def fill_participants(self) -> AsyncIterator[Participant]:
-        await self.session.bookmarks.ready
-        try:
-            participants = self.session.whatsapp_participants.pop(self.legacy_id)
-        except KeyError:
-            self.log.warning("No participants!")
-            return
-        for data in participants:
+        for data in info.Participants:
             if whatsapp.IsAnonymousJID(data.JID):
                 participant = await self.get_participant(data.JID)
                 if data.Nickname:
@@ -179,7 +166,6 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 else:
                     participant.affiliation = "member"
                     participant.role = "participant"
-                yield participant
 
     async def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(
