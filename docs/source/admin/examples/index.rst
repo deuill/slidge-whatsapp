@@ -33,13 +33,9 @@ ejabberd/upload
 ===============
 
 .. note::
-    See additional notes in ``Example 2: ejabberd mod_http_upload``
-    to get :ref:`Attachments` working.
-
-.. note::
-    This example does not cover the :ref:`No upload` option for attachments.
+    This example does not cover the `No upload` option for attachments (see :ref:`config`).
     For 'no upload' with ejabberd, you need an external HTTP server, eg
-    :ref:`Example 2: nginx`.
+    :ref:`nginx-no-upload`.
 
 .. literalinclude:: ejabberd.yaml
   :language: yaml

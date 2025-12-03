@@ -86,11 +86,12 @@ The subdomain's FQDN (example.org) should be listed under the top level 'hosts'.
 To get more information about component configuration, see `ejabberd's docs
 <https://docs.ejabberd.im/admin/configuration/modules/#mod-http-upload>`_.
 
+.. _no-upload:
 
 No upload
 =========
 
-You need to set up ``no-upload-path`` to point to a directory, and ``no-upload-url-prefix`` to an URL prefix pointing to files in that directory (see :ref:`options` for more detail).
+You need to set up ``no-upload-path`` to point to a directory, and ``no-upload-url-prefix`` to an URL prefix pointing to files in that directory (see :ref:`generic-config` for more detail).
 Example: ``no-upload-path=/var/www/slidge-whatsapp-attachments/`` and ``no-upload-url-prefix=https://example.org/slidge-whatsapp/`` means that ``/var/www/slidge-whatsapp-attachments/some-image.jpg`` is accessible at ``https://example.org/slidge-whatsapp/some-image.jpg``
 
 Make sure that ``no-upload-path`` is writeable by slidge-whatsapp and readable by
@@ -123,6 +124,7 @@ as per the `mod_http_files documentation <https://prosody.im/doc/modules/mod_htt
     -- Must be the same value as slidge-whatsapp's no-upload-path
     http_files_dir = "/var/lib/slidge-whatsapp/attachments"
 
+.. _nginx-no-upload:
 
 Example 2: nginx
 ----------------

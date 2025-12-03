@@ -1,121 +1,16 @@
 # Do not edit manually!
 # Changes here will be overwritten by copier.
 # https://copier.readthedocs.io/
-_commit: 8a0ef93
+_commit: 4d7f077
 _src_path: git+https://codeberg.org/slidge/legacy-module-template
-authors:
--   email: alex@deuill.org
-    name: deuill
--   email: nicoco@nicoco.fr
-    name: nicoco
-ci_id: 14066
-container_build_native: true
-container_builder_deps:
-- git
-- make
-- build-essential
-- ca-certificates
-- cargo
-- curl
-- git
-- gcc
-- golang
-- g++
-- libffi-dev
-- libssl-dev
-- pkg-config
-- python3-dev
-- libmupdf-dev
-- libgumbo-dev
-- libfreetype6-dev
-- libharfbuzz-dev
-- libjbig2dec0-dev
-- libjpeg62-turbo-dev
-- libmujs-dev
-- libopenjp2-7-dev
-- rustc
-container_builder_deps_backports: []
-container_debian_version: trixie
-container_dev_custom_hot_reload: "\nCOPY ./watcher.py /build/\nENTRYPOINT [\"python\"\
-    , \"watcher.py\", \\\n            \"/venv/lib/python3.13/site-packages/slidge:/build/slidge_whatsapp\"\
-    , \\\n            \"--dev-mode\", \"--debug\" \\\n            \"--legacy-module=slidge_whatsapp\"\
-    , \"--jid=slidge.localhost\", \"--secret=secret\"]\n"
-container_dev_extra_lines: 'ENV GOBIN="/usr/local/bin"
-
-    RUN go install -v github.com/go-python/gopy@master
-
-    RUN go install golang.org/x/tools/cmd/goimports@latest
-
-    '
-container_python_version: '3.13'
-container_requires_rustup: false
-container_runtime_deps:
-- ffmpeg
-custom_build_system: '[tool.poetry]
-
-    version = "0.0.0"
-
-
-    [[tool.poetry.include]]
-
-    path = "slidge_whatsapp"
-
-
-    [[tool.poetry.include]]
-
-    path = "slidge_whatsapp/generated/*.py"
-
-    format = ["wheel"]
-
-
-    [[tool.poetry.include]]
-
-    path = "slidge_whatsapp/generated/*.so"
-
-    format = ["wheel"]
-
-
-    [tool.poetry.build]
-
-    script = "build.py"
-
-
-    [build-system]
-
-    requires = ["poetry-core", "pybindgen", "packaging", "poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
-
-    build-backend = "poetry_dynamic_versioning.backend"
-
-
-    [tool.poetry.requires-plugins]
-
-    poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"]
-    }
-
-
-    [tool.poetry-dynamic-versioning]
-
-    enable = true
-
-    [tool.poetry-dynamic-versioning.substitution]
-
-    files = []'
-custom_readme_head: ''
-custom_readme_tail: ''
 debian_bundle: true
-lint_excludes:
-- slidge_whatsapp/generated
-native_builds: false
-netbsd:
-    dependencies: []
-    enable: false
-    pyver: '3.13'
+native_build: true
 project_name: slidge-whatsapp
 repology: ''
 silo:
+    hostile: true
     lib:
         name: whatsmeow
         url: https://github.com/tulir/whatsmeow
     name: WhatsApp
     url: https://whatsapp.com
-wheels: true

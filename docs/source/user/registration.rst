@@ -9,6 +9,12 @@ Registration
 ============
 
 
+.. warning::
+
+  WhatsApp is actively fighting alternative clients such as slidge-whatsapp. To prevent being detected, you should ideally (a) activate additional security features to your legacy account, such as 2FA and (b) establish “normal” traffic on your account, from slidge’s IP.
+
+  For (b), the most convenient way is to use a proxy (a SOCKS5 proxy is pretty easy to set up in case you have ssh access to your XMPP server) and configure your web browser to use this proxy whenever you access the web interface of your legacy network.
+
 
 To start using a slidge-whatsapp, you need to register your XMPP account with it.
 The instance has a unique XMPP (aka JID) address, which is just a domain name (e.g., ``whatsapp.example.org``, without any @ sign in it).

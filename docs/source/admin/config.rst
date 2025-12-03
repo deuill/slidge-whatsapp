@@ -26,8 +26,6 @@ etc.), and to specify a plugin-specific file on startup, eg:
 
     slidge -c /etc/slidge/superduper.conf
 
-.. config:
-
 Optional dependencies
 ---------------------
 

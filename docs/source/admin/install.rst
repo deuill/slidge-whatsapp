@@ -49,8 +49,6 @@ Bleeding edge versions are also available on `codeberg's python index <https://c
    pipx install slidge-whatsapp \
        --pip-args='--extra-index-url https://codeberg.org/api/packages/slidge/pypi/simple/ --pre'
 
-
-
 Unofficial debian package
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -66,3 +64,6 @@ Follow the instructions in the repository `README <https://codeberg.org/slidge/d
 - edit ``/etc/slidge/whatsapp.conf``;
 - run ``sudo systemctl start slidge@whatsapp``;
 - watch the logs with ``sudo journalctl -u slidge@whatsapp -f``.
+
+
+.. include:: install-custom.rst
