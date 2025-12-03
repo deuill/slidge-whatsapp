@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, AsyncIterator
 
 from slidge import LegacyContact, LegacyRoster
 from slidge.util.types import Avatar
@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 
 class Contact(LegacyContact[str]):
+    session: "Session"
+
     CORRECTION = True
     REACTIONS_SINGLE_EMOJI = True
 
@@ -39,20 +41,44 @@ class Contact(LegacyContact[str]):
         # appearing in the participant list of groups.
         self.online()
 
+    async def update_whatsapp_info(self, wa_contact: whatsapp.Contact) -> None:
+        self.session.log.debug(
+            "User named %s, friend: %s", wa_contact.Name, wa_contact.IsFriend
+        )
+        self.name = wa_contact.Name
+        self.is_friend = wa_contact.IsFriend or config.ADD_GROUP_PARTICIPANTS_TO_ROSTER
+        try:
+            unique_id = ""
+            if self.avatar is not None:
+                assert not isinstance(self.avatar.unique_id, int)
+                unique_id = self.avatar.unique_id or ""
+            avatar = self.session.whatsapp.GetAvatar(wa_contact.JID, unique_id)
+            if avatar.URL and unique_id != avatar.ID:
+                await self.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
+            elif avatar.URL == "" and avatar.ID == "":
+                await self.set_avatar(None)
+        except RuntimeError as err:
+            self.session.log.error(
+                "Failed getting avatar for contact %s: %s", wa_contact.JID, err
+            )
+        self.set_vcard(full_name=self.name, phone=str(self.jid.local))
+
 
 class Roster(LegacyRoster[str, Contact]):
     session: "Session"
 
-    async def fill(self):
+    async def fill(self) -> AsyncIterator[Contact]:
         """
         Retrieve contacts from remote WhatsApp service, subscribing to their presence and adding to
         local roster.
         """
-        contacts = self.session.whatsapp.GetContacts(refresh=config.ALWAYS_SYNC_ROSTER)
-        for contact in contacts:
-            c = await self.add_whatsapp_contact(contact)
-            if c is not None and c.is_friend:
-                yield c
+        wa_contacts = self.session.whatsapp.GetContacts(
+            refresh=config.ALWAYS_SYNC_ROSTER
+        )
+        for wa_contact in wa_contacts:
+            contact = await self.add_whatsapp_contact(wa_contact)
+            if contact is not None and contact.is_friend:
+                yield contact
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:
         """
@@ -62,24 +88,7 @@ class Roster(LegacyRoster[str, Contact]):
         if data.JID == self.user_legacy_id:
             return None
         contact = await self.by_legacy_id(data.JID)
-        self.session.log.debug("User named %s, friend: %s", data.Name, data.IsFriend)
-        contact.name = data.Name
-        contact.is_friend = data.IsFriend or config.ADD_GROUP_PARTICIPANTS_TO_ROSTER
-        try:
-            unique_id = ""
-            if contact.avatar is not None:
-                unique_id = contact.avatar.unique_id or ""
-            avatar = self.session.whatsapp.GetAvatar(data.JID, unique_id)
-            if avatar.URL and unique_id != avatar.ID:
-                await contact.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
-            elif avatar.URL == "" and avatar.ID == "":
-                await contact.set_avatar(None)
-        except RuntimeError as err:
-            self.session.log.error(
-                "Failed getting avatar for contact %s: %s", data.JID, err
-            )
-        contact.set_vcard(full_name=contact.name, phone=str(contact.jid.local))
-        return contact
+        return await contact.update_whatsapp_info(data)
 
     async def legacy_id_to_jid_username(self, legacy_id: str) -> str:
         if not "@" in legacy_id:
