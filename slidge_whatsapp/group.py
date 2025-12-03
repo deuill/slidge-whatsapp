@@ -33,6 +33,23 @@ class Participant(LegacyParticipant):
         else:
             self.contact.online(status, last_seen)
 
+    def update_whatsapp_info(self, data: whatsapp.GroupParticipant) -> None:
+        if data.Affiliation == whatsapp.GroupAffiliationAdmin:
+            # Only owners can change the group name according to
+            # XEP-0045, so we make all "WA admins" "XMPP owners"
+            self.affiliation = "owner"
+            self.role = "moderator"
+        elif data.Affiliation == whatsapp.GroupAffiliationOwner:
+            # The WA owner is in fact the person who created the room
+            self.set_hats(
+                [Hat("https://slidge.im/hats/slidge-whatsapp/owner", "Owner")]
+            )
+            self.affiliation = "owner"
+            self.role = "moderator"
+        else:
+            self.affiliation = "member"
+            self.role = "participant"
+
 
 class MUC(LegacyMUC[str, str, Participant, str]):
     session: "Session"
@@ -140,6 +157,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 self.subject_date = set_at
             if info.Subject.SetBy:
                 self.subject_setter = info.Subject.SetBy
+
         self.n_participants = len(info.Participants)
         for data in info.Participants:
             if whatsapp.IsAnonymousJID(data.JID):
@@ -151,21 +169,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             if data.Action == whatsapp.GroupParticipantActionRemove:
                 self.remove_participant(participant)
             else:
-                if data.Affiliation == whatsapp.GroupAffiliationAdmin:
-                    # Only owners can change the group name according to
-                    # XEP-0045, so we make all "WA admins" "XMPP owners"
-                    participant.affiliation = "owner"
-                    participant.role = "moderator"
-                elif data.Affiliation == whatsapp.GroupAffiliationOwner:
-                    # The WA owner is in fact the person who created the room
-                    participant.set_hats(
-                        [Hat("https://slidge.im/hats/slidge-whatsapp/owner", "Owner")]
-                    )
-                    participant.affiliation = "owner"
-                    participant.role = "moderator"
-                else:
-                    participant.affiliation = "member"
-                    participant.role = "participant"
+                participant.update_whatsapp_info(data)
 
     async def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(
