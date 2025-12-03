@@ -1,5 +1,5 @@
 # build script for whatsapp extensions
-
+import hashlib
 import os
 import platform
 import shutil
@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 
 from packaging.tags import sys_tags
+
+SRC_PATH = Path(".") / "slidge_whatsapp"
 
 
 def is_musl():
@@ -27,6 +29,26 @@ def get_correct_lib_suffix():
 
 
 def main():
+    build_go()
+    suffix = get_correct_lib_suffix()
+    if suffix is None:
+        return
+    # remove the useless prebuilt libmupdf libs for other platforms
+    for path in SRC_PATH.glob("**/*.a"):
+        if not path.stem.endswith(suffix):
+            path.unlink()
+
+
+def build_go():
+    current_sum = hashlib.sha512(
+        "\n".join(p.read_text() for p in sorted(list(SRC_PATH.glob("*.go")))).encode()
+    ).hexdigest()
+    known_sum_path = SRC_PATH / ".gopy.sum"
+    previous_sum = known_sum_path.read_text() if known_sum_path.exists() else None
+    if current_sum == previous_sum:
+        print("Go files have not changed, no need to build")
+        return
+
     if not shutil.which("go"):
         raise RuntimeError(
             "Cannot find the go executable in $PATH. "
@@ -37,7 +59,8 @@ def main():
     subprocess.run(
         ["go", "install", "golang.org/x/tools/cmd/goimports@latest"], check=True
     )
-    src_path = Path(".") / "slidge_whatsapp"
+
+    print("Building go parts…")
     subprocess.run(
         [
             "gopy",
@@ -47,16 +70,10 @@ def main():
             '-build-tags="mupdf extlib"',
             ".",
         ],
-        cwd=src_path,
+        cwd=SRC_PATH,
         check=True,
     )
-    suffix = get_correct_lib_suffix()
-    if suffix is None:
-        return
-    # remove the useless prebuilt libmupdf libs for other platforms
-    for path in src_path.glob("**/*.a"):
-        if not path.stem.endswith(suffix):
-            path.unlink()
+    known_sum_path.write_text(current_sum)
 
 
 if __name__ == "__main__":

@@ -8,3 +8,4 @@ docs/build
 __pycache__
 generated
 .venv
+slidge_whatsapp/.gopy.sum
