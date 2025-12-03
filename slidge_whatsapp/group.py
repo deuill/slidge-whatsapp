@@ -240,15 +240,10 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 class Bookmarks(LegacyBookmarks[str, MUC]):
     session: "Session"
 
-    def __init__(self, session: "Session"):
-        super().__init__(session)
-        self.__filled = False
-
     async def fill(self):
         groups = self.session.whatsapp.GetGroups()
         for group in groups:
             await self.add_whatsapp_group(group)
-        self.__filled = True
 
     async def add_whatsapp_group(self, data: whatsapp.Group):
         muc = await self.by_legacy_id(data.JID)
@@ -261,11 +256,6 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
     async def jid_local_part_to_legacy_id(self, local_part: str):
         if not local_part.startswith("#"):
             raise XMPPError("bad-request", "Invalid group ID, expected '#' prefix")
-
-        if not self.__filled:
-            raise XMPPError(
-                "recipient-unavailable", "Still fetching group info, please retry later"
-            )
 
         whatsapp_group_id = (
             local_part.removeprefix("#") + "@" + whatsapp.DefaultGroupServer
