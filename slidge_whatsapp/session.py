@@ -78,7 +78,6 @@ class Session(BaseSession[str, Recipient]):
             device = whatsapp.LinkedDevice()
         self.__presence_status: str = ""
         self.user_phone: Optional[str] = None
-        self.whatsapp_participants = dict[str, list[whatsapp.GroupParticipant]]()
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self.__handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self.__handle_event)
