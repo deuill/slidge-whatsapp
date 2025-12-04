@@ -40,9 +40,13 @@ def main():
 
 
 def build_go():
-    current_sum = hashlib.sha512(
-        "\n".join(p.read_text() for p in sorted(list(SRC_PATH.glob("*.go")))).encode()
-    ).hexdigest()
+    current_sum = ""
+    for p in sorted(list(SRC_PATH.glob("**/*.go"))):
+        p_rel = p.relative_to(SRC_PATH)
+        if p_rel.parents[0].name == "generated":
+            continue
+        h = hashlib.sha512(p.read_text().encode()).hexdigest()
+        current_sum += f"{p_rel}: {h}\n"
     known_sum_path = SRC_PATH / ".gopy.sum"
     previous_sum = known_sum_path.read_text() if known_sum_path.exists() else None
     if current_sum == previous_sum:
