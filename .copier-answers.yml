@@ -1,7 +1,7 @@
 # Do not edit manually!
 # Changes here will be overwritten by copier.
 # https://copier.readthedocs.io/
-_commit: 4d7f077
+_commit: 6b0146c
 _src_path: git+https://codeberg.org/slidge/legacy-module-template
 debian_bundle: true
 native_build: true
