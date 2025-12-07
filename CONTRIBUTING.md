@@ -34,7 +34,7 @@ certificate to your local store. In debian, you can do that with:
 # download the certificate
 curl https://codeberg.org/slidge/prosody-dev-container/raw/branch/main/localhost.crt | sudo tee /usr/local/share/ca-certificates/localhost.crt
 # set the right perms
-chmod 600 /usr/local/share/ca-certificates/localhost.crt
+sudo chmod 600 /usr/local/share/ca-certificates/localhost.crt
 # import it
 sudo update-ca-certificates
 ```

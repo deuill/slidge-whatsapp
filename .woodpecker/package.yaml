@@ -3,7 +3,7 @@
 
 when:
   event: [push, tag]
-  path: ["slidge-whatsapp/**/*", "pyproject.toml", "README.md"]
+  path: ["slidge_whatsapp/**/*", "pyproject.toml", "README.md"]
   branch: main
 
 variables:

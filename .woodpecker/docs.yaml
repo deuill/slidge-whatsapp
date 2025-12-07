@@ -3,7 +3,7 @@
 
 when:
   event: [push, tag, pull_request]
-  path: ["slidge-whatsapp/**/*.py", "docs/**/*", "uv.lock", ".woodpecker/docs.yaml"]
+  path: ["slidge_whatsapp/**/*.py", "docs/**/*", "uv.lock", ".woodpecker/docs.yaml"]
 
 labels:
   platform: linux/amd64
