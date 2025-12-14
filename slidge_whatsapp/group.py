@@ -7,6 +7,7 @@ from slidge.util.archive_msg import HistoryMessage
 from slidge.util.types import Avatar, Hat, HoleBound, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
+from .avatar import AvatarMixin
 from .generated import go, whatsapp
 
 if TYPE_CHECKING:
@@ -51,7 +52,7 @@ class Participant(LegacyParticipant):
             self.role = "participant"
 
 
-class MUC(LegacyMUC[str, str, Participant, str]):
+class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
     session: "Session"
 
     HAS_DESCRIPTION = False
@@ -78,19 +79,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         self._history_requested = data.get("history_requested", False)
 
     async def update_info(self):
-        try:
-            unique_id = ""
-            if self.avatar is not None:
-                unique_id = self.avatar.unique_id or ""  # type:ignore[assignment]
-            avatar = self.session.whatsapp.GetAvatar(self.legacy_id, unique_id)
-            if avatar.URL and unique_id != avatar.ID:
-                await self.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
-            elif avatar.URL == "" and avatar.ID == "":
-                await self.set_avatar(None)
-        except RuntimeError as err:
-            self.session.log.error(
-                "Failed getting avatar for group %s: %s", self.legacy_id, err
-            )
+        # stuff happens in self.update_whatsapp_info()
+        pass
 
     async def backfill(
         self,
@@ -158,6 +148,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             if info.Subject.SetBy:
                 self.subject_setter = info.Subject.SetBy
 
+        await self.update_whatsapp_avatar()
         self.n_participants = len(info.Participants)
         for data in info.Participants:
             if whatsapp.IsAnonymousJID(data.JID):

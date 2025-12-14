@@ -6,13 +6,14 @@ from slidge.util.types import Avatar
 from slixmpp.exceptions import XMPPError
 
 from . import config
+from .avatar import AvatarMixin
 from .generated import whatsapp
 
 if TYPE_CHECKING:
     from .session import Session
 
 
-class Contact(LegacyContact[str]):
+class Contact(AvatarMixin, LegacyContact[str]):
     session: "Session"
 
     CORRECTION = True
@@ -47,20 +48,7 @@ class Contact(LegacyContact[str]):
         )
         self.name = wa_contact.Name
         self.is_friend = wa_contact.IsFriend or config.ADD_GROUP_PARTICIPANTS_TO_ROSTER
-        try:
-            unique_id = ""
-            if self.avatar is not None:
-                assert not isinstance(self.avatar.unique_id, int)
-                unique_id = self.avatar.unique_id or ""
-            avatar = self.session.whatsapp.GetAvatar(wa_contact.JID, unique_id)
-            if avatar.URL and unique_id != avatar.ID:
-                await self.set_avatar(Avatar(url=avatar.URL, unique_id=avatar.ID))
-            elif avatar.URL == "" and avatar.ID == "":
-                await self.set_avatar(None)
-        except RuntimeError as err:
-            self.session.log.error(
-                "Failed getting avatar for contact %s: %s", wa_contact.JID, err
-            )
+        await self.update_whatsapp_avatar()
         self.set_vcard(full_name=self.name, phone=str(self.jid.local))
 
 
