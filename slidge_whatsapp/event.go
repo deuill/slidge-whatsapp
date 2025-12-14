@@ -138,7 +138,7 @@ const (
 // Precence represents a contact's general state of activity, and is periodically updated as
 // contacts start or stop paying attention to their client of choice.
 type Presence struct {
-	JID      string
+	Sender   Sender
 	Kind     PresenceKind
 	LastSeen int64
 }
@@ -146,13 +146,8 @@ type Presence struct {
 // NewPresenceEvent returns event data meant for [Session.propagateEvent] for the primitive presence
 // event given.
 func newPresenceEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Presence) (EventKind, *EventPayload) {
-	var jid = getPreferredJID(ctx, client, evt.From)
-	if jid.Server == types.HiddenUserServer {
-		return EventUnknown, nil
-	}
-
 	var presence = Presence{
-		JID:      jid.ToNonAD().String(),
+		Sender:   newSender(ctx, client, evt.From),
 		Kind:     PresenceAvailable,
 		LastSeen: evt.LastSeen.Unix(),
 	}
@@ -182,28 +177,28 @@ const (
 // text message, a file (image, video) attachment, an emoji reaction, etc. Messages of different
 // kinds are denoted as such, and re-use fields where the semantics overlap.
 type Message struct {
-	Kind        MessageKind  // The concrete message kind being sent or received.
-	ID          string       // The unique message ID, used for referring to a specific Message instance.
-	JID         string       // The JID this message concerns, semantics can change based on IsCarbon.
-	GroupJID    string       // The JID of the group-chat this message was sent in, if any.
-	OriginJID   string       // For reactions and replies in groups, the JID of the original user.
-	Body        string       // The plain-text message body. For attachment messages, this can be a caption.
-	Timestamp   int64        // The Unix timestamp denoting when this message was created.
-	IsCarbon    bool         // Whether or not this message concerns the gateway user themselves.
-	IsForwarded bool         // Whether or not the message was forwarded from another source.
-	ReplyID     string       // The unique message ID this message is in reply to, if any.
-	ReplyBody   string       // The full body of the message this message is in reply to, if any.
-	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
-	Preview     Preview      // A short description for the URL provided in the message body, if any.
-	Location    Location     // The location metadata for messages, if any.
-	Poll        Poll         // The multiple-choice poll contained in the message, if any.
-	Album       Album        // The image album message, if any.
-	GroupInvite Group        // Group information for the invite group included in this message, if any.
-	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
-	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
-	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
-	IsHistory   bool         // Whether or not the message is derived from message history.
-	ReferenceID string       // A message referenced in this message, for edits.
+	Kind         MessageKind  // The concrete message kind being sent or received.
+	ID           string       // The unique message ID, used for referring to a specific Message instance.
+	Sender       Sender       // The JID this message concerns, semantics can change based on IsCarbon.
+	Chat         string       // For outgoing message, the JID of the group or contact.
+	OriginSender Sender       // For reactions and replies in groups, the JID of the original user.
+	Body         string       // The plain-text message body. For attachment messages, this can be a caption.
+	Timestamp    int64        // The Unix timestamp denoting when this message was created.
+	IsCarbon     bool         // Whether or not this message concerns the gateway user themselves.
+	IsForwarded  bool         // Whether or not the message was forwarded from another source.
+	ReplyID      string       // The unique message ID this message is in reply to, if any.
+	ReplyBody    string       // The full body of the message this message is in reply to, if any.
+	Attachments  []Attachment // The list of file (image, video, etc.) attachments contained in this message.
+	Preview      Preview      // A short description for the URL provided in the message body, if any.
+	Location     Location     // The location metadata for messages, if any.
+	Poll         Poll         // The multiple-choice poll contained in the message, if any.
+	Album        Album        // The image album message, if any.
+	GroupInvite  Group        // Group information for the invite group included in this message, if any.
+	MentionJIDs  []string     // A list of JIDs mentioned in this message, if any.
+	Receipts     []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
+	Reactions    []Message    // Reactions attached to message, typically provided alongside historical messages.
+	IsHistory    bool         // Whether or not the message is derived from message history.
+	ReferenceID  string       // A message referenced in this message, for edits.
 }
 
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
@@ -291,7 +286,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
-		JID:       getPreferredJID(ctx, client, evt.Info.Sender, evt.Info.SenderAlt).ToNonAD().String(),
+		Sender:    newSender(ctx, client, evt.Info.Sender, evt.Info.SenderAlt, evt.Info.Chat),
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
 		IsCarbon:  evt.Info.IsFromMe,
@@ -303,10 +298,9 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.IsCarbon {
 			return EventUnknown, nil
 		}
-	} else if evt.Info.IsGroup {
-		message.GroupJID = evt.Info.Chat.ToNonAD().String()
 	} else if message.IsCarbon {
-		message.JID = getPreferredJID(ctx, client, evt.Info.Chat).ToNonAD().String()
+		message.Sender = newSender(ctx, client, evt.Info.Chat)
+		message.Sender.IsMe = true
 	}
 
 	// Handle handle protocol messages (such as message deletion or editing).
@@ -327,7 +321,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 			}
 			message.Kind = MessageRevoke
 			message.ID = p.Key.GetID()
-			message.OriginJID = getPreferredJID(ctx, client, originJID).ToNonAD().String()
+			message.OriginSender = newSender(ctx, client, originJID, evt.Info.Chat)
 			return EventMessage, &EventPayload{Message: message}
 		}
 	}
@@ -449,7 +443,10 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 	}
 
 	message.ReplyID = info.GetStanzaID()
-	message.OriginJID = getPreferredJID(ctx, client, originJID).ToNonAD().String()
+
+	remoteJID, _ := types.ParseJID(info.GetRemoteJID())
+
+	message.OriginSender = newSender(ctx, client, originJID, remoteJID)
 	message.IsForwarded = info.GetIsForwarded()
 
 	// Handle reply messages.
@@ -920,7 +917,6 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        info.GetKey().GetID(),
-		GroupJID:  info.GetKey().GetRemoteJID(),
 		Body:      info.GetMessage().GetConversation(),
 		Timestamp: int64(info.GetMessageTimestamp()),
 		IsCarbon:  info.GetKey().GetFromMe(),
@@ -932,9 +928,9 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		if err != nil {
 			return EventUnknown, nil
 		}
-		message.JID = getPreferredJID(ctx, client, jid).ToNonAD().String()
+		message.Sender = newSender(ctx, client, jid)
 	} else if info.GetKey().GetFromMe() {
-		message.JID = client.Store.ID.ToNonAD().String()
+		message.Sender = newSender(ctx, client, client.Store.LID, *client.Store.ID)
 	} else {
 		// It's likely we cannot handle this message correctly if we don't know the concrete
 		// sender, so just ignore it completely.
@@ -953,7 +949,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		}
 		return EventCall, &EventPayload{Call: Call{
 			State:     CallMissed,
-			JID:       getPreferredJID(ctx, client, jid).ToNonAD().String(),
+			Sender:    newSender(ctx, client, jid),
 			Timestamp: int64(info.GetMessageTimestamp()),
 		}}
 	case waWeb.WebMessageInfo_REVOKE:
@@ -976,7 +972,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 			message.Reactions = append(message.Reactions, Message{
 				Kind:      MessageReaction,
 				ID:        r.GetKey().GetID(),
-				JID:       getPreferredJID(ctx, client, jid).ToNonAD().String(),
+				Sender:    newSender(ctx, client, jid),
 				Body:      r.GetText(),
 				Timestamp: r.GetSenderTimestampMS() / 1000,
 				IsCarbon:  r.GetKey().GetFromMe(),
@@ -1007,10 +1003,10 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 			continue
 		}
 		var receipt = Receipt{
-			JID:        getPreferredJID(ctx, client, jid).ToNonAD().String(),
-			GroupJID:   message.GroupJID,
+			Sender:     message.Sender,
 			MessageIDs: []string{message.ID},
 		}
+		receipt.Sender.JID = jid.ToNonAD().String()
 		switch info.GetStatus() {
 		case waWeb.WebMessageInfo_DELIVERY_ACK:
 			receipt.Kind = ReceiptDelivered
@@ -1053,19 +1049,20 @@ const (
 // whether the contact is currently composing a message. This is separate to the concept of a
 // Presence, which is the contact's general state across all discussions.
 type ChatState struct {
-	Kind     ChatStateKind
-	JID      string
-	GroupJID string
+	Kind   ChatStateKind
+	Sender Sender
+}
+
+type OutgoingChatState struct {
+	Kind ChatStateKind
+	Chat string
 }
 
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
 func newChatStateEvent(ctx context.Context, client *whatsmeow.Client, evt *events.ChatPresence) (EventKind, *EventPayload) {
 	var state = ChatState{
-		JID: getPreferredJID(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
-	}
-	if evt.IsGroup {
-		state.GroupJID = evt.Chat.ToNonAD().String()
+		Sender: newSender(ctx, client, evt.Sender, evt.SenderAlt, evt.Chat),
 	}
 	switch evt.State {
 	case types.ChatPresenceComposing:
@@ -1092,10 +1089,16 @@ const (
 type Receipt struct {
 	Kind       ReceiptKind // The distinct kind of receipt presented.
 	MessageIDs []string    // The list of message IDs to mark for receipt.
-	JID        string
-	GroupJID   string
+	Sender     Sender
 	Timestamp  int64
 	IsCarbon   bool
+}
+
+type OutgoingReceipt struct {
+	MessageIDs   []string // The list of message IDs to mark for receipt.
+	Chat         string
+	OriginSender Sender
+	Timestamp    int64
 }
 
 // NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive receipt
@@ -1103,21 +1106,19 @@ type Receipt struct {
 func newReceiptEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
-		JID:        getPreferredJID(ctx, client, evt.Sender, evt.SenderAlt).ToNonAD().String(),
+		Sender:     newSender(ctx, client, evt.Sender, evt.SenderAlt, evt.Chat),
 		Timestamp:  evt.Timestamp.Unix(),
 		IsCarbon:   evt.IsFromMe,
 	}
+
+	receipt.Sender.IsMe = evt.IsFromMe
 
 	if len(receipt.MessageIDs) == 0 {
 		return EventUnknown, nil
 	}
 
 	if evt.Chat.Server == types.BroadcastServer {
-		receipt.JID = getPreferredJID(ctx, client, evt.BroadcastListOwner).ToNonAD().String()
-	} else if evt.IsGroup {
-		receipt.GroupJID = evt.Chat.ToNonAD().String()
-	} else if receipt.IsCarbon {
-		receipt.JID = getPreferredJID(ctx, client, evt.Chat).ToNonAD().String()
+		receipt.Sender.JID = evt.BroadcastListOwner.ToNonAD().String()
 	}
 
 	switch evt.Type {
@@ -1191,7 +1192,7 @@ func (a GroupParticipantAction) toParticipantChange() whatsmeow.ParticipantChang
 // WhatsApp can generally be derived back to their individual [Contact]; there are no anonymous groups
 // in WhatsApp.
 type GroupParticipant struct {
-	JID         string                 // The WhatsApp JID for this participant.
+	Sender      Sender
 	Nickname    string                 // The user-set name for this participant, typically only set for anonymous participants.
 	Affiliation GroupAffiliation       // The set of priviledges given to this specific participant.
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
@@ -1204,19 +1205,22 @@ func newGroupParticipant(ctx context.Context, client *whatsmeow.Client, particip
 	if participant.Error > 0 {
 		return GroupParticipant{}
 	}
-	var jid = getPreferredJID(ctx, client, participant.JID, participant.PhoneNumber)
+
 	var p = GroupParticipant{
-		JID: jid.ToNonAD().String(),
+		Sender:   newSender(ctx, client, participant.PhoneNumber, participant.LID),
+		Nickname: participant.DisplayName,
 	}
+
+	if p.Sender.JID != "" {
+		if c, err := client.Store.Contacts.GetContact(ctx, participant.JID); err == nil {
+			p.Nickname = c.PushName
+		}
+	}
+
 	if participant.IsSuperAdmin {
 		p.Affiliation = GroupAffiliationOwner
 	} else if participant.IsAdmin {
 		p.Affiliation = GroupAffiliationAdmin
-	}
-	if IsAnonymousJID(p.JID) {
-		if c, err := client.Store.Contacts.GetContact(ctx, participant.JID); err == nil {
-			p.Nickname = c.PushName
-		}
 	}
 	return p
 }
@@ -1241,26 +1245,26 @@ func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Gr
 	}
 	for _, p := range evt.Join {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:    getPreferredJID(ctx, client, p).ToNonAD().String(),
+			Sender: newSender(ctx, client, p),
 			Action: GroupParticipantActionAdd,
 		})
 	}
 	for _, p := range evt.Leave {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:    getPreferredJID(ctx, client, p).ToNonAD().String(),
+			Sender: newSender(ctx, client, p),
 			Action: GroupParticipantActionRemove,
 		})
 	}
 	for _, p := range evt.Promote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:         getPreferredJID(ctx, client, p).ToNonAD().String(),
+			Sender:      newSender(ctx, client, p),
 			Action:      GroupParticipantActionPromote,
 			Affiliation: GroupAffiliationAdmin,
 		})
 	}
 	for _, p := range evt.Demote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			JID:         getPreferredJID(ctx, client, p).ToNonAD().String(),
+			Sender:      newSender(ctx, client, p),
 			Action:      GroupParticipantActionDemote,
 			Affiliation: GroupAffiliationNone,
 		})
@@ -1275,9 +1279,6 @@ func newGroup(ctx context.Context, client *whatsmeow.Client, info *types.GroupIn
 	var participants []GroupParticipant
 	for i := range info.Participants {
 		p := newGroupParticipant(ctx, client, info.Participants[i])
-		if p.JID == "" {
-			continue
-		}
 		participants = append(participants, p)
 	}
 
@@ -1325,7 +1326,7 @@ func callStateFromReason(reason string) CallState {
 // for notifying on missed calls.
 type Call struct {
 	State     CallState
-	JID       string
+	Sender    Sender
 	Timestamp int64
 }
 
@@ -1335,10 +1336,9 @@ func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState
 		return EventUnknown, nil
 	}
 
-	jid := getPreferredJID(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt)
 	return EventCall, &EventPayload{Call: Call{
 		State:     state,
-		JID:       jid.ToNonAD().String(),
+		Sender:    newSender(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt),
 		Timestamp: meta.Timestamp.Unix(),
 	}}
 }
@@ -1363,4 +1363,56 @@ func getPreferredJID(ctx context.Context, client *whatsmeow.Client, def types.JI
 	}
 
 	return def
+}
+
+type Sender struct {
+	JID      string
+	LID      string
+	GroupJID string
+	Others   []string
+	IsMe     bool
+}
+
+func newSender(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) Sender {
+	var jids = append([]types.JID{def}, alt...)
+	var sender = Sender{}
+	var lid = types.JID{}
+	for _, s := range jids {
+		if s.IsEmpty() {
+			continue
+		}
+		var id = s.ToNonAD().String()
+
+		if s.Server == types.HiddenUserServer && sender.LID == "" {
+			sender.LID = id
+			lid = s
+			if s == client.Store.GetLID() {
+				sender.IsMe = true
+			}
+		} else if s.Server == types.GroupServer && sender.GroupJID == "" {
+			sender.GroupJID = id
+		} else if s.Server == types.DefaultUserServer && sender.JID == "" {
+			sender.JID = id
+			if s == client.Store.GetJID() {
+				sender.IsMe = true
+			}
+		} else {
+			sender.Others = append(sender.Others, id)
+		}
+	}
+
+	if sender.IsMe {
+		if sender.JID == "" {
+			sender.JID = client.Store.GetJID().ToNonAD().String()
+		}
+		if sender.LID == "" {
+			sender.LID = client.Store.GetLID().ToNonAD().String()
+		}
+	} else if sender.JID == "" && !lid.IsEmpty() {
+		if jid, _ := client.Store.LIDs.GetPNForLID(ctx, lid); !jid.IsEmpty() {
+			sender.JID = jid.ToNonAD().String()
+		}
+	}
+
+	return sender
 }

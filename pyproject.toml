@@ -17,7 +17,7 @@ keywords = ["xmpp", "gateway", "bridge", "instant messaging", "chat", "whatsapp"
 dynamic = ["version"]
 dependencies = [
     "linkpreview>=0.11.0",
-    "slidge>=0.3.4.dev45,<0.4",
+    "slidge>=0.3.4.dev70,<0.4",
 ]
 
 [project.urls]

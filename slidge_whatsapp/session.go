@@ -210,7 +210,7 @@ func (s *Session) SendMessage(message Message) error {
 		return fmt.Errorf("cannot send message for unauthenticated session")
 	}
 
-	jid, err := types.ParseJID(message.JID)
+	jid, err := types.ParseJID(message.Chat)
 	if err != nil {
 		return fmt.Errorf("could not parse sender JID for message: %s", err)
 	}
@@ -236,12 +236,12 @@ func (s *Session) SendMessage(message Message) error {
 	case MessageRevoke:
 		// Don't send message, but revoke existing message by ID.
 		var originJID types.JID
-		if message.OriginJID == "" {
+		if message.OriginSender.JID == "" {
 			// A message retraction by the person who sent it
 			originJID = types.EmptyJID
 		} else {
 			// A message moderation
-			originJID, err = types.ParseJID(message.OriginJID)
+			originJID, err = types.ParseJID(message.OriginSender.JID)
 			if err != nil {
 				return fmt.Errorf("could not parse sender JID for message: %s", err)
 			}
@@ -249,13 +249,19 @@ func (s *Session) SendMessage(message Message) error {
 		payload = s.client.BuildRevoke(jid, originJID, message.ID)
 	case MessageReaction:
 		// Send message as emoji reaction to a given message.
+		var participant string
+		if message.OriginSender.GroupJID == "" {
+			participant = message.OriginSender.JID
+		} else {
+			participant = message.OriginSender.LID
+		}
 		payload = &waE2E.Message{
 			ReactionMessage: &waE2E.ReactionMessage{
 				Key: &waCommon.MessageKey{
-					RemoteJID:   &message.JID,
-					FromMe:      &message.IsCarbon,
+					RemoteJID:   &message.Chat,
+					FromMe:      &message.OriginSender.IsMe,
 					ID:          &message.ID,
-					Participant: &message.OriginJID,
+					Participant: &participant,
 				},
 				Text:              &message.Body,
 				SenderTimestampMS: ptrTo(time.Now().UnixMilli()),
@@ -283,20 +289,30 @@ func (s *Session) getMessagePayload(ctx context.Context, message Message) *waE2E
 	// Compose extended message when made as a reply to a different message.
 	var payload *waE2E.Message
 	if message.ReplyID != "" {
-		// Fall back to our own JID if no origin JID has been specified, in which case we assume
-		// we're replying to our own messages.
-		if message.OriginJID == "" {
-			message.OriginJID = s.device.JID().ToNonAD().String()
+		var participant string
+		if message.OriginSender.GroupJID == "" {
+			participant = message.OriginSender.JID
+		} else {
+			participant = message.OriginSender.LID
 		}
-		payload = &waE2E.Message{
-			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text: &message.Body,
-				ContextInfo: &waE2E.ContextInfo{
-					StanzaID:      &message.ReplyID,
-					QuotedMessage: &waE2E.Message{Conversation: ptrTo(message.ReplyBody)},
-					Participant:   &message.OriginJID,
+
+		// Setting an invalid participant prevents the message from being displayed
+		// at all, so we want to avoid that.
+		if participant != "" {
+			payload = &waE2E.Message{
+				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+					Text: &message.Body,
+					ContextInfo: &waE2E.ContextInfo{
+						StanzaID:      &message.ReplyID,
+						QuotedMessage: &waE2E.Message{Conversation: ptrTo(message.ReplyBody)},
+						Participant:   &participant,
+					},
 				},
-			},
+			}
+		} else {
+			// TODO: prepend ReplyBody prenpended with ">" to Body, as a fallback for invalid
+			//       OriginSenders
+			payload = &waE2E.Message{Conversation: &message.Body}
 		}
 	}
 
@@ -364,12 +380,12 @@ func (s *Session) GenerateMessageID() string {
 
 // SendChatState sends the given chat state notification (e.g. composing message) to WhatsApp for the
 // contact specified within.
-func (s *Session) SendChatState(state ChatState) error {
+func (s *Session) SendChatState(state OutgoingChatState) error {
 	if s.client == nil || s.client.Store.ID == nil {
 		return fmt.Errorf("cannot send chat state for unauthenticated session")
 	}
 
-	jid, err := types.ParseJID(state.JID)
+	jid, err := types.ParseJID(state.Chat)
 	if err != nil {
 		return fmt.Errorf("could not parse sender JID for chat state: %s", err)
 	}
@@ -386,28 +402,26 @@ func (s *Session) SendChatState(state ChatState) error {
 }
 
 // SendReceipt sends a read receipt to WhatsApp for the message IDs specified within.
-func (s *Session) SendReceipt(receipt Receipt) error {
+func (s *Session) SendReceipt(receipt OutgoingReceipt) error {
 	if s.client == nil || s.client.Store.ID == nil {
 		return fmt.Errorf("cannot send receipt for unauthenticated session")
 	}
 
-	var jid, senderJID types.JID
+	var chatJID, senderLID types.JID
 	var err error
 
-	if receipt.GroupJID != "" {
-		if senderJID, err = types.ParseJID(receipt.JID); err != nil {
-			return fmt.Errorf("could not parse sender JID for receipt: %s", err)
-		} else if jid, err = types.ParseJID(receipt.GroupJID); err != nil {
-			return fmt.Errorf("could not parse group JID for receipt: %s", err)
-		}
-	} else {
-		if jid, err = types.ParseJID(receipt.JID); err != nil {
-			return fmt.Errorf("could not parse sender JID for receipt: %s", err)
+	if chatJID, err = types.ParseJID(receipt.Chat); err != nil {
+		return fmt.Errorf("could not parse chat JID for receipt: %s", err)
+	}
+
+	if receipt.OriginSender.GroupJID != "" {
+		if senderLID, err = types.ParseJID(receipt.OriginSender.LID); err != nil {
+			return fmt.Errorf("could not parse chat OriginSender.LID for receipt: %s", err)
 		}
 	}
 
 	ids := slices.Clone(receipt.MessageIDs)
-	return s.client.MarkRead(s.ctx, ids, time.Unix(receipt.Timestamp, 0), jid, senderJID)
+	return s.client.MarkRead(s.ctx, ids, time.Unix(0, 0), chatJID, senderLID)
 }
 
 // SendPresence sets the activity state and (optional) status message for the current session and
@@ -633,7 +647,7 @@ func (s *Session) UpdateGroupParticipants(resourceID string, participants []Grou
 
 	var changes = make(map[whatsmeow.ParticipantChange][]types.JID)
 	for _, p := range participants {
-		participantJID, err := types.ParseJID(p.JID)
+		participantJID, err := types.ParseJID(p.Sender.JID)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse participant JID for update: %s", err)
 		}
@@ -656,7 +670,7 @@ func (s *Session) UpdateGroupParticipants(resourceID string, participants []Grou
 		}
 		for i := range participants {
 			p := newGroupParticipant(s.ctx, s.client, participants[i])
-			if p.JID == "" {
+			if p.Sender.JID == "" {
 				continue
 			}
 			result = append(result, p)

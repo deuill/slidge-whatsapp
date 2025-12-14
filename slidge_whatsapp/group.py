@@ -1,9 +1,9 @@
 import re
+import warnings
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.archive_msg import HistoryMessage
 from slidge.util.types import Avatar, Hat, HoleBound, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
@@ -109,26 +109,24 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
         self.history_requested = True
 
-    def get_message_sender(self, legacy_msg_id: str):
-        with self.xmpp.store.session() as orm:
-            try:
-                stored = next(
-                    self.xmpp.store.mam.get_messages(
-                        orm, self.stored.id, ids=[legacy_msg_id]
-                    )
-                )
-            except StopIteration:
-                stored = None
-        if not stored:
-            raise XMPPError("internal-server-error", "Unable to find message sender")
-        msg = HistoryMessage(stored.stanza)
-        occupant_id = msg.stanza["occupant-id"]["id"]
+    def get_sender_lid(self, legacy_msg_id: str):
+        for message in self.get_archived_messages(legacy_msg_id):
+            break
+        else:
+            raise XMPPError(
+                "internal-server-error", f"Message {legacy_msg_id} is not in archive"
+            )
+        occupant_id = message.occupant_id
         if occupant_id == "slidge-user":
             return self.session.contacts.user_legacy_id
-        if "@" in occupant_id:
-            jid_username = occupant_id.split("@")[0]
-            return jid_username.removeprefix("+") + "@" + whatsapp.DefaultUserServer
-        raise XMPPError("internal-server-error", "Unable to find message sender")
+        if occupant_id.endswith("@lid"):
+            return occupant_id
+        # this part _should_ not be reached, but it is a safeguard against sending
+        # bad stuff to whatsapp
+        raise XMPPError(
+            "internal-server-error",
+            f"Stored message sender is not a LID: {occupant_id}",
+        )
 
     async def update_whatsapp_info(self, info: whatsapp.Group) -> None:
         """
@@ -150,17 +148,27 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
 
         await self.update_whatsapp_avatar()
         self.n_participants = len(info.Participants)
-        for data in info.Participants:
-            if whatsapp.IsAnonymousJID(data.JID):
-                participant = await self.get_participant(data.JID)
-                if data.Nickname:
-                    participant.nickname = data.Nickname
+        for wa_part in info.Participants:
+            assert isinstance(wa_part, whatsapp.GroupParticipant)
+            if wa_part.Sender.IsMe:
+                participant = await self.get_user_participant(
+                    occupant_id=wa_part.Sender.LID
+                )
+            elif wa_part.Sender.JID:
+                participant = await self.get_participant_by_legacy_id(
+                    wa_part.Sender.JID, occupant_id=wa_part.Sender.LID
+                )
             else:
-                participant = await self.get_participant_by_legacy_id(data.JID)
-            if data.Action == whatsapp.GroupParticipantActionRemove:
+                if not wa_part.Sender.LID:
+                    warnings.warn(f"Invalid participant {wa_part} in {self}")
+                    continue
+                participant = await self.get_participant(
+                    wa_part.Nickname, occupant_id=wa_part.Sender.LID
+                )
+            if wa_part.Action == whatsapp.GroupParticipantActionRemove:
                 self.remove_participant(participant)
             else:
-                participant.update_whatsapp_info(data)
+                participant.update_whatsapp_info(wa_part)
 
     async def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(
