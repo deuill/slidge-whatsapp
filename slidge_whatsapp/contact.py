@@ -76,7 +76,8 @@ class Roster(LegacyRoster[str, Contact]):
         if data.JID == self.user_legacy_id:
             return None
         contact = await self.by_legacy_id(data.JID)
-        return await contact.update_whatsapp_info(data)
+        await contact.update_whatsapp_info(data)
+        return contact
 
     async def legacy_id_to_jid_username(self, legacy_id: str) -> str:
         if not "@" in legacy_id:
