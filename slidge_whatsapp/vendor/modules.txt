@@ -60,7 +60,7 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-sqlite3 v1.14.32
 ## explicit; go 1.19
 github.com/mattn/go-sqlite3
-# github.com/petermattis/goid v0.0.0-20250904145737-900bdf8bb490
+# github.com/petermattis/goid v0.0.0-20251121121749-a11dd1a45f9a
 ## explicit; go 1.17
 github.com/petermattis/goid
 # github.com/rs/zerolog v1.34.0
@@ -100,12 +100,13 @@ go.mau.fi/libsignal/util/errorhelper
 go.mau.fi/libsignal/util/keyhelper
 go.mau.fi/libsignal/util/medium
 go.mau.fi/libsignal/util/optional
-# go.mau.fi/util v0.9.2
+# go.mau.fi/util v0.9.4
 ## explicit; go 1.24.0
 go.mau.fi/util/dbutil
 go.mau.fi/util/exbytes
 go.mau.fi/util/exerrors
 go.mau.fi/util/exhttp
+go.mau.fi/util/exmaps
 go.mau.fi/util/exslices
 go.mau.fi/util/exstrings
 go.mau.fi/util/exsync
@@ -115,7 +116,7 @@ go.mau.fi/util/jsontime
 go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20251110110826-a121e2b9cd1e
+# go.mau.fi/whatsmeow v0.0.0-20251217143725-11cf47c62d32
 ## explicit; go 1.24.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
@@ -172,15 +173,15 @@ go.mau.fi/whatsmeow/util/gcmutil
 go.mau.fi/whatsmeow/util/hkdfutil
 go.mau.fi/whatsmeow/util/keys
 go.mau.fi/whatsmeow/util/log
-# golang.org/x/crypto v0.43.0
+# golang.org/x/crypto v0.46.0
 ## explicit; go 1.24.0
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
+# golang.org/x/exp v0.0.0-20251209150349-8475f28825e9
 ## explicit; go 1.24.0
 golang.org/x/exp/constraints
-# golang.org/x/image v0.32.0
+# golang.org/x/image v0.34.0
 ## explicit; go 1.24.0
 golang.org/x/image/draw
 golang.org/x/image/math/f64
@@ -188,7 +189,7 @@ golang.org/x/image/riff
 golang.org/x/image/vp8
 golang.org/x/image/vp8l
 golang.org/x/image/webp
-# golang.org/x/net v0.46.0
+# golang.org/x/net v0.48.0
 ## explicit; go 1.24.0
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
@@ -197,17 +198,17 @@ golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
-# golang.org/x/sys v0.38.0
+# golang.org/x/sys v0.39.0
 ## explicit; go 1.24.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.30.0
+# golang.org/x/text v0.32.0
 ## explicit; go 1.24.0
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# google.golang.org/protobuf v1.36.10
+# google.golang.org/protobuf v1.36.11
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
