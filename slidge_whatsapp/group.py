@@ -150,23 +150,27 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self.n_participants = len(info.Participants)
         for wa_part in info.Participants:
             assert isinstance(wa_part, whatsapp.GroupParticipant)
+            create = wa_part.Action != whatsapp.GroupParticipantActionRemove
             if wa_part.Sender.IsMe:
                 participant = await self.get_user_participant(
                     occupant_id=wa_part.Sender.LID
                 )
             elif wa_part.Sender.JID:
                 participant = await self.get_participant_by_legacy_id(
-                    wa_part.Sender.JID, occupant_id=wa_part.Sender.LID
+                    wa_part.Sender.JID, occupant_id=wa_part.Sender.LID, create=create
                 )
             else:
                 if not wa_part.Sender.LID:
                     warnings.warn(f"Invalid participant {wa_part} in {self}")
                     continue
-                participant = await self.get_participant(
-                    wa_part.Nickname, occupant_id=wa_part.Sender.LID
+                participant = await self.get_participant(  # type:ignore[call-overload]
+                    wa_part.Nickname,
+                    occupant_id=wa_part.Sender.LID,
+                    create=create,
                 )
             if wa_part.Action == whatsapp.GroupParticipantActionRemove:
-                self.remove_participant(participant)
+                if participant is not None:
+                    self.remove_participant(participant)
             else:
                 participant.update_whatsapp_info(wa_part)
 
@@ -212,7 +216,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         nickname: Optional[str],
     ):
         if affiliation == "member":
-            participant = await self.get_participant_by_contact(contact, create=False)
+            participant = await self.get_participant_by_contact(contact, create=False)  # type:ignore[call-overload]
             if participant is None or participant.affiliation in ("outcast", "none"):
                 action = whatsapp.GroupParticipantActionAdd
             elif participant.affiliation == "member":
