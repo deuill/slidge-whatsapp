@@ -767,7 +767,7 @@ class Session(BaseSession[str, Recipient]):
             if sender.IsMe:
                 return await muc.get_user_participant(occupant_id=sender.LID or None)
             elif sender.JID and not force_participant:
-                return await muc.get_participant_by_legacy_id(
+                return await muc.get_participant_by_legacy_id(  # type:ignore[call-overload]
                     sender.JID, occupant_id=sender.LID or None
                 )
             else:
