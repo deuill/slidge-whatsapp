@@ -1143,7 +1143,7 @@ type Group struct {
 type GroupSubject struct {
 	Subject string // The user-defined group description.
 	SetAt   int64  // The exact time this group description was set at, as a timestamp.
-	SetBy   string // The name of the user that set the subject.
+	SetBy   Actor  // The name of the user that set the subject.
 }
 
 // GroupParticipantAction represents the distinct set of actions that can be taken when encountering
@@ -1218,14 +1218,12 @@ func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Gr
 		group.Name = evt.Name.Name
 	}
 	if evt.Topic != nil {
-		topicJID := getPreferredJID(ctx, client, evt.Topic.TopicSetBy, evt.Topic.TopicSetByPN)
+		topicActor := newActor(ctx, client, evt.Topic.TopicSetBy, evt.Topic.TopicSetByPN)
 		group.Subject = GroupSubject{
 			Subject: evt.Topic.Topic,
 			SetAt:   evt.Topic.TopicSetAt.Unix(),
 		}
-		if c, err := client.Store.Contacts.GetContact(ctx, topicJID); err == nil {
-			group.Subject.SetBy = c.PushName
-		}
+		group.Subject.SetBy = topicActor
 	}
 	for _, p := range evt.Join {
 		group.Participants = append(group.Participants, GroupParticipant{
@@ -1266,19 +1264,16 @@ func newGroup(ctx context.Context, client *whatsmeow.Client, info *types.GroupIn
 		participants = append(participants, p)
 	}
 
-	var topicJID = getPreferredJID(ctx, client, info.TopicSetBy, info.TopicSetByPN)
 	var group = Group{
 		JID:  info.JID.ToNonAD().String(),
 		Name: info.Name,
 		Subject: GroupSubject{
 			Subject: info.Topic,
 			SetAt:   info.TopicSetAt.Unix(),
+			SetBy:   newActor(ctx, client, info.TopicSetBy, info.TopicSetByPN),
 		},
 		Nickname:     client.Store.PushName,
 		Participants: participants,
-	}
-	if c, err := client.Store.Contacts.GetContact(ctx, topicJID); err == nil {
-		group.Subject.SetBy = c.PushName
 	}
 
 	return group
@@ -1325,28 +1320,6 @@ func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState
 		Actor:     newActor(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt),
 		Timestamp: meta.Timestamp.Unix(),
 	}}
-}
-
-// GetPreferredJID returns one of the [type.JID] values for the given senders, preferring the first
-// non-empty, non-hidden sender; if none are found, mappings from LID to JID are tried, or otherwise,
-// the first JID given is returned.
-func getPreferredJID(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) types.JID {
-	var jids = append([]types.JID{def}, alt...)
-	for _, s := range jids {
-		if !s.IsEmpty() && s.Server != types.HiddenUserServer {
-			return s
-		}
-	}
-
-	for _, s := range jids {
-		if !s.IsEmpty() && s.Server == types.HiddenUserServer {
-			if p, _ := client.Store.LIDs.GetPNForLID(ctx, s); !p.IsEmpty() {
-				return p
-			}
-		}
-	}
-
-	return def
 }
 
 // GORE PART STARTS HERE

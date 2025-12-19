@@ -479,10 +479,6 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 			continue
 		}
 
-		if !c.IsFriend {
-			continue
-		}
-
 		if err = s.client.SubscribePresence(s.ctx, jid); err != nil {
 			s.gateway.logger.Debugf("Failed to subscribe to presence for %s", jid)
 		}
@@ -711,12 +707,12 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 		return Contact{}, nil
 	}
 
-	contactJID := getPreferredJID(s.ctx, s.client, resp[0].JID)
-	if contactJID.Server == types.HiddenUserServer {
+	actor := newActor(s.ctx, s.client, resp[0].JID)
+	if actor.JID == "" {
 		return Contact{}, nil
 	}
 
-	return Contact{JID: contactJID.ToNonAD().String()}, nil
+	return Contact{JID: actor.JID}, nil
 }
 
 // RequestMessageHistory sends and asynchronous request for message history related to the given
