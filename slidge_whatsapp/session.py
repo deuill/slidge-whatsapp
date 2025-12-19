@@ -602,7 +602,7 @@ class Session(BaseSession[str, Recipient]):
             )
 
     def __reset_connected(self):
-        if hasattr(self, "_connected") and not self.__connected.done():
+        if hasattr(self, "__connected") and not self.__connected.done():
             self.xmpp.loop.call_soon_threadsafe(self.__connected.cancel)
         self.__connected: asyncio.Future[str] = self.xmpp.loop.create_future()
 
