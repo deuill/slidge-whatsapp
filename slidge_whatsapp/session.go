@@ -479,6 +479,10 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 			continue
 		}
 
+		if !c.IsFriend {
+			continue
+		}
+
 		if err = s.client.SubscribePresence(s.ctx, jid); err != nil {
 			s.gateway.logger.Debugf("Failed to subscribe to presence for %s", jid)
 		}
