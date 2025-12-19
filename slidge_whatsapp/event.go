@@ -470,23 +470,6 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 		}
 	}
 
-	// Replace LIDs with JIDs in message mentions, if possible.
-	if m := info.GetMentionedJID(); len(m) > 0 {
-		for i := range m {
-			mentionLID, err := types.ParseJID(m[i])
-			if err != nil || mentionLID.Server != types.HiddenUserServer {
-				continue
-			}
-
-			mentionJID := getPreferredJID(ctx, client, mentionLID)
-			if mentionLID == mentionJID {
-				continue
-			}
-
-			message.Body = strings.ReplaceAll(message.Body, "@"+mentionLID.User, "@"+mentionJID.User)
-		}
-	}
-
 	return message
 }
 

@@ -174,20 +174,18 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             else:
                 participant.update_whatsapp_info(wa_part)
 
-    async def replace_mentions(self, t: str):
-        return replace_whatsapp_mentions(
-            t,
-            participants=(
-                {
-                    p.contact.jid.username: p.nickname
-                    async for p in self.get_participants()
-                    if p.contact is not None  # should not happen
-                }
-                | {self.session.user_phone: self.user_nick}
-                if self.session.user_phone  # user_phone *should* be set at this point,
-                else {}  # but better safe than sorry
-            ),
-        )
+    async def replace_mentions(self, text: str) -> str:
+        # TODO: ideally, we shouldn't parse the text looking for mentions of any participant
+        #       here, but instead rely on the explicit mentions of whatsapp.Message.MentionJIDs
+        mapping: dict[str, str] = {}
+        async for p in self.get_participants():
+            if p.contact is not None:
+                mapping[p.contact.legacy_id.removeprefix("+")] = p.nickname
+            mapping[p.occupant_id] = p.nickname
+        if self.session.user_phone:
+            mapping[self.session.user_phone] = self.user_nick
+
+        return replace_whatsapp_mentions(text, mapping=mapping)
 
     async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
         return self.session.whatsapp.SetAvatar(
@@ -288,9 +286,9 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
         return whatsapp_group_id
 
 
-def replace_whatsapp_mentions(text: str, participants: dict[str, str]):
+def replace_whatsapp_mentions(text: str, mapping: dict[str, str]):
     def match(m: re.Match):
         group = m.group(0)
-        return participants.get(group.replace("@", "+"), group)
+        return mapping.get(group.removeprefix("@"), group)
 
     return re.sub(r"@\d+", match, text)
