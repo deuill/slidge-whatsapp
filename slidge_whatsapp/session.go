@@ -144,6 +144,9 @@ func (s *Session) Login() error {
 
 	go func() {
 		for e := range qrChan {
+			if e.Event == "timeout" {
+				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: "You did not flash the QR code in time. Use re-login when you are ready."}})
+			}
 			if !s.client.IsConnected() {
 				return
 			}
