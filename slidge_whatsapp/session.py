@@ -533,7 +533,7 @@ class Session(BaseSession[str, Recipient]):
             Kind=whatsapp.MessageEdit,
             ID=legacy_msg_id,
             Chat=c.get_wa_chat(),
-            Body=text,
+            Body=replace_mentions(text, mentions, mention_map),
         )
         self.whatsapp.SendMessage(message)
 
