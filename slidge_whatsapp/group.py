@@ -150,27 +150,15 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self.n_participants = len(info.Participants)
         for wa_part in info.Participants:
             assert isinstance(wa_part, whatsapp.GroupParticipant)
-            create = wa_part.Action != whatsapp.GroupParticipantActionRemove
-            if wa_part.Actor.IsMe:
-                participant = await self.get_user_participant(
-                    occupant_id=wa_part.Actor.LID
-                )
-            elif wa_part.Actor.JID:
-                participant = await self.get_participant_by_legacy_id(
-                    wa_part.Actor.JID, occupant_id=wa_part.Actor.LID, create=create
-                )
-            else:
-                if not wa_part.Actor.LID:
-                    warnings.warn(f"Invalid participant {wa_part} in {self}")
-                    continue
-                participant = await self.get_participant(  # type:ignore[call-overload]
-                    wa_part.Nickname,
-                    occupant_id=wa_part.Actor.LID,
-                    create=create,
-                )
+            participant = await self.get_participant_by_actor(
+                wa_part.Actor,
+                wa_part.Nickname,
+                create=wa_part.Action != whatsapp.GroupParticipantActionRemove,
+            )
+            if participant is None:
+                continue
             if wa_part.Action == whatsapp.GroupParticipantActionRemove:
-                if participant is not None:
-                    self.remove_participant(participant)
+                self.remove_participant(participant)
             else:
                 participant.update_whatsapp_info(wa_part)
 
@@ -239,6 +227,27 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
 
     def get_wa_chat(self) -> whatsapp.Chat:
         return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)
+
+    async def get_participant_by_actor(
+        self, actor: whatsapp.Actor, nickname: str = "", create: bool = True
+    ) -> Participant | None:
+        if actor.IsMe:
+            return await self.get_user_participant(occupant_id=actor.LID)
+        elif actor.JID:
+            assert isinstance(actor.JID, str)
+            assert isinstance(actor.LID, str)
+            # call-overload? because https://github.com/python/mypy/issues/14764
+            return await self.get_participant_by_legacy_id(  # type:ignore[call-overload]
+                actor.JID, occupant_id=actor.LID, create=create
+            )
+        else:
+            if not actor.LID:
+                return None
+            return await self.get_participant(  # type:ignore[call-overload]
+                nickname,
+                occupant_id=actor.LID,
+                create=create,
+            )
 
     async def get_wa_actor(self, legacy_msg_id: str) -> whatsapp.Actor:
         lid = self.get_sender_lid(legacy_msg_id)
