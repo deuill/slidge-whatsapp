@@ -103,7 +103,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         assert isinstance(before.id, str)
         oldest_message = whatsapp.Message(
             ID=before.id,
-            IsCarbon=self.session.message_is_carbon(self, before.id),
+            Actor=await self.get_wa_actor(before.id),
             Timestamp=int(before.timestamp.timestamp()),
         )
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
@@ -151,21 +151,21 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         for wa_part in info.Participants:
             assert isinstance(wa_part, whatsapp.GroupParticipant)
             create = wa_part.Action != whatsapp.GroupParticipantActionRemove
-            if wa_part.Sender.IsMe:
+            if wa_part.Actor.IsMe:
                 participant = await self.get_user_participant(
-                    occupant_id=wa_part.Sender.LID
+                    occupant_id=wa_part.Actor.LID
                 )
-            elif wa_part.Sender.JID:
+            elif wa_part.Actor.JID:
                 participant = await self.get_participant_by_legacy_id(
-                    wa_part.Sender.JID, occupant_id=wa_part.Sender.LID, create=create
+                    wa_part.Actor.JID, occupant_id=wa_part.Actor.LID, create=create
                 )
             else:
-                if not wa_part.Sender.LID:
+                if not wa_part.Actor.LID:
                     warnings.warn(f"Invalid participant {wa_part} in {self}")
                     continue
                 participant = await self.get_participant(  # type:ignore[call-overload]
                     wa_part.Nickname,
-                    occupant_id=wa_part.Sender.LID,
+                    occupant_id=wa_part.Actor.LID,
                     create=create,
                 )
             if wa_part.Action == whatsapp.GroupParticipantActionRemove:
@@ -237,6 +237,24 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             whatsapp.Slice_whatsapp_GroupParticipant(
                 [whatsapp.GroupParticipant(JID=contact.legacy_id, Action=action)]
             ),
+        )
+
+    def get_wa_chat(self) -> whatsapp.Chat:
+        return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)
+
+    async def get_wa_actor(self, legacy_msg_id: str) -> whatsapp.Actor:
+        lid = self.get_sender_lid(legacy_msg_id)
+        jid = ""
+        # I don't think we need a JID in groups now, but here is how we could get it
+        # part = await self.get_participant(occupant_id=lid)
+        # if part.contact:
+        #     jid = part.contact.legacy_id
+        # elif part.is_user:
+        #     jid = self.session.contacts.user_legacy_id
+        return whatsapp.Actor(
+            JID=jid,
+            LID=lid or "",
+            IsMe=self.session.message_is_carbon(self, legacy_msg_id),
         )
 
 
