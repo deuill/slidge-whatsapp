@@ -13,7 +13,7 @@ from linkpreview import Link, LinkPreview
 from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
 from slidge.contact.roster import ContactIsUser
 from slidge.db.models import ArchivedMessage
-from slidge.util import is_valid_phone_number
+from slidge.util import is_valid_phone_number, replace_mentions
 from slidge.util.types import (
     LegacyAttachment,
     Mention,
@@ -28,7 +28,7 @@ from . import config
 from .contact import Contact, Roster
 from .gateway import Gateway
 from .generated import go, whatsapp
-from .group import MUC, Bookmarks, Participant, replace_xmpp_mentions
+from .group import MUC, Bookmarks, Participant
 
 MESSAGE_PAIR_SUCCESS = (
     "Pairing successful! You might need to repeat this process in the future if the"
@@ -342,7 +342,7 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             ID=message_id,
             Chat=chat.get_wa_chat(),
-            Body=replace_xmpp_mentions(text, mentions) if mentions else text,
+            Body=replace_mentions(text, mentions, mention_map),
             Preview=message_preview,
             Location=message_location,
             MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),
@@ -853,3 +853,8 @@ def make_sync(func, loop):
         return result
 
     return wrapper
+
+
+def mention_map(mention: Mention) -> str:
+    # mentions are @phonenumber, without the @s.whatsapp.net or @lid suffix
+    return f"@{mention.contact.legacy_id.split('@')[0]}"

@@ -288,16 +288,6 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
         return whatsapp_group_id
 
 
-def replace_xmpp_mentions(text: str, mentions: list[Mention]):
-    offset: int = 0
-    result: str = ""
-    for m in mentions:
-        legacy_id = "@" + m.contact.legacy_id[: m.contact.legacy_id.find("@")]
-        result = result + text[offset : m.start] + legacy_id
-        offset = m.end
-    return result + text[offset:] if offset > 0 else text
-
-
 def replace_whatsapp_mentions(text: str, participants: dict[str, str]):
     def match(m: re.Match):
         group = m.group(0)
