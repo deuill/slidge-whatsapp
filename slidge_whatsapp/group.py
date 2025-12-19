@@ -144,7 +144,10 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
                 set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
                 self.subject_date = set_at
             if info.Subject.SetBy:
-                self.subject_setter = info.Subject.SetBy
+                if info.Subject.SetBy.JID:
+                    self.subject_setter = await self.get_participant_by_actor(
+                        info.Subject.SetBy
+                    )
 
         await self.update_whatsapp_avatar()
         self.n_participants = len(info.Participants)
