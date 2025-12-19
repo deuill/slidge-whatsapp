@@ -175,8 +175,8 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventGroup:
             await self.bookmarks.add_whatsapp_group(data.Group)
         elif event == whatsapp.EventPresence:
-            if data.Presence.Sender.JID:
-                contact = await self.contacts.by_legacy_id(data.Presence.Sender.JID)
+            if data.Presence.Actor.JID:
+                contact = await self.contacts.by_legacy_id(data.Presence.Actor.JID)
                 await contact.update_presence(
                     data.Presence.Kind, data.Presence.LastSeen
                 )
@@ -191,7 +191,7 @@ class Session(BaseSession[str, Recipient]):
             await self.handle_message(data.Message)
 
     async def handle_chat_state(self, state: whatsapp.ChatState):
-        contact = await self.__get_contact_or_participant(state.Sender)
+        contact = await self.__get_contact_or_participant(state.Chat, state.Actor)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
             contact.online(last_seen=datetime.now())
@@ -203,7 +203,9 @@ class Session(BaseSession[str, Recipient]):
         Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
         """
         try:
-            contact = await self.__get_contact_or_participant(receipt.Sender)
+            contact = await self.__get_contact_or_participant(
+                receipt.Chat, receipt.Actor
+            )
         except ValueError:
             self.log.warning("What do with this receipt? %s", receipt)
             return
@@ -211,14 +213,14 @@ class Session(BaseSession[str, Recipient]):
             if receipt.Kind == whatsapp.ReceiptDelivered:
                 contact.received(message_id)
             elif receipt.Kind == whatsapp.ReceiptRead:
-                contact.displayed(legacy_msg_id=message_id, carbon=receipt.IsCarbon)
+                contact.displayed(legacy_msg_id=message_id, carbon=receipt.Actor.IsMe)
                 contact.online(last_seen=datetime.now())
 
     async def handle_call(self, call: whatsapp.Call):
-        if not call.Sender.JID:
+        if not call.Actor.JID:
             warnings.warn(f"Ignoring a call: {call}")
             return
-        contact = await self.contacts.by_legacy_id(call.Sender.JID)
+        contact = await self.contacts.by_legacy_id(call.Actor.JID)
         text = f"from {contact.name or 'tel:' + str(contact.jid.local)} (xmpp:{contact.jid.bare})"
         if call.State == whatsapp.CallIncoming:
             text = "Incoming call " + text
@@ -237,9 +239,7 @@ class Session(BaseSession[str, Recipient]):
         types, including plain-text messages, media messages, reactions, etc., and may also include
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
-        contact = await self.__get_contact_or_participant(
-            message.Sender, force_participant=message.Kind == whatsapp.MessageRevoke
-        )
+        contact = await self.__get_contact_or_participant(message.Chat, message.Actor)
         muc = getattr(contact, "muc", None)
         # Skip handing message that's already in our message archive.
         if (
@@ -269,7 +269,7 @@ class Session(BaseSession[str, Recipient]):
                 legacy_msg_id=message.ID,
                 when=message_timestamp,
                 reply_to=reply_to,
-                carbon=message.IsCarbon,
+                carbon=message.Actor.IsMe,
             )
         elif message.Kind == whatsapp.MessageAttachment:
             attachments = await Attachment.convert_list(message.Attachments, muc)
@@ -278,7 +278,7 @@ class Session(BaseSession[str, Recipient]):
                 legacy_msg_id=message.ID,
                 reply_to=reply_to,
                 when=message_timestamp,
-                carbon=message.IsCarbon,
+                carbon=message.Actor.IsMe,
             )
             for attachment in attachments:
                 if global_config.NO_UPLOAD_METHOD != "symlink":
@@ -292,19 +292,19 @@ class Session(BaseSession[str, Recipient]):
                 new_text=message.Body,
                 when=message_timestamp,
                 reply_to=reply_to,
-                carbon=message.IsCarbon,
+                carbon=message.Actor.IsMe,
                 correction_event_id=message.ID,
             )
         elif message.Kind == whatsapp.MessageRevoke:
-            if muc is None or message.OriginSender.JID == message.Sender.JID:
-                contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
+            if muc is None or message.OriginActor.JID == message.Actor.JID:
+                contact.retract(legacy_msg_id=message.ID, carbon=message.Actor.IsMe)
             else:
                 assert isinstance(contact, Participant)
                 contact.moderate(legacy_msg_id=message.ID)
         elif message.Kind == whatsapp.MessageReaction:
             emojis = [message.Body] if message.Body else []
             contact.react(
-                legacy_msg_id=message.ID, emojis=emojis, carbon=message.IsCarbon
+                legacy_msg_id=message.ID, emojis=emojis, carbon=message.Actor.IsMe
             )
         elif message.Kind == whatsapp.MessagePoll:
             body = "🗳 %s" % message.Poll.Title
@@ -315,7 +315,7 @@ class Session(BaseSession[str, Recipient]):
                 legacy_msg_id=message.ID,
                 when=message_timestamp,
                 reply_to=reply_to,
-                carbon=message.IsCarbon,
+                carbon=message.Actor.IsMe,
             )
         for receipt in message.Receipts:
             await self.handle_receipt(receipt)
@@ -341,7 +341,7 @@ class Session(BaseSession[str, Recipient]):
         message_location = await self.__get_location(text) or whatsapp.Location()
         message = whatsapp.Message(
             ID=message_id,
-            Chat=chat.legacy_id,
+            Chat=chat.get_wa_chat(),
             Body=replace_xmpp_mentions(text, mentions) if mentions else text,
             Preview=message_preview,
             Location=message_location,
@@ -385,7 +385,7 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageAttachment,
             ID=message_id,
-            Chat=chat.legacy_id,
+            Chat=chat.get_wa_chat(),
             ReplyID=reply_to_msg_id if reply_to_msg_id else "",
             Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),
         )
@@ -455,41 +455,18 @@ class Session(BaseSession[str, Recipient]):
         self.__send_state(c, whatsapp.ChatStatePaused)
 
     def __send_state(self, c: Recipient, kind) -> None:
-        state = whatsapp.OutgoingChatState(Chat=c.legacy_id, Kind=kind)
+        state = whatsapp.ChatState(Chat=c.get_wa_chat(), Kind=kind)
         self.whatsapp.SendChatState(state)
-
-    async def __get_sender(self, c: Recipient, legacy_msg_id: str) -> whatsapp.Sender:
-        sender = whatsapp.Sender()
-        sender.IsMe = self.message_is_carbon(c, legacy_msg_id)
-        if c.is_group:
-            assert isinstance(c, MUC)
-            sender.GroupJID = c.legacy_id
-            sender.LID = c.get_sender_lid(legacy_msg_id)
-            # Do we really need to set a JID? Isn't a LID always enough?
-            # I don't think so. If we needed to, it could be done this way:
-            # if sender.LID:
-            #     part = await c.get_participant(occupant_id=sender.LID)
-            #     sender.IsMe = part.is_user
-            #     if part.is_user:
-            #         sender.JID = self.contacts.user_legacy_id
-            #     elif part.contact is not None:
-            #         sender.JID = part.contact.legacy_id
-        else:
-            if sender.IsMe:
-                sender.JID = self.contacts.user_legacy_id
-            else:
-                sender.JID = c.legacy_id
-        return sender
 
     async def on_displayed(self, c: Recipient, legacy_msg_id: str, thread=None):
         """
         Send "read" receipt, signifying that the WhatsApp message sent has been displayed on the XMPP
         client.
         """
-        receipt = whatsapp.OutgoingReceipt(
+        receipt = whatsapp.Receipt(
             MessageIDs=go.Slice_string([legacy_msg_id]),
-            Chat=c.legacy_id,
-            OriginSender=await self.__get_sender(c, legacy_msg_id),
+            Chat=c.get_wa_chat(),
+            OriginActor=await c.get_wa_actor(legacy_msg_id),
         )
         self.whatsapp.SendReceipt(receipt)
 
@@ -505,9 +482,9 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageReaction,
             ID=legacy_msg_id,
-            Chat=c.legacy_id,
+            Chat=c.get_wa_chat(),
             Body=emojis[0] if emojis else "",
-            OriginSender=await self.__get_sender(c, legacy_msg_id),
+            OriginActor=await c.get_wa_actor(legacy_msg_id),
         )
         self.whatsapp.SendMessage(message)
 
@@ -518,7 +495,7 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
-            Chat=c.legacy_id,
+            Chat=c.get_wa_chat(),
         )
         self.whatsapp.SendMessage(message)
 
@@ -531,8 +508,8 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
-            Chat=muc.legacy_id,
-            OriginSender=whatsapp.Sender(JID=muc.get_sender_lid(legacy_msg_id)),
+            Chat=muc.get_wa_chat(),
+            OriginActor=await muc.get_wa_actor(legacy_msg_id),
         )
         self.whatsapp.SendMessage(message)
         # Apparently, no revoke event is received by whatsmeow after sending
@@ -555,7 +532,7 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageEdit,
             ID=legacy_msg_id,
-            Chat=c.legacy_id,
+            Chat=c.get_wa_chat(),
             Body=text,
         )
         self.whatsapp.SendMessage(message)
@@ -666,11 +643,11 @@ class Session(BaseSession[str, Recipient]):
                 else await muc.replace_mentions(message.ReplyBody)
             ),
         )
-        if message.OriginSender.JID == self.contacts.user_legacy_id:
+        if message.OriginActor.JID == self.contacts.user_legacy_id:
             reply_to.author = "user"
         else:
             reply_to.author = await self.__get_contact_or_participant(
-                message.OriginSender
+                message.Chat, message.OriginActor
             )
         return reply_to
 
@@ -757,26 +734,26 @@ class Session(BaseSession[str, Recipient]):
             )
 
     async def __get_contact_or_participant(
-        self, sender: whatsapp.Sender, force_participant: bool = False
+        self, chat: whatsapp.Chat, actor: whatsapp.Actor
     ) -> Contact | Participant:
         """
         Return either a Contact or a Participant instance for the given contact and group JIDs.
         """
-        if sender.GroupJID:
-            muc = await self.bookmarks.by_legacy_id(sender.GroupJID)
-            if sender.IsMe:
-                return await muc.get_user_participant(occupant_id=sender.LID or None)
-            elif sender.JID and not force_participant:
+        if chat.IsGroup:
+            muc = await self.bookmarks.by_legacy_id(chat.JID)
+            if actor.IsMe:
+                return await muc.get_user_participant(occupant_id=actor.LID or None)
+            elif actor.JID:
                 return await muc.get_participant_by_legacy_id(  # type:ignore[call-overload]
-                    sender.JID, occupant_id=sender.LID or None
+                    actor.JID, occupant_id=actor.LID or None
                 )
             else:
-                assert sender.LID
-                return await muc.get_participant(occupant_id=sender.LID)
-        elif not sender.JID:
+                assert actor.LID
+                return await muc.get_participant(occupant_id=actor.LID)
+        elif not actor.JID:
             raise ValueError("Contact for anonymous JID")
         else:
-            return await self.contacts.by_legacy_id(sender.JID)
+            return await self.contacts.by_legacy_id(chat.JID)
 
     def __set_reply_to(
         self,
@@ -787,7 +764,7 @@ class Session(BaseSession[str, Recipient]):
         reply_to: Contact | Participant | None = None,
     ) -> whatsapp.Message:
         if chat.is_group:
-            message.OriginSender.GroupJID = chat.legacy_id
+            message.OriginActor.GroupJID = chat.legacy_id
 
         if reply_to_msg_id:
             message.ReplyID = reply_to_msg_id
@@ -799,21 +776,21 @@ class Session(BaseSession[str, Recipient]):
             message.Body = message.Body.lstrip()
 
         if not reply_to:
-            message.OriginSender.IsMe = not chat.is_group
-            message.OriginSender.JID = self.contacts.user_legacy_id
+            message.OriginActor.IsMe = not chat.is_group
+            message.OriginActor.JID = self.contacts.user_legacy_id
             return message
 
         if chat.is_group:
             assert isinstance(reply_to, Participant)
-            message.OriginSender.IsMe = reply_to.is_user
-            message.OriginSender.GroupJID = reply_to.muc.legacy_id
+            message.OriginActor.IsMe = reply_to.is_user
+            message.OriginActor.GroupJID = reply_to.muc.legacy_id
             if reply_to.contact:
-                message.OriginSender.JID = reply_to.contact.legacy_id
+                message.OriginActor.JID = reply_to.contact.legacy_id
             if reply_to.occupant_id and reply_to.occupant_id.endswith("@lid"):
-                message.OriginSender.LID = reply_to.occupant_id
+                message.OriginActor.LID = reply_to.occupant_id
         else:
             assert isinstance(reply_to, Contact)
-            message.OriginSender.JID = chat.legacy_id
+            message.OriginActor.JID = chat.legacy_id
 
         return message
 

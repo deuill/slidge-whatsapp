@@ -125,6 +125,20 @@ func newContact(jid types.JID, info types.ContactInfo) Contact {
 	return contact
 }
 
+// Chat identifies a contact or a group, ie, the "Conversation" where an event takes place
+type Chat struct {
+	JID     string
+	IsGroup bool
+}
+
+// Actor identifies who has triggered the event. It is either a contact identified by a proper JID (in 1:1)
+// or a participant identified by a LID (in groups)
+type Actor struct {
+	JID  string
+	LID  string
+	IsMe bool
+}
+
 // PresenceKind represents the different kinds of activity states possible in WhatsApp.
 type PresenceKind int
 
@@ -138,7 +152,7 @@ const (
 // Precence represents a contact's general state of activity, and is periodically updated as
 // contacts start or stop paying attention to their client of choice.
 type Presence struct {
-	Sender   Sender
+	Actor    Actor
 	Kind     PresenceKind
 	LastSeen int64
 }
@@ -147,7 +161,7 @@ type Presence struct {
 // event given.
 func newPresenceEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Presence) (EventKind, *EventPayload) {
 	var presence = Presence{
-		Sender:   newSender(ctx, client, evt.From),
+		Actor:    newActor(ctx, client, evt.From),
 		Kind:     PresenceAvailable,
 		LastSeen: evt.LastSeen.Unix(),
 	}
@@ -177,28 +191,27 @@ const (
 // text message, a file (image, video) attachment, an emoji reaction, etc. Messages of different
 // kinds are denoted as such, and re-use fields where the semantics overlap.
 type Message struct {
-	Kind         MessageKind  // The concrete message kind being sent or received.
-	ID           string       // The unique message ID, used for referring to a specific Message instance.
-	Sender       Sender       // The JID this message concerns, semantics can change based on IsCarbon.
-	Chat         string       // For outgoing message, the JID of the group or contact.
-	OriginSender Sender       // For reactions and replies in groups, the JID of the original user.
-	Body         string       // The plain-text message body. For attachment messages, this can be a caption.
-	Timestamp    int64        // The Unix timestamp denoting when this message was created.
-	IsCarbon     bool         // Whether or not this message concerns the gateway user themselves.
-	IsForwarded  bool         // Whether or not the message was forwarded from another source.
-	ReplyID      string       // The unique message ID this message is in reply to, if any.
-	ReplyBody    string       // The full body of the message this message is in reply to, if any.
-	Attachments  []Attachment // The list of file (image, video, etc.) attachments contained in this message.
-	Preview      Preview      // A short description for the URL provided in the message body, if any.
-	Location     Location     // The location metadata for messages, if any.
-	Poll         Poll         // The multiple-choice poll contained in the message, if any.
-	Album        Album        // The image album message, if any.
-	GroupInvite  Group        // Group information for the invite group included in this message, if any.
-	MentionJIDs  []string     // A list of JIDs mentioned in this message, if any.
-	Receipts     []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
-	Reactions    []Message    // Reactions attached to message, typically provided alongside historical messages.
-	IsHistory    bool         // Whether or not the message is derived from message history.
-	ReferenceID  string       // A message referenced in this message, for edits.
+	Kind        MessageKind  // The concrete message kind being sent or received.
+	ID          string       // The unique message ID, used for referring to a specific Message instance.
+	Actor       Actor        // Identifies who sent this message
+	Chat        Chat         // The JID of the group or contact.
+	OriginActor Actor        // Identifies who sent a message being referred to for reaction, replies and moderation
+	Body        string       // The plain-text message body. For attachment messages, this can be a caption.
+	Timestamp   int64        // The Unix timestamp denoting when this message was created.
+	IsForwarded bool         // Whether or not the message was forwarded from another source.
+	ReplyID     string       // The unique message ID this message is in reply to, if any.
+	ReplyBody   string       // The full body of the message this message is in reply to, if any.
+	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
+	Preview     Preview      // A short description for the URL provided in the message body, if any.
+	Location    Location     // The location metadata for messages, if any.
+	Poll        Poll         // The multiple-choice poll contained in the message, if any.
+	Album       Album        // The image album message, if any.
+	GroupInvite Group        // Group information for the invite group included in this message, if any.
+	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
+	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
+	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
+	IsHistory   bool         // Whether or not the message is derived from message history.
+	ReferenceID string       // A message referenced in this message, for edits.
 }
 
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
@@ -286,21 +299,20 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
-		Sender:    newSender(ctx, client, evt.Info.Sender, evt.Info.SenderAlt, evt.Info.Chat),
+		Actor:     newActor(ctx, client, evt.Info.Sender, evt.Info.SenderAlt),
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
-		IsCarbon:  evt.Info.IsFromMe,
 	}
+
+	message.Chat = newChat(evt.Info.IsGroup, evt.Info.Chat, message.Actor)
+	message.Actor.IsMe = evt.Info.IsFromMe
 
 	if evt.Info.Chat.Server == types.BroadcastServer {
 		// Handle non-carbon, non-status broadcast messages as plain messages; support for other
 		// types is lacking in the XMPP world.
-		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.IsCarbon {
+		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.Actor.IsMe {
 			return EventUnknown, nil
 		}
-	} else if message.IsCarbon {
-		message.Sender = newSender(ctx, client, evt.Info.Chat)
-		message.Sender.IsMe = true
 	}
 
 	// Handle handle protocol messages (such as message deletion or editing).
@@ -321,7 +333,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 			}
 			message.Kind = MessageRevoke
 			message.ID = p.Key.GetID()
-			message.OriginSender = newSender(ctx, client, originJID, evt.Info.Chat)
+			message.OriginActor = newActor(ctx, client, originJID)
 			return EventMessage, &EventPayload{Message: message}
 		}
 	}
@@ -446,7 +458,7 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 
 	remoteJID, _ := types.ParseJID(info.GetRemoteJID())
 
-	message.OriginSender = newSender(ctx, client, originJID, remoteJID)
+	message.OriginActor = newActor(ctx, client, originJID, remoteJID)
 	message.IsForwarded = info.GetIsForwarded()
 
 	// Handle reply messages.
@@ -919,8 +931,8 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		ID:        info.GetKey().GetID(),
 		Body:      info.GetMessage().GetConversation(),
 		Timestamp: int64(info.GetMessageTimestamp()),
-		IsCarbon:  info.GetKey().GetFromMe(),
 		IsHistory: true,
+		Chat:      Chat{JID: jid, IsGroup: true},
 	}
 
 	if info.Participant != nil {
@@ -928,9 +940,9 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		if err != nil {
 			return EventUnknown, nil
 		}
-		message.Sender = newSender(ctx, client, jid)
+		message.Actor = newActor(ctx, client, jid)
 	} else if info.GetKey().GetFromMe() {
-		message.Sender = newSender(ctx, client, client.Store.LID, *client.Store.ID)
+		message.Actor = newActor(ctx, client, client.Store.LID, *client.Store.ID)
 	} else {
 		// It's likely we cannot handle this message correctly if we don't know the concrete
 		// sender, so just ignore it completely.
@@ -949,7 +961,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		}
 		return EventCall, &EventPayload{Call: Call{
 			State:     CallMissed,
-			Sender:    newSender(ctx, client, jid),
+			Actor:     newActor(ctx, client, jid),
 			Timestamp: int64(info.GetMessageTimestamp()),
 		}}
 	case waWeb.WebMessageInfo_REVOKE:
@@ -970,12 +982,12 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 				continue
 			}
 			message.Reactions = append(message.Reactions, Message{
+				Chat:      message.Chat,
 				Kind:      MessageReaction,
 				ID:        r.GetKey().GetID(),
-				Sender:    newSender(ctx, client, jid),
+				Actor:     newActor(ctx, client, jid),
 				Body:      r.GetText(),
 				Timestamp: r.GetSenderTimestampMS() / 1000,
-				IsCarbon:  r.GetKey().GetFromMe(),
 			})
 		}
 	}
@@ -996,17 +1008,17 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	for _, r := range info.GetUserReceipt() {
 		// Ignore self-receipts for the moment, as these cannot be handled correctly by the adapter.
 		if client.Store.ID.ToNonAD().String() == r.GetUserJID() {
-			continue
+			continue // why? they're handled fine for live events
 		}
 		jid, err := types.ParseJID(r.GetUserJID())
 		if err != nil {
 			continue
 		}
 		var receipt = Receipt{
-			Sender:     message.Sender,
+			Actor:      newActor(ctx, client, jid),
+			Chat:       message.Chat,
 			MessageIDs: []string{message.ID},
 		}
-		receipt.Sender.JID = jid.ToNonAD().String()
 		switch info.GetStatus() {
 		case waWeb.WebMessageInfo_DELIVERY_ACK:
 			receipt.Kind = ReceiptDelivered
@@ -1049,21 +1061,18 @@ const (
 // whether the contact is currently composing a message. This is separate to the concept of a
 // Presence, which is the contact's general state across all discussions.
 type ChatState struct {
-	Kind   ChatStateKind
-	Sender Sender
-}
-
-type OutgoingChatState struct {
-	Kind ChatStateKind
-	Chat string
+	Kind  ChatStateKind
+	Chat  Chat
+	Actor Actor
 }
 
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
 func newChatStateEvent(ctx context.Context, client *whatsmeow.Client, evt *events.ChatPresence) (EventKind, *EventPayload) {
 	var state = ChatState{
-		Sender: newSender(ctx, client, evt.Sender, evt.SenderAlt, evt.Chat),
+		Actor: newActor(ctx, client, evt.Sender, evt.SenderAlt),
 	}
+	state.Chat = newChat(evt.IsGroup, evt.Chat, state.Actor)
 	switch evt.State {
 	case types.ChatPresenceComposing:
 		state.Kind = ChatStateComposing
@@ -1087,18 +1096,12 @@ const (
 // received. Receipts can be delivered for many messages at once, but are generally all delivered
 // under one specific state at a time.
 type Receipt struct {
-	Kind       ReceiptKind // The distinct kind of receipt presented.
-	MessageIDs []string    // The list of message IDs to mark for receipt.
-	Sender     Sender
-	Timestamp  int64
-	IsCarbon   bool
-}
-
-type OutgoingReceipt struct {
-	MessageIDs   []string // The list of message IDs to mark for receipt.
-	Chat         string
-	OriginSender Sender
-	Timestamp    int64
+	Kind        ReceiptKind // The distinct kind of receipt presented.
+	MessageIDs  []string    // The list of message IDs to mark for receipt.
+	Actor       Actor
+	OriginActor Actor
+	Chat        Chat
+	Timestamp   int64
 }
 
 // NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive receipt
@@ -1106,19 +1109,18 @@ type OutgoingReceipt struct {
 func newReceiptEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
-		Sender:     newSender(ctx, client, evt.Sender, evt.SenderAlt, evt.Chat),
+		Actor:      newActor(ctx, client, evt.Sender, evt.SenderAlt),
 		Timestamp:  evt.Timestamp.Unix(),
-		IsCarbon:   evt.IsFromMe,
 	}
-
-	receipt.Sender.IsMe = evt.IsFromMe
+	receipt.Chat = newChat(evt.IsGroup, evt.Chat, receipt.Actor)
+	receipt.Actor.IsMe = evt.IsFromMe
 
 	if len(receipt.MessageIDs) == 0 {
 		return EventUnknown, nil
 	}
 
 	if evt.Chat.Server == types.BroadcastServer {
-		receipt.Sender.JID = evt.BroadcastListOwner.ToNonAD().String()
+		receipt.Actor.JID = evt.BroadcastListOwner.ToNonAD().String()
 	}
 
 	switch evt.Type {
@@ -1192,7 +1194,7 @@ func (a GroupParticipantAction) toParticipantChange() whatsmeow.ParticipantChang
 // WhatsApp can generally be derived back to their individual [Contact]; there are no anonymous groups
 // in WhatsApp.
 type GroupParticipant struct {
-	Sender      Sender
+	Actor       Actor
 	Nickname    string                 // The user-set name for this participant, typically only set for anonymous participants.
 	Affiliation GroupAffiliation       // The set of priviledges given to this specific participant.
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
@@ -1207,11 +1209,11 @@ func newGroupParticipant(ctx context.Context, client *whatsmeow.Client, particip
 	}
 
 	var p = GroupParticipant{
-		Sender:   newSender(ctx, client, participant.PhoneNumber, participant.LID),
+		Actor:    newActor(ctx, client, participant.PhoneNumber, participant.LID),
 		Nickname: participant.DisplayName,
 	}
 
-	if p.Sender.JID != "" {
+	if p.Actor.JID != "" {
 		if c, err := client.Store.Contacts.GetContact(ctx, participant.JID); err == nil {
 			p.Nickname = c.PushName
 		}
@@ -1245,26 +1247,26 @@ func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Gr
 	}
 	for _, p := range evt.Join {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Sender: newSender(ctx, client, p),
+			Actor:  newActor(ctx, client, p),
 			Action: GroupParticipantActionAdd,
 		})
 	}
 	for _, p := range evt.Leave {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Sender: newSender(ctx, client, p),
+			Actor:  newActor(ctx, client, p),
 			Action: GroupParticipantActionRemove,
 		})
 	}
 	for _, p := range evt.Promote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Sender:      newSender(ctx, client, p),
+			Actor:       newActor(ctx, client, p),
 			Action:      GroupParticipantActionPromote,
 			Affiliation: GroupAffiliationAdmin,
 		})
 	}
 	for _, p := range evt.Demote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Sender:      newSender(ctx, client, p),
+			Actor:       newActor(ctx, client, p),
 			Action:      GroupParticipantActionDemote,
 			Affiliation: GroupAffiliationNone,
 		})
@@ -1326,7 +1328,7 @@ func callStateFromReason(reason string) CallState {
 // for notifying on missed calls.
 type Call struct {
 	State     CallState
-	Sender    Sender
+	Actor     Actor
 	Timestamp int64
 }
 
@@ -1338,7 +1340,7 @@ func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState
 
 	return EventCall, &EventPayload{Call: Call{
 		State:     state,
-		Sender:    newSender(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt),
+		Actor:     newActor(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt),
 		Timestamp: meta.Timestamp.Unix(),
 	}}
 }
@@ -1365,17 +1367,10 @@ func getPreferredJID(ctx context.Context, client *whatsmeow.Client, def types.JI
 	return def
 }
 
-type Sender struct {
-	JID      string
-	LID      string
-	GroupJID string
-	Others   []string
-	IsMe     bool
-}
-
-func newSender(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) Sender {
+// GORE PART STARTS HERE
+func newActor(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) Actor {
 	var jids = append([]types.JID{def}, alt...)
-	var sender = Sender{}
+	var actor = Actor{}
 	var lid = types.JID{}
 	for _, s := range jids {
 		if s.IsEmpty() {
@@ -1383,36 +1378,53 @@ func newSender(ctx context.Context, client *whatsmeow.Client, def types.JID, alt
 		}
 		var id = s.ToNonAD().String()
 
-		if s.Server == types.HiddenUserServer && sender.LID == "" {
-			sender.LID = id
+		if s.Server == types.HiddenUserServer && actor.LID == "" {
+			actor.LID = id
 			lid = s
 			if s == client.Store.GetLID() {
-				sender.IsMe = true
+				actor.IsMe = true
 			}
-		} else if s.Server == types.GroupServer && sender.GroupJID == "" {
-			sender.GroupJID = id
-		} else if s.Server == types.DefaultUserServer && sender.JID == "" {
-			sender.JID = id
+		} else if s.Server == types.DefaultUserServer && actor.JID == "" {
+			actor.JID = id
 			if s == client.Store.GetJID() {
-				sender.IsMe = true
+				actor.IsMe = true
 			}
 		} else {
-			sender.Others = append(sender.Others, id)
+			client.Log.Debugf("Unused JID or LID: %s", s)
 		}
 	}
 
-	if sender.IsMe {
-		if sender.JID == "" {
-			sender.JID = client.Store.GetJID().ToNonAD().String()
+	if actor.IsMe {
+		if actor.JID == "" {
+			actor.JID = client.Store.GetJID().ToNonAD().String()
 		}
-		if sender.LID == "" {
-			sender.LID = client.Store.GetLID().ToNonAD().String()
+		if actor.LID == "" {
+			actor.LID = client.Store.GetLID().ToNonAD().String()
 		}
-	} else if sender.JID == "" && !lid.IsEmpty() {
+	} else if actor.JID == "" && !lid.IsEmpty() {
 		if jid, _ := client.Store.LIDs.GetPNForLID(ctx, lid); !jid.IsEmpty() {
-			sender.JID = jid.ToNonAD().String()
+			actor.JID = jid.ToNonAD().String()
 		}
 	}
 
-	return sender
+	return actor
+}
+
+func newChat(isGroup bool, chatJID types.JID, actor Actor) Chat {
+	var chat = Chat{IsGroup: isGroup}
+	if isGroup {
+		if chatJID.Server == types.GroupServer {
+			chat.JID = chatJID.ToNonAD().String()
+		}
+	} else {
+		if chatJID.Server == types.DefaultUserServer {
+			chat.JID = chatJID.ToNonAD().String()
+		} else {
+			// WTF? Well, sometimes MessageSource.Chat is actually a LID
+			// I have noticed this for ChatState, but just to be safe, let's check
+			// for everything.
+			chat.JID = actor.JID
+		}
+	}
+	return chat
 }

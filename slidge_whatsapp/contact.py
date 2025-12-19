@@ -51,6 +51,16 @@ class Contact(AvatarMixin, LegacyContact[str]):
         await self.update_whatsapp_avatar()
         self.set_vcard(full_name=self.name, phone=str(self.jid.local))
 
+    def get_wa_chat(self) -> whatsapp.Chat:
+        return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)
+
+    async def get_wa_actor(self, legacy_msg_id: str) -> whatsapp.Actor:
+        carbon = self.session.message_is_carbon(self, legacy_msg_id)
+        return whatsapp.Actor(
+            JID=self.session.contacts.user_legacy_id if carbon else self.legacy_id,
+            IsMe=carbon,
+        )
+
 
 class Roster(LegacyRoster[str, Contact]):
     session: "Session"
