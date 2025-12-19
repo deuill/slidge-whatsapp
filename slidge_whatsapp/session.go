@@ -91,6 +91,7 @@ func (s *Session) Login() error {
 	s.client = whatsmeow.NewClient(store, s.gateway.logger)
 	s.client.AddEventHandler(s.handleEvent)
 	s.client.AutomaticMessageRerequestFromPhone = true
+	s.client.ErrorOnSubscribePresenceWithoutToken = true
 
 	// Refresh contact presences on a set interval, to avoid issues with WhatsApp dropping them
 	// entirely. Contact presences are refreshed only if our current status is set to "available";
@@ -479,7 +480,7 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 		}
 
 		if err = s.client.SubscribePresence(s.ctx, jid); err != nil {
-			s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
+			s.gateway.logger.Debugf("Failed to subscribe to presence for %s", jid)
 		}
 
 		contacts = append(contacts, c)
