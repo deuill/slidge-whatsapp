@@ -133,37 +133,38 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         Set MUC information based on WhatsApp group information, which may or may not be partial in
         case of updates to existing MUCs.
         """
-        self.type = MucType.GROUP
-        if info.Nickname:
-            self.user_nick = info.Nickname
-        if info.Name:
-            self.name = info.Name
-        if info.Subject.Subject:
-            self.subject = info.Subject.Subject
-            if info.Subject.SetAt:
-                set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
-                self.subject_date = set_at
-            if info.Subject.SetBy:
-                if info.Subject.SetBy.JID:
-                    self.subject_setter = await self.get_participant_by_actor(
-                        info.Subject.SetBy
-                    )
+        with self.updating_info():
+            self.type = MucType.GROUP
+            if info.Nickname:
+                self.user_nick = info.Nickname
+            if info.Name:
+                self.name = info.Name
+            if info.Subject.Subject:
+                self.subject = info.Subject.Subject
+                if info.Subject.SetAt:
+                    set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
+                    self.subject_date = set_at
+                if info.Subject.SetBy:
+                    if info.Subject.SetBy.JID:
+                        self.subject_setter = await self.get_participant_by_actor(
+                            info.Subject.SetBy
+                        )
 
-        await self.update_whatsapp_avatar()
-        self.n_participants = len(info.Participants)
-        for wa_part in info.Participants:
-            assert isinstance(wa_part, whatsapp.GroupParticipant)
-            participant = await self.get_participant_by_actor(
-                wa_part.Actor,
-                wa_part.Nickname,
-                create=wa_part.Action != whatsapp.GroupParticipantActionRemove,
-            )
-            if participant is None:
-                continue
-            if wa_part.Action == whatsapp.GroupParticipantActionRemove:
-                self.remove_participant(participant)
-            else:
-                participant.update_whatsapp_info(wa_part)
+            await self.update_whatsapp_avatar()
+            self.n_participants = len(info.Participants)
+            for wa_part in info.Participants:
+                assert isinstance(wa_part, whatsapp.GroupParticipant)
+                participant = await self.get_participant_by_actor(
+                    wa_part.Actor,
+                    wa_part.Nickname,
+                    create=wa_part.Action != whatsapp.GroupParticipantActionRemove,
+                )
+                if participant is None:
+                    continue
+                if wa_part.Action == whatsapp.GroupParticipantActionRemove:
+                    self.remove_participant(participant)
+                else:
+                    participant.update_whatsapp_info(wa_part)
 
     async def replace_mentions(self, text: str) -> str:
         # TODO: ideally, we shouldn't parse the text looking for mentions of any participant

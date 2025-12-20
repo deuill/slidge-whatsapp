@@ -43,13 +43,16 @@ class Contact(AvatarMixin, LegacyContact[str]):
         self.online()
 
     async def update_whatsapp_info(self, wa_contact: whatsapp.Contact) -> None:
-        self.session.log.debug(
-            "User named %s, friend: %s", wa_contact.Name, wa_contact.IsFriend
-        )
-        self.name = wa_contact.Name
-        self.is_friend = wa_contact.IsFriend or config.ADD_GROUP_PARTICIPANTS_TO_ROSTER
-        await self.update_whatsapp_avatar()
-        self.set_vcard(full_name=self.name, phone=str(self.jid.local))
+        with self.updating_info():
+            self.session.log.debug(
+                "User named %s, friend: %s", wa_contact.Name, wa_contact.IsFriend
+            )
+            self.name = wa_contact.Name
+            self.is_friend = (
+                wa_contact.IsFriend or config.ADD_GROUP_PARTICIPANTS_TO_ROSTER
+            )
+            await self.update_whatsapp_avatar()
+            self.set_vcard(full_name=self.name, phone=str(self.jid.local))
 
     def get_wa_chat(self) -> whatsapp.Chat:
         return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)
