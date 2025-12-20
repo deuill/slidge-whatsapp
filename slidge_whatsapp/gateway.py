@@ -1,3 +1,4 @@
+import os
 import warnings
 from logging import getLevelName, getLogger
 from pathlib import Path
@@ -23,6 +24,13 @@ WELCOME_MESSAGE = (
     "other available commands."
 )
 
+if os.cpu_count() is None:
+    warnings.warn(
+        "Could not determine the CPU count, assuming 1. "
+        "Consider launching slidge_whatsapp with 'python -X cpu_count=n -m slidge_whatsapp ...' "
+        "if you run into crashes related to the DB QueuePool."
+    )
+
 
 class Gateway(BaseGateway):
     COMPONENT_NAME = "WhatsApp (slidge)"
@@ -41,6 +49,10 @@ class Gateway(BaseGateway):
     MARK_ALL_MESSAGES = True
     GROUPS = True
     PROPER_RECEIPTS = True
+
+    DB_POOL_SIZE = (
+        os.cpu_count() or 1
+    ) + 31  # This should be higher than the number of threads
 
     def __init__(self):
         super().__init__()
