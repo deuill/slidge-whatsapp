@@ -106,7 +106,7 @@ func (s *Session) Login() error {
 			select {
 			case <-timer.C:
 				if presence == PresenceAvailable {
-					_, _ = s.GetContacts(false)
+					err = s.SubscribeToPresences()
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				} else {
 					timerStopped = true
@@ -118,7 +118,7 @@ func (s *Session) Login() error {
 					}
 					return
 				} else if timerStopped && p == PresenceAvailable {
-					_, _ = s.GetContacts(false)
+					err = s.SubscribeToPresences()
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				}
 				presence = p
@@ -486,6 +486,23 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 	}
 
 	return contacts, nil
+}
+
+func (s *Session) SubscribeToPresences() error {
+	data, err := s.client.Store.Contacts.GetAllContacts(s.ctx)
+	if err != nil {
+		return fmt.Errorf("failed getting local contacts: %s", err)
+	}
+	for jid := range data {
+		if jid.Server != types.DefaultUserServer {
+			continue
+		}
+
+		if err = s.client.SubscribePresence(s.ctx, jid); err != nil {
+			s.gateway.logger.Debugf("Failed to subscribe to presence for %s", jid)
+		}
+	}
+	return nil
 }
 
 // GetGroups returns a list of all group-chats currently joined in WhatsApp, along with additional
