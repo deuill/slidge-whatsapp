@@ -149,6 +149,14 @@ class Session(BaseSession[str, Recipient]):
             data = payload.PairDeviceID
         else:
             data = getattr(payload, event_name)
+        if event_kind not in (
+            whatsapp.EventQRCode,
+            whatsapp.EventPair,
+            whatsapp.EventConnect,
+            whatsapp.EventLoggedOut,
+        ):
+            await self.contacts.ready
+            await self.bookmarks.ready
         await handler(data)
 
     async def handle_QRCode(self, qr: str) -> None:
