@@ -37,6 +37,7 @@ const (
 	EventReceipt
 	EventGroup
 	EventCall
+	EventAvatar
 )
 
 // EventPayload represents the collected payloads for all event types handled by the overarching
@@ -54,6 +55,7 @@ type EventPayload struct {
 	Receipt      Receipt
 	Group        Group
 	Call         Call
+	Avatar       Avatar
 }
 
 // HandleEventFunc represents a handler for incoming events sent to the Python adapter, accepting an
@@ -76,6 +78,9 @@ type LoggedOut struct {
 type Avatar struct {
 	ID  string // The unique ID for this avatar, used for persistent caching.
 	URL string // The HTTP URL over which this avatar might be retrieved. Can change for the same ID.
+
+	ResourceID string // JID of the group or contact this avatar concerns
+	IsGroup    bool   // Whether this JID is a group or a contact
 }
 
 // A Contact represents any entity that be communicated with directly in WhatsApp. This typically

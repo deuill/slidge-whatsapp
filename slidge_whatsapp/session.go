@@ -48,6 +48,9 @@ const (
 	// order to provide a more natural interaction with remote WhatsApp servers.
 	presenceRefreshInterval = 12 * time.Hour
 
+	// Similarly, a sleep interval between making avatar-related calls to whatsapp
+	avatarFetchInterval = 100 * time.Millisecond
+
 	// The maximum number of messages to request at a time when performing on-demand history
 	// synchronization.
 	maxHistorySyncMessages = 50
@@ -67,10 +70,18 @@ type Session struct {
 	eventHandler HandleEventFunc   // The handler function to use for propagating events to the adapter.
 	presenceChan chan PresenceKind // A channel used for periodically refreshing contact presences.
 
+	avatarChan chan AvatarRequest // A channel used to queue JIDs for which we need to check if the slidge avatar cache is stale
+
 	// A flag to avoid subscribing to presences before the slidge roster is ready.
 	// Without it, receiving a large number of presences may end up saturating the maximum number
 	// of goroutines (all waiting for contacts to be ready), eventually blocking all events from being processed.
 	slidgeContactReady bool
+}
+
+// The content of a request, sent from python to go, to queue checking if a cached avatar is stale or not
+type AvatarRequest struct {
+	resourceID string // JID identifying a group or a contact
+	avatarID   string // Opaque unique ID identifying a picture
 }
 
 // Login attempts to authenticate the given [Session], either by re-using the [LinkedDevice] attached
@@ -131,6 +142,29 @@ func (s *Session) Login() error {
 		}
 	}()
 
+	s.avatarChan = make(chan AvatarRequest, 100000) // this should not grow too much, but it should absolutely not block
+	go func() {
+		for req := range s.avatarChan {
+			time.Sleep(avatarFetchInterval + time.Duration(rand.Int63n(int64(avatarFetchInterval))-int64(avatarFetchInterval/2)))
+			avatar, err := s.GetAvatar(req.resourceID, req.avatarID)
+			if err != nil {
+				s.gateway.logger.Errorf("Skipped fetching avatar for %s: %s", req.resourceID, err)
+				continue
+			}
+			if avatar.ID == req.avatarID {
+				s.gateway.logger.Debugf("Cached avatar is up-to-date")
+				continue
+			}
+			jid, err := types.ParseJID(req.resourceID)
+			if err != nil {
+				continue
+			}
+			avatar.ResourceID = req.resourceID
+			avatar.IsGroup = jid.Server == DefaultGroupServer
+			s.propagateEvent(EventAvatar, &EventPayload{Avatar: avatar})
+		}
+	}()
+
 	// Simply connect our client if already registered.
 	if s.client.Store.ID != nil {
 		return s.client.ConnectContext(s.ctx)
@@ -168,6 +202,7 @@ func (s *Session) Logout() error {
 		return nil
 	}
 
+	close(s.avatarChan)
 	err := s.client.Logout(s.ctx)
 	s.client = nil
 	s.ctxCancel(nil)
@@ -182,6 +217,7 @@ func (s *Session) Disconnect() error {
 		return nil
 	}
 
+	close(s.avatarChan)
 	s.client.Disconnect()
 	s.ctxCancel(nil)
 	s.client = nil
@@ -604,6 +640,11 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 	}
 
 	return Avatar{ID: avatarID}, nil
+}
+
+// Enqueue an avatar refresh. Processed in an anonymous go routine defined in Session.login()
+func (s *Session) QueueAvatarFetch(resourceID, avatarID string) {
+	s.avatarChan <- AvatarRequest{resourceID: resourceID, avatarID: avatarID}
 }
 
 // SetAvatar updates the profile picture for the Contact or Group JID given; it can also update the

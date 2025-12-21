@@ -15,6 +15,7 @@ from slidge.contact.roster import ContactIsUser
 from slidge.db.models import ArchivedMessage
 from slidge.util import is_valid_phone_number, replace_mentions
 from slidge.util.types import (
+    Avatar,
     LegacyAttachment,
     Mention,
     MessageReference,
@@ -346,6 +347,13 @@ class Session(BaseSession[str, Recipient]):
             await self.handle_Receipt(receipt)
         for reaction in message.Reactions:
             await self.handle_Message(reaction)
+
+    async def handle_Avatar(self, avatar: whatsapp.Avatar) -> None:
+        if avatar.IsGroup:
+            chat = await self.bookmarks.by_legacy_id(avatar.ResourceID)
+        else:
+            chat = await self.contacts.by_legacy_id(avatar.ResourceID)
+        chat.avatar = Avatar(url=avatar.URL or None, unique_id=avatar.ID or None)
 
     async def on_text(
         self,
