@@ -66,6 +66,9 @@ def ignore_contact_is_user(func):
     return wrapped
 
 
+EVENT_NAMES = {e.value: e.name.removeprefix("Event") for e in whatsapp.EventKind}
+
+
 class Session(BaseSession[str, Recipient]):
     xmpp: Gateway
     contacts: Roster
@@ -124,73 +127,87 @@ class Session(BaseSession[str, Recipient]):
         self.logged = False
 
     @ignore_contact_is_user
-    async def handle_event(self, event, ptr):
+    async def handle_event(self, event_kind: int, ptr):
         """
         Handle incoming event, as propagated by the WhatsApp adapter. Typically, events carry all
         state required for processing by the Gateway itself, and will do minimal processing themselves.
         """
-        data = whatsapp.EventPayload(handle=ptr)
-        if event == whatsapp.EventQRCode:
-            self.send_gateway_status("QR Scan Needed", show="dnd")
-            await self.send_qr(data.QRCode)
-        elif event == whatsapp.EventPair:
-            self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
-            self.legacy_module_data_set({"device_id": data.PairDeviceID})
-        elif event == whatsapp.EventConnect:
-            # On re-pair, Session.login() is not called by slidge core, so the status message is
-            # not updated.
-            if self.__connected.done():
-                if data.Connect.Error != "":
-                    self.send_gateway_status("Connection error", show="dnd")
-                    self.send_gateway_message(data.Connect.Error)
-                else:
-                    self.send_gateway_status(
-                        self.__get_connected_status_message(), show="chat"
-                    )
-            elif data.Connect.Error != "":
-                self.xmpp.loop.call_soon_threadsafe(
-                    self.__connected.set_exception,
-                    XMPPError("internal-server-error", data.Connect.Error),
-                )
-            else:
-                self.contacts.user_legacy_id = data.Connect.JID
-                self.user_phone = "+" + data.Connect.JID.split("@")[0]
-                self.xmpp.loop.call_soon_threadsafe(
-                    self.__connected.set_result, self.__get_connected_status_message()
-                )
-        elif event == whatsapp.EventLoggedOut:
-            self.logged = False
-            message = MESSAGE_LOGGED_OUT
-            if data.LoggedOut.Reason:
-                message += f"\nReason: {data.LoggedOut.Reason}"
-            self.send_gateway_message(message)
-            self.send_gateway_status("Logged out", show="away")
-            for muc in self.bookmarks:
-                # When we are logged out, the initial history sync may not completely
-                # cover the "hole" between logout and re-pair, so we want to request
-                # more history.
-                muc.history_requested = False  # type:ignore[attr-defined]
-        elif event == whatsapp.EventContact:
-            await self.contacts.add_whatsapp_contact(data.Contact)
-        elif event == whatsapp.EventGroup:
-            await self.bookmarks.add_whatsapp_group(data.Group)
-        elif event == whatsapp.EventPresence:
-            if data.Presence.Actor.JID:
-                contact = await self.contacts.by_legacy_id(data.Presence.Actor.JID)
-                await contact.update_presence(
-                    data.Presence.Kind, data.Presence.LastSeen
-                )
-            # TODO: LID participant presence update?
-        elif event == whatsapp.EventChatState:
-            await self.handle_chat_state(data.ChatState)
-        elif event == whatsapp.EventReceipt:
-            await self.handle_receipt(data.Receipt)
-        elif event == whatsapp.EventCall:
-            await self.handle_call(data.Call)
-        elif event == whatsapp.EventMessage:
-            await self.handle_message(data.Message)
+        if event_kind == whatsapp.EventUnknown:
+            return
+        event_name = EVENT_NAMES.get(event_kind)
+        if event_name is None:
+            # this should never be reached
+            self.log.warning("Unknown event kind: %s", event_kind)
+            return
+        handler = getattr(self, f"handle_{event_name}", None)
+        if handler is None:
+            self.log.warning("No handler for %s", event_name)
+            return
+        payload = whatsapp.EventPayload(handle=ptr)
+        if event_kind == whatsapp.EventPair:
+            # only case where the needed data does not have the same name
+            data = payload.PairDeviceID
+        else:
+            data = getattr(payload, event_name)
+        await handler(data)
 
-    async def handle_chat_state(self, state: whatsapp.ChatState):
+    async def handle_QRCode(self, qr: str) -> None:
+        self.send_gateway_status("QR Scan Needed", show="dnd")
+        await self.send_qr(qr)
+
+    async def handle_Pair(self, device_id: str) -> None:
+        self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
+        self.legacy_module_data_set({"device_id": device_id})
+
+    async def handle_Connect(self, connect: whatsapp.Connect) -> None:
+        # On re-pair, Session.login() is not called by slidge core, so the status message is
+        # not updated.
+        if self.__connected.done():
+            if connect.Error != "":
+                self.send_gateway_status("Connection error", show="dnd")
+                self.send_gateway_message(connect.Error)
+            else:
+                self.send_gateway_status(
+                    self.__get_connected_status_message(), show="chat"
+                )
+        elif connect.Error != "":
+            self.xmpp.loop.call_soon_threadsafe(
+                self.__connected.set_exception,
+                XMPPError("internal-server-error", connect.Error),
+            )
+        else:
+            self.contacts.user_legacy_id = connect.JID
+            self.user_phone = "+" + connect.JID.split("@")[0]
+            self.xmpp.loop.call_soon_threadsafe(
+                self.__connected.set_result, self.__get_connected_status_message()
+            )
+
+    async def handle_LoggedOut(self, logged_out: whatsapp.LoggedOut) -> None:
+        self.logged = False
+        message = MESSAGE_LOGGED_OUT
+        if logged_out.Reason:
+            message += f"\nReason: {logged_out.Reason}"
+        self.send_gateway_message(message)
+        self.send_gateway_status("Logged out", show="away")
+        for muc in self.bookmarks:
+            # When we are logged out, the initial history sync may not completely
+            # cover the "hole" between logout and re-pair, so we want to request
+            # more history.
+            muc.history_requested = False  # type:ignore[attr-defined]
+
+    async def handle_Contact(self, contact: whatsapp.Contact) -> None:
+        await self.contacts.add_whatsapp_contact(contact)
+
+    async def handle_Group(self, group: whatsapp.Group) -> None:
+        await self.bookmarks.add_whatsapp_group(group)
+
+    async def handle_Presence(self, presence: whatsapp.Presence) -> None:
+        if presence.Actor.JID:
+            contact = await self.contacts.by_legacy_id(presence.Actor.JID)
+            await contact.update_presence(presence.Kind, presence.LastSeen)
+        # TODO: LID participant presence update?
+
+    async def handle_ChatState(self, state: whatsapp.ChatState):
         contact = await self.__get_contact_or_participant(state.Chat, state.Actor)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
@@ -198,7 +215,7 @@ class Session(BaseSession[str, Recipient]):
         elif state.Kind == whatsapp.ChatStatePaused:
             contact.paused()
 
-    async def handle_receipt(self, receipt: whatsapp.Receipt):
+    async def handle_Receipt(self, receipt: whatsapp.Receipt):
         """
         Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
         """
@@ -216,7 +233,7 @@ class Session(BaseSession[str, Recipient]):
                 contact.displayed(legacy_msg_id=message_id, carbon=receipt.Actor.IsMe)
                 contact.online(last_seen=datetime.now())
 
-    async def handle_call(self, call: whatsapp.Call):
+    async def handle_Call(self, call: whatsapp.Call):
         if not call.Actor.JID:
             warnings.warn(f"Ignoring a call: {call}")
             return
@@ -233,7 +250,7 @@ class Session(BaseSession[str, Recipient]):
             text = text + f" at {call_at}"
         self.send_gateway_message(text)
 
-    async def handle_message(self, message: whatsapp.Message):
+    async def handle_Message(self, message: whatsapp.Message):
         """
         Handle incoming message, as propagated by the WhatsApp adapter. Messages can be one of many
         types, including plain-text messages, media messages, reactions, etc., and may also include
@@ -318,9 +335,9 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.Actor.IsMe,
             )
         for receipt in message.Receipts:
-            await self.handle_receipt(receipt)
+            await self.handle_Receipt(receipt)
         for reaction in message.Reactions:
-            await self.handle_message(reaction)
+            await self.handle_Message(reaction)
 
     async def on_text(
         self,
