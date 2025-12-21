@@ -1,10 +1,9 @@
 import re
-import warnings
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.types import Avatar, Hat, HoleBound, Mention, MucAffiliation
+from slidge.util.types import Hat, HoleBound, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
 from .avatar import AvatarMixin

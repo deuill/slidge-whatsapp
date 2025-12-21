@@ -495,7 +495,6 @@ class Session(BaseSession[str, Recipient]):
         Slidge core makes sure that the emojis parameter is always empty or a
         *single* emoji.
         """
-        is_carbon = self.message_is_carbon(c, legacy_msg_id)
         message = whatsapp.Message(
             Kind=whatsapp.MessageReaction,
             ID=legacy_msg_id,

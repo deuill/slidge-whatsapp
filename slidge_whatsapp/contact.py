@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, AsyncIterator
 
 from slidge import LegacyContact, LegacyRoster
-from slidge.util.types import Avatar
 from slixmpp.exceptions import XMPPError
 
 from . import config
@@ -94,7 +93,7 @@ class Roster(LegacyRoster[str, Contact]):
         return contact
 
     async def legacy_id_to_jid_username(self, legacy_id: str) -> str:
-        if not "@" in legacy_id:
+        if "@" not in legacy_id:
             raise XMPPError("item-not-found", "Invalid contact ID, not a JID")
         return "+" + legacy_id[: legacy_id.find("@")]
 
