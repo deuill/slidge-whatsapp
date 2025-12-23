@@ -1328,7 +1328,11 @@ func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState
 	}}
 }
 
-// GORE PART STARTS HERE
+// On the python side, we consider LIDs as unique anonymous identifiers for non-contact participants in groups.
+// In WhatsApp events though, actors are sometimes identified with their JID, and sometimes with their LID,
+// even when they are not anonymous to the slidge user, ie, when whatsmeow knows the LID/JID mapping.
+// newActor() takes data from whatsapp event, and make sure that a corresponding JID is attached in this case.
+// It also identifies events originating from the slidge user, using the IsMe field.
 func newActor(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) Actor {
 	var jids = append([]types.JID{def}, alt...)
 	var actor = Actor{}
@@ -1371,6 +1375,9 @@ func newActor(ctx context.Context, client *whatsmeow.Client, def types.JID, alt 
 	return actor
 }
 
+// newChat combines data extracted from an incoming WhatsApp event combined with
+// data obtained through newActor() to ensure that a Chat is always identified
+// with a JID.
 func newChat(isGroup bool, chatJID types.JID, actor Actor) Chat {
 	var chat = Chat{IsGroup: isGroup}
 	if isGroup {
