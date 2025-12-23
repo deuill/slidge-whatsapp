@@ -132,19 +132,6 @@ class Session(BaseSession[str, Recipient]):
         """
         if event_kind == whatsapp.EventUnknown:
             return
-        event_name = EVENT_NAMES.get(event_kind)
-        if event_name is None:
-            # this should never be reached
-            self.log.warning("Unknown event kind: %s", event_kind)
-            return
-        handler = EVENT_HANDLERS.get(event_kind)
-        if handler is None:
-            self.log.warning("No handler for %s", event_kind)
-            return
-        payload = whatsapp.EventPayload(handle=ptr)
-        data = getattr(payload, event_name, None)
-        if data is None:
-            self.log.warning("No payload for event: %s", event_name)
         if event_kind not in (
             whatsapp.EventQRCode,
             whatsapp.EventPairDeviceID,
@@ -153,7 +140,34 @@ class Session(BaseSession[str, Recipient]):
         ):
             await self.contacts.ready
             await self.bookmarks.ready
-        await handler(self, data)  # type:ignore[operator]
+        event = whatsapp.EventPayload(handle=ptr)
+        match event_kind:
+            case whatsapp.EventQRCode:
+                await self.on_wa_qr(event.QRCode)
+            case whatsapp.EventConnect:
+                await self.on_wa_connect(event.Connect)
+            case whatsapp.EventPairDeviceID:
+                await self.on_wa_pair(event.PairDeviceID)
+            case whatsapp.EventLoggedOut:
+                await self.on_wa_logged_out(event.LoggedOut)
+            case whatsapp.EventContact:
+                await self.on_wa_contact(event.Contact)
+            case whatsapp.EventPresence:
+                await self.on_wa_presence(event.Presence)
+            case whatsapp.EventMessage:
+                await self.on_wa_message(event.Message)
+            case whatsapp.EventChatState:
+                await self.on_wa_chat_state(event.ChatState)
+            case whatsapp.EventReceipt:
+                await self.on_wa_receipt(event.Receipt)
+            case whatsapp.EventGroup:
+                await self.on_wa_group(event.Group)
+            case whatsapp.EventCall:
+                await self.on_wa_call(event.Call)
+            case whatsapp.EventAvatar:
+                await self.on_wa_avatar(event.Avatar)
+            case _:
+                self.log.warning("No handler for event of kind %s", event_kind)
 
     async def on_wa_qr(self, qr: str) -> None:
         self.send_gateway_status("QR Scan Needed", show="dnd")
@@ -278,14 +292,21 @@ class Session(BaseSession[str, Recipient]):
         if message.GroupInvite.JID:
             text = f"Received group invite for xmpp:{message.GroupInvite.JID} from {actor.name}, auto-joining..."
             self.send_gateway_message(text)
-        handler = MESSAGE_HANDLERS.get(message.Kind)
-        if handler is None:
-            self.log.warning(
-                "No handler for message kind %s", MESSAGE_NAMES.get(message.Kind)
-            )
-            return
 
-        await handler(self, message, actor, muc)
+        match message.Kind:
+            case whatsapp.MessagePlain:
+                await self.on_wa_msg_plain(message, actor, muc)
+            case whatsapp.MessageEdit:
+                await self.on_wa_msg_edit(message, actor, muc)
+            case whatsapp.MessageRevoke:
+                await self.on_wa_msg_revoke(message, actor, muc)
+            case whatsapp.MessageReaction:
+                await self.on_wa_msg_reaction(message, actor, muc)
+            case whatsapp.MessageAttachment:
+                await self.on_wa_msg_attachment(message, actor, muc)
+            case whatsapp.MessagePoll:
+                await self.on_wa_msg_poll(message, actor, muc)
+
         for receipt in message.Receipts:
             await self.on_wa_receipt(receipt)
         for reaction in message.Reactions:
@@ -847,34 +868,6 @@ class Session(BaseSession[str, Recipient]):
             message.OriginActor.JID = chat.legacy_id
 
         return message
-
-
-EVENT_NAMES = {e.value: e.name.removeprefix("Event") for e in whatsapp.EventKind}
-EVENT_HANDLERS = {
-    whatsapp.EventQRCode: Session.on_wa_qr,
-    whatsapp.EventPairDeviceID: Session.on_wa_pair,
-    whatsapp.EventConnect: Session.on_wa_connect,
-    whatsapp.EventLoggedOut: Session.on_wa_logged_out,
-    whatsapp.EventContact: Session.on_wa_contact,
-    whatsapp.EventPresence: Session.on_wa_presence,
-    whatsapp.EventMessage: Session.on_wa_message,
-    whatsapp.EventChatState: Session.on_wa_chat_state,
-    whatsapp.EventReceipt: Session.on_wa_receipt,
-    whatsapp.EventGroup: Session.on_wa_group,
-    whatsapp.EventCall: Session.on_wa_call,
-    whatsapp.EventAvatar: Session.on_wa_avatar,
-}
-
-
-MESSAGE_NAMES = {e.value: e.name.removeprefix("Message") for e in whatsapp.MessageKind}
-MESSAGE_HANDLERS = {
-    whatsapp.MessagePlain: Session.on_wa_msg_plain,
-    whatsapp.MessageEdit: Session.on_wa_msg_edit,
-    whatsapp.MessageRevoke: Session.on_wa_msg_revoke,
-    whatsapp.MessageReaction: Session.on_wa_msg_reaction,
-    whatsapp.MessageAttachment: Session.on_wa_msg_attachment,
-    whatsapp.MessagePoll: Session.on_wa_msg_poll,
-}
 
 
 class Attachment(LegacyAttachment):
