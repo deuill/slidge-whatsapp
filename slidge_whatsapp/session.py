@@ -212,7 +212,7 @@ class Session(BaseSession[str, Recipient]):
         # TODO: LID participant presence update?
 
     async def on_wa_chat_state(self, state: whatsapp.ChatState):
-        contact = await self.__get_contact_or_participant(state.Chat, state.Actor)
+        contact, _muc = await self.__get_contact_or_participant(state.Chat, state.Actor)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
             contact.online(last_seen=datetime.now())
@@ -224,7 +224,7 @@ class Session(BaseSession[str, Recipient]):
         Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
         """
         try:
-            contact = await self.__get_contact_or_participant(
+            contact, _muc = await self.__get_contact_or_participant(
                 receipt.Chat, receipt.Actor
             )
         except ValueError:
@@ -260,11 +260,9 @@ class Session(BaseSession[str, Recipient]):
         types, including plain-text messages, media messages, reactions, etc., and may also include
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
-        contact = await self.__get_contact_or_participant(message.Chat, message.Actor)
-        muc = getattr(contact, "muc", None)
         # Skip handing message that's already in our message archive.
         if (
-            muc is not None
+            message.Chat.IsGroup
             and message.IsHistory
             and await self.__is_message_in_archive(message.ID)
         ):
@@ -273,75 +271,102 @@ class Session(BaseSession[str, Recipient]):
             # we fill our MAM table with (hopefully just a few) duplicate rows for all reactions, receipts,
             # displayed markers, retractions and corrections.
             return
-        contact.online(last_seen=datetime.now())
-        reply_to = await self.__get_reply_to(message, muc)
-        message_timestamp = (
-            datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
-            if message.Timestamp > 0
-            else None
+        actor, muc = await self.__get_contact_or_participant(
+            message.Chat, message.Actor
         )
+        actor.online(last_seen=datetime.now())
         if message.GroupInvite.JID:
-            text = f"Received group invite for xmpp:{message.GroupInvite.JID} from {contact.name}, auto-joining..."
+            text = f"Received group invite for xmpp:{message.GroupInvite.JID} from {actor.name}, auto-joining..."
             self.send_gateway_message(text)
-        if message.Kind == whatsapp.MessagePlain:
-            body = await self.__get_body(message, muc)
-            contact.send_text(
-                body=body,
-                legacy_msg_id=message.ID,
-                when=message_timestamp,
-                reply_to=reply_to,
-                carbon=message.Actor.IsMe,
+        handler = MESSAGE_HANDLERS.get(message.Kind)
+        if handler is None:
+            self.log.warning(
+                "No handler for message kind %s", MESSAGE_NAMES.get(message.Kind)
             )
-        elif message.Kind == whatsapp.MessageAttachment:
-            attachments = await Attachment.convert_list(message.Attachments, muc)
-            await contact.send_files(
-                attachments=attachments,
-                legacy_msg_id=message.ID,
-                reply_to=reply_to,
-                when=message_timestamp,
-                carbon=message.Actor.IsMe,
-            )
-            for attachment in attachments:
-                if global_config.NO_UPLOAD_METHOD != "symlink":
-                    self.log.debug("Removing '%s' from disk", attachment.path)
-                    if attachment.path is None:
-                        continue
-                    Path(attachment.path).unlink(missing_ok=True)
-        elif message.Kind == whatsapp.MessageEdit:
-            contact.correct(
-                legacy_msg_id=message.ReferenceID,
-                new_text=message.Body,
-                when=message_timestamp,
-                reply_to=reply_to,
-                carbon=message.Actor.IsMe,
-                correction_event_id=message.ID,
-            )
-        elif message.Kind == whatsapp.MessageRevoke:
-            if muc is None or message.OriginActor.JID == message.Actor.JID:
-                contact.retract(legacy_msg_id=message.ID, carbon=message.Actor.IsMe)
-            else:
-                assert isinstance(contact, Participant)
-                contact.moderate(legacy_msg_id=message.ID)
-        elif message.Kind == whatsapp.MessageReaction:
-            emojis = [message.Body] if message.Body else []
-            contact.react(
-                legacy_msg_id=message.ID, emojis=emojis, carbon=message.Actor.IsMe
-            )
-        elif message.Kind == whatsapp.MessagePoll:
-            body = "🗳 %s" % message.Poll.Title
-            for option in message.Poll.Options:
-                body = body + "\n☐ %s" % option.Title
-            contact.send_text(
-                body=body,
-                legacy_msg_id=message.ID,
-                when=message_timestamp,
-                reply_to=reply_to,
-                carbon=message.Actor.IsMe,
-            )
+            return
+
+        await handler(self, message, actor, muc)
         for receipt in message.Receipts:
             await self.on_wa_receipt(receipt)
         for reaction in message.Reactions:
             await self.on_wa_message(reaction)
+
+    def __get_timestamp(self, message: whatsapp.Message) -> datetime | None:
+        return (
+            datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
+            if message.Timestamp > 0
+            else None
+        )
+
+    async def on_wa_msg_plain(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        actor.send_text(
+            body=await self.__get_body(message, muc),
+            legacy_msg_id=message.ID,
+            when=self.__get_timestamp(message),
+            reply_to=await self.__get_reply_to(message, muc),
+            carbon=message.Actor.IsMe,
+        )
+
+    async def on_wa_msg_attachment(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        attachments = await Attachment.convert_list(message.Attachments, muc)
+        await actor.send_files(
+            attachments=attachments,
+            legacy_msg_id=message.ID,
+            reply_to=await self.__get_reply_to(message, muc),
+            when=self.__get_timestamp(message),
+            carbon=message.Actor.IsMe,
+        )
+        for attachment in attachments:
+            if global_config.NO_UPLOAD_METHOD != "symlink":
+                self.log.debug("Removing '%s' from disk", attachment.path)
+                if attachment.path is None:
+                    continue
+                Path(attachment.path).unlink(missing_ok=True)
+
+    async def on_wa_msg_edit(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        actor.correct(
+            legacy_msg_id=message.ReferenceID,
+            new_text=message.Body,
+            reply_to=await self.__get_reply_to(message, muc),
+            when=self.__get_timestamp(message),
+            carbon=message.Actor.IsMe,
+            correction_event_id=message.ID,
+        )
+
+    async def on_wa_msg_revoke(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        if muc is None or message.OriginActor.JID == message.Actor.JID:
+            actor.retract(legacy_msg_id=message.ID, carbon=message.Actor.IsMe)
+        else:
+            assert isinstance(actor, Participant)
+            actor.moderate(legacy_msg_id=message.ID)
+
+    async def on_wa_msg_reaction(
+        self, message: whatsapp.Message, actor: Contact | Participant, _muc: MUC | None
+    ) -> None:
+        emojis = [message.Body] if message.Body else []
+        actor.react(legacy_msg_id=message.ID, emojis=emojis, carbon=message.Actor.IsMe)
+
+    async def on_wa_msg_poll(
+        self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
+    ) -> None:
+        body = "🗳 %s" % message.Poll.Title
+        for option in message.Poll.Options:
+            body = body + "\n☐ %s" % option.Title
+        actor.send_text(
+            body=body,
+            legacy_msg_id=message.ID,
+            reply_to=await self.__get_reply_to(message, muc),
+            when=self.__get_timestamp(message),
+            carbon=message.Actor.IsMe,
+        )
 
     async def on_wa_avatar(self, avatar: whatsapp.Avatar) -> None:
         if avatar.IsGroup:
@@ -673,7 +698,7 @@ class Session(BaseSession[str, Recipient]):
         if message.OriginActor.JID == self.contacts.user_legacy_id:
             reply_to.author = "user"
         else:
-            reply_to.author = await self.__get_contact_or_participant(
+            reply_to.author, _muc = await self.__get_contact_or_participant(
                 message.Chat, message.OriginActor
             )
         return reply_to
@@ -762,25 +787,27 @@ class Session(BaseSession[str, Recipient]):
 
     async def __get_contact_or_participant(
         self, chat: whatsapp.Chat, actor: whatsapp.Actor
-    ) -> Contact | Participant:
+    ) -> tuple[Contact | Participant, MUC | None]:
         """
         Return either a Contact or a Participant instance for the given contact and group JIDs.
         """
         if chat.IsGroup:
             muc = await self.bookmarks.by_legacy_id(chat.JID)
             if actor.IsMe:
-                return await muc.get_user_participant(occupant_id=actor.LID or None)
+                return await muc.get_user_participant(
+                    occupant_id=actor.LID or None
+                ), muc
             elif actor.JID:
                 return await muc.get_participant_by_legacy_id(  # type:ignore[call-overload]
                     actor.JID, occupant_id=actor.LID or None
-                )
+                ), muc
             else:
                 assert actor.LID
-                return await muc.get_participant(occupant_id=actor.LID)
+                return await muc.get_participant(occupant_id=actor.LID), muc
         elif not actor.JID:
             raise ValueError("Contact for anonymous JID")
         else:
-            return await self.contacts.by_legacy_id(chat.JID)
+            return await self.contacts.by_legacy_id(chat.JID), None
 
     def __set_reply_to(
         self,
@@ -836,6 +863,17 @@ EVENT_HANDLERS = {
     whatsapp.EventGroup: Session.on_wa_group,
     whatsapp.EventCall: Session.on_wa_call,
     whatsapp.EventAvatar: Session.on_wa_avatar,
+}
+
+
+MESSAGE_NAMES = {e.value: e.name.removeprefix("Message") for e in whatsapp.MessageKind}
+MESSAGE_HANDLERS = {
+    whatsapp.MessagePlain: Session.on_wa_msg_plain,
+    whatsapp.MessageEdit: Session.on_wa_msg_edit,
+    whatsapp.MessageRevoke: Session.on_wa_msg_revoke,
+    whatsapp.MessageReaction: Session.on_wa_msg_reaction,
+    whatsapp.MessageAttachment: Session.on_wa_msg_attachment,
+    whatsapp.MessagePoll: Session.on_wa_msg_poll,
 }
 
 
