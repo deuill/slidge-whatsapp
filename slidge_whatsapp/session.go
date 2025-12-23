@@ -904,7 +904,7 @@ func (s *Session) handleEvent(evt any) {
 			return
 		}
 		s.device.ID = s.client.Store.ID.String()
-		s.propagateEvent(EventPair, &EventPayload{PairDeviceID: s.device.ID})
+		s.propagateEvent(EventPairDeviceID, &EventPayload{PairDeviceID: s.device.ID})
 		if err := s.gateway.CleanupSession(LinkedDevice{ID: s.device.ID}); err != nil {
 			s.gateway.logger.Warnf("Failed to clean up devices after pair: %s", err)
 		}

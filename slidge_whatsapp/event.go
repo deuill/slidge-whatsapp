@@ -27,7 +27,7 @@ type EventKind int
 const (
 	EventUnknown EventKind = iota
 	EventQRCode
-	EventPair
+	EventPairDeviceID
 	EventConnect
 	EventLoggedOut
 	EventContact

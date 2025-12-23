@@ -67,9 +67,6 @@ def ignore_contact_is_user(func):
     return wrapped
 
 
-EVENT_NAMES = {e.value: e.name.removeprefix("Event") for e in whatsapp.EventKind}
-
-
 class Session(BaseSession[str, Recipient]):
     xmpp: Gateway
     contacts: Roster
@@ -140,35 +137,33 @@ class Session(BaseSession[str, Recipient]):
             # this should never be reached
             self.log.warning("Unknown event kind: %s", event_kind)
             return
-        handler = getattr(self, f"handle_{event_name}", None)
+        handler = EVENT_HANDLERS.get(event_kind)
         if handler is None:
-            self.log.warning("No handler for %s", event_name)
+            self.log.warning("No handler for %s", event_kind)
             return
         payload = whatsapp.EventPayload(handle=ptr)
-        if event_kind == whatsapp.EventPair:
-            # only case where the needed data does not have the same name
-            data = payload.PairDeviceID
-        else:
-            data = getattr(payload, event_name)
+        data = getattr(payload, event_name, None)
+        if data is None:
+            self.log.warning("No payload for event: %s", event_name)
         if event_kind not in (
             whatsapp.EventQRCode,
-            whatsapp.EventPair,
+            whatsapp.EventPairDeviceID,
             whatsapp.EventConnect,
             whatsapp.EventLoggedOut,
         ):
             await self.contacts.ready
             await self.bookmarks.ready
-        await handler(data)
+        await handler(self, data)  # type:ignore[operator]
 
-    async def handle_QRCode(self, qr: str) -> None:
+    async def on_wa_qr(self, qr: str) -> None:
         self.send_gateway_status("QR Scan Needed", show="dnd")
         await self.send_qr(qr)
 
-    async def handle_Pair(self, device_id: str) -> None:
+    async def on_wa_pair(self, device_id: str) -> None:
         self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
         self.legacy_module_data_set({"device_id": device_id})
 
-    async def handle_Connect(self, connect: whatsapp.Connect) -> None:
+    async def on_wa_connect(self, connect: whatsapp.Connect) -> None:
         # On re-pair, Session.login() is not called by slidge core, so the status message is
         # not updated.
         if self.__connected.done():
@@ -191,7 +186,7 @@ class Session(BaseSession[str, Recipient]):
                 self.__connected.set_result, self.__get_connected_status_message()
             )
 
-    async def handle_LoggedOut(self, logged_out: whatsapp.LoggedOut) -> None:
+    async def on_wa_logged_out(self, logged_out: whatsapp.LoggedOut) -> None:
         self.logged = False
         message = MESSAGE_LOGGED_OUT
         if logged_out.Reason:
@@ -204,19 +199,19 @@ class Session(BaseSession[str, Recipient]):
             # more history.
             muc.history_requested = False  # type:ignore[attr-defined]
 
-    async def handle_Contact(self, contact: whatsapp.Contact) -> None:
+    async def on_wa_contact(self, contact: whatsapp.Contact) -> None:
         await self.contacts.add_whatsapp_contact(contact)
 
-    async def handle_Group(self, group: whatsapp.Group) -> None:
+    async def on_wa_group(self, group: whatsapp.Group) -> None:
         await self.bookmarks.add_whatsapp_group(group)
 
-    async def handle_Presence(self, presence: whatsapp.Presence) -> None:
+    async def on_wa_presence(self, presence: whatsapp.Presence) -> None:
         if presence.Actor.JID:
             contact = await self.contacts.by_legacy_id(presence.Actor.JID)
             await contact.update_presence(presence.Kind, presence.LastSeen)
         # TODO: LID participant presence update?
 
-    async def handle_ChatState(self, state: whatsapp.ChatState):
+    async def on_wa_chat_state(self, state: whatsapp.ChatState):
         contact = await self.__get_contact_or_participant(state.Chat, state.Actor)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
@@ -224,7 +219,7 @@ class Session(BaseSession[str, Recipient]):
         elif state.Kind == whatsapp.ChatStatePaused:
             contact.paused()
 
-    async def handle_Receipt(self, receipt: whatsapp.Receipt):
+    async def on_wa_receipt(self, receipt: whatsapp.Receipt):
         """
         Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
         """
@@ -242,7 +237,7 @@ class Session(BaseSession[str, Recipient]):
                 contact.displayed(legacy_msg_id=message_id, carbon=receipt.Actor.IsMe)
                 contact.online(last_seen=datetime.now())
 
-    async def handle_Call(self, call: whatsapp.Call):
+    async def on_wa_call(self, call: whatsapp.Call):
         if not call.Actor.JID:
             warnings.warn(f"Ignoring a call: {call}")
             return
@@ -259,7 +254,7 @@ class Session(BaseSession[str, Recipient]):
             text = text + f" at {call_at}"
         self.send_gateway_message(text)
 
-    async def handle_Message(self, message: whatsapp.Message):
+    async def on_wa_message(self, message: whatsapp.Message):
         """
         Handle incoming message, as propagated by the WhatsApp adapter. Messages can be one of many
         types, including plain-text messages, media messages, reactions, etc., and may also include
@@ -344,11 +339,11 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.Actor.IsMe,
             )
         for receipt in message.Receipts:
-            await self.handle_Receipt(receipt)
+            await self.on_wa_receipt(receipt)
         for reaction in message.Reactions:
-            await self.handle_Message(reaction)
+            await self.on_wa_message(reaction)
 
-    async def handle_Avatar(self, avatar: whatsapp.Avatar) -> None:
+    async def on_wa_avatar(self, avatar: whatsapp.Avatar) -> None:
         if avatar.IsGroup:
             chat = await self.bookmarks.by_legacy_id(avatar.ResourceID)
         else:
@@ -825,6 +820,23 @@ class Session(BaseSession[str, Recipient]):
             message.OriginActor.JID = chat.legacy_id
 
         return message
+
+
+EVENT_NAMES = {e.value: e.name.removeprefix("Event") for e in whatsapp.EventKind}
+EVENT_HANDLERS = {
+    whatsapp.EventQRCode: Session.on_wa_qr,
+    whatsapp.EventPairDeviceID: Session.on_wa_pair,
+    whatsapp.EventConnect: Session.on_wa_connect,
+    whatsapp.EventLoggedOut: Session.on_wa_logged_out,
+    whatsapp.EventContact: Session.on_wa_contact,
+    whatsapp.EventPresence: Session.on_wa_presence,
+    whatsapp.EventMessage: Session.on_wa_message,
+    whatsapp.EventChatState: Session.on_wa_chat_state,
+    whatsapp.EventReceipt: Session.on_wa_receipt,
+    whatsapp.EventGroup: Session.on_wa_group,
+    whatsapp.EventCall: Session.on_wa_call,
+    whatsapp.EventAvatar: Session.on_wa_avatar,
+}
 
 
 class Attachment(LegacyAttachment):
