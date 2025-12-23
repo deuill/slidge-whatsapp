@@ -71,11 +71,6 @@ type Session struct {
 	presenceChan chan PresenceKind // A channel used for periodically refreshing contact presences.
 
 	avatarChan chan AvatarRequest // A channel used to queue JIDs for which we need to check if the slidge avatar cache is stale
-
-	// A flag to avoid subscribing to presences before the slidge roster is ready.
-	// Without it, receiving a large number of presences may end up saturating the maximum number
-	// of goroutines (all waiting for contacts to be ready), eventually blocking all events from being processed.
-	slidgeContactReady bool
 }
 
 // The content of a request, sent from python to go, to queue checking if a cached avatar is stale or not
@@ -122,7 +117,7 @@ func (s *Session) Login() error {
 			select {
 			case <-timer.C:
 				if presence == PresenceAvailable {
-					err = s.SubscribeToPresences()
+					s.SubscribeToPresences()
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				} else {
 					timerStopped = true
@@ -134,7 +129,7 @@ func (s *Session) Login() error {
 					}
 					return
 				} else if timerStopped && p == PresenceAvailable {
-					err = s.SubscribeToPresences()
+					s.SubscribeToPresences()
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				}
 				presence = p
@@ -522,25 +517,13 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 			continue
 		}
 
-		if err = s.client.SubscribePresence(s.ctx, jid); err != nil {
-			s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
-		}
-
 		contacts = append(contacts, c)
 	}
 
 	return contacts, nil
 }
 
-func (s *Session) SetSlidgeContactsReady(ready bool) {
-	s.slidgeContactReady = ready
-}
-
 func (s *Session) SubscribeToPresences() error {
-	if !s.slidgeContactReady {
-		return fmt.Errorf("slidge is not ready to handle presences")
-	}
-
 	data, err := s.client.Store.Contacts.GetAllContacts(s.ctx)
 	if err != nil {
 		return fmt.Errorf("failed getting local contacts: %s", err)
@@ -916,7 +899,6 @@ func (s *Session) handleEvent(evt any) {
 			s.gateway.logger.Warnf("Unable to delete local device state on logout: %s", err)
 		}
 		s.client = nil
-		s.SetSlidgeContactsReady(false)
 		s.propagateEvent(EventLoggedOut, &EventPayload{LoggedOut: LoggedOut{Reason: evt.Reason.String()}})
 	case *events.PairSuccess:
 		if s.client.Store.ID == nil {

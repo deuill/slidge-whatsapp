@@ -79,7 +79,7 @@ class Roster(LegacyRoster[str, Contact]):
             contact = await self.add_whatsapp_contact(wa_contact)
             if contact is not None:
                 yield contact
-        self.session.whatsapp.SetSlidgeContactsReady(True)
+        self.session.whatsapp.SubscribeToPresences()
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:
         """
