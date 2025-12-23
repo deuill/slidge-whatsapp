@@ -173,17 +173,17 @@ func (s *Session) Login() error {
 
 	go func() {
 		for e := range qrChan {
-			if e.Event == "timeout" {
-				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: "You did not flash the QR code in time. Use re-login when you are ready."}})
-			}
-			if !s.client.IsConnected() {
-				return
-			}
 			switch e.Event {
+			case "success":
+				return
 			case whatsmeow.QRChannelEventCode:
 				s.propagateEvent(EventQRCode, &EventPayload{QRCode: e.Code})
 			case whatsmeow.QRChannelEventError:
 				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: e.Error.Error()}})
+			case "timeout":
+				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: "You did not flash the QR code in time. Use re-login when you are ready."}})
+			default:
+				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: e.Event}})
 			}
 		}
 	}()
