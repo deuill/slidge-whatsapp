@@ -16,4 +16,4 @@ class AvatarMixin(BaseAvatarMixin):
             # assert=workaround for poor type annotations in slidge core
             assert not isinstance(self.avatar.unique_id, int)
             unique_id = self.avatar.unique_id or ""
-        self.session.whatsapp.QueueAvatarFetch(self.legacy_id, unique_id)
+        self.session.whatsapp.RequestAvatar(self.legacy_id, unique_id)
