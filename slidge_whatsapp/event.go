@@ -920,7 +920,6 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		Body:      info.GetMessage().GetConversation(),
 		Timestamp: int64(info.GetMessageTimestamp()),
 		IsHistory: true,
-		Chat:      Chat{JID: jid, IsGroup: true},
 	}
 
 	if info.Participant != nil {
@@ -929,8 +928,14 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 			return EventUnknown, nil
 		}
 		message.Actor = newActor(ctx, client, jid)
+		message.Chat = newChat(true, jid, message.Actor)
 	} else if info.GetKey().GetFromMe() {
 		message.Actor = newActor(ctx, client, client.Store.LID, *client.Store.ID)
+		jid, err := types.ParseJID(jid)
+		if err != nil {
+			return EventUnknown, nil
+		}
+		message.Chat = newChat(true, jid, message.Actor)
 	} else {
 		// It's likely we cannot handle this message correctly if we don't know the concrete
 		// sender, so just ignore it completely.
