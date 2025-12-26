@@ -482,11 +482,7 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 
 	var contacts []Contact
 	for jid, info := range data {
-		c := newContact(jid, info)
-		if c.JID == "" {
-			continue
-		}
-
+		c := newContact(newActor(s.ctx, s.client, jid), info)
 		contacts = append(contacts, c)
 	}
 
@@ -745,8 +741,9 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 	}
 
 	jid := types.NewJID(phone, DefaultUserServer)
+	actor := newActor(s.ctx, s.client, jid)
 	if info, err := s.client.Store.Contacts.GetContact(s.ctx, jid); err == nil && info.Found {
-		if c := newContact(jid, info); c.JID != "" {
+		if c := newContact(actor, info); c.Actor.JID != "" {
 			return c, nil
 		}
 	}
@@ -760,12 +757,12 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 		return Contact{}, nil
 	}
 
-	actor := newActor(s.ctx, s.client, resp[0].JID)
+	actor = newActor(s.ctx, s.client, resp[0].JID)
 	if actor.JID == "" {
 		return Contact{}, nil
 	}
 
-	return Contact{JID: actor.JID}, nil
+	return Contact{Actor: actor}, nil
 }
 
 // RequestMessageHistory sends and asynchronous request for message history related to the given
@@ -856,14 +853,7 @@ func (s *Session) handleEvent(evt any) {
 		switch evt.Data.GetSyncType() {
 		case waHistorySync.HistorySync_PUSH_NAME:
 			for _, n := range evt.Data.GetPushnames() {
-				jid, err := types.ParseJID(n.GetID())
-				if err != nil || jid.Server == types.HiddenUserServer {
-					continue
-				}
-				s.propagateEvent(newContactEvent(jid, types.ContactInfo{FullName: n.GetPushname()}))
-				if err = s.client.SubscribePresence(s.ctx, jid); err != nil {
-					s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
-				}
+				s.propagateEvent(newContactEventFromHistory(s.ctx, s.client, n))
 			}
 		case waHistorySync.HistorySync_INITIAL_BOOTSTRAP, waHistorySync.HistorySync_RECENT, waHistorySync.HistorySync_ON_DEMAND:
 			for _, c := range evt.Data.GetConversations() {
@@ -878,8 +868,10 @@ func (s *Session) handleEvent(evt any) {
 		s.propagateEvent(newReceiptEvent(s.ctx, s.client, evt))
 	case *events.Presence:
 		s.propagateEvent(newPresenceEvent(s.ctx, s.client, evt))
+	case *events.Contact:
+		s.propagateEvent(newContactEvent(s.ctx, s.client, evt))
 	case *events.PushName:
-		s.propagateEvent(newContactEvent(evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
+		s.propagateEvent(newContactEventFromPushName(s.ctx, s.client, evt))
 	case *events.JoinedGroup:
 		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(s.ctx, s.client, &evt.GroupInfo)})
 	case *events.GroupInfo:

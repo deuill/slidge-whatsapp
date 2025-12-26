@@ -14,6 +14,7 @@ import (
 	// Third-party libraries.
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -86,32 +87,48 @@ type Avatar struct {
 // A Contact represents any entity that be communicated with directly in WhatsApp. This typically
 // represents people, but may represent a business or bot as well, but not a group-chat.
 type Contact struct {
-	JID      string // The WhatsApp JID for this contact.
+	Actor    Actor
 	Name     string // The user-set, human-readable name for this contact.
 	IsFriend bool   // Whether this contact is in the user's contact list.
 }
 
-// NewContactEvent returns event data meant for [Session.propagateEvent] for the contact information
-// given. Unknown or invalid contact information will return an [EventUnknown] event with nil data.
-func newContactEvent(jid types.JID, info types.ContactInfo) (EventKind, *EventPayload) {
-	contact := newContact(jid, info)
-	if contact.JID == "" {
-		return EventUnknown, nil
-	}
-
+// NewContactEvent returns event data meant for [Session.propagateEvent] for a "live contact" event
+func newContactEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Contact) (EventKind, *EventPayload) {
+	lid, _ := types.ParseJID(evt.Action.GetLidJID())
+	jid, _ := types.ParseJID(evt.Action.GetPnJID())
+	actor := newActor(ctx, client, evt.JID, lid, jid)
+	contact := newContact(actor, types.ContactInfo{
+		FullName:  evt.Action.GetFullName(),
+		FirstName: evt.Action.GetFirstName(),
+		PushName:  evt.Action.GetUsername(), // Username === PushName?? maybe not
+	})
 	return EventContact, &EventPayload{Contact: contact}
+}
+
+// NewContactEventFromHistory returns event data meant for [Session.propagateEvent] for a "history push name sync" event
+func newContactEventFromHistory(ctx context.Context, client *whatsmeow.Client, evt *waHistorySync.Pushname) (EventKind, *EventPayload) {
+	jid, _ := types.ParseJID(evt.GetID())
+	actor := newActor(ctx, client, jid)
+	contact := newContact(actor, types.ContactInfo{PushName: evt.GetPushname()})
+	return EventContact, &EventPayload{Contact: contact}
+}
+
+// NewContactEvent returns event data meant for [Session.propagateEvent] for a "live pushname" event
+func newContactEventFromPushName(ctx context.Context, client *whatsmeow.Client, evt *events.PushName) (EventKind, *EventPayload) {
+	contactInfo, err := client.Store.Contacts.GetContact(ctx, evt.JID)
+	if err != nil {
+		contactInfo, _ = client.Store.Contacts.GetContact(ctx, evt.JIDAlt)
+	}
+	contactInfo.PushName = evt.NewPushName
+	actor := newActor(ctx, client, evt.JID, evt.JIDAlt)
+	return EventContact, &EventPayload{Contact: newContact(actor, contactInfo)}
 }
 
 // NewContact returns a concrete [Contact] instance for the JID and additional information given.
 // In cases where a valid contact can't be returned, [Contact.JID] will be left empty.
-func newContact(jid types.JID, info types.ContactInfo) Contact {
-	// Don't instantiate hidden contacts, as these are better handled as group participants
-	if jid.Server == types.HiddenUserServer {
-		return Contact{}
-	}
-
+func newContact(actor Actor, info types.ContactInfo) Contact {
 	var contact = Contact{
-		JID:      jid.ToNonAD().String(),
+		Actor:    actor,
 		IsFriend: info.FullName != "", // Only trusted contacts have full names attached on WhatsApp.
 	}
 
@@ -121,10 +138,6 @@ func newContact(jid types.JID, info types.ContactInfo) Contact {
 			contact.Name = n
 			break
 		}
-	}
-
-	if contact.Name == "" {
-		return Contact{}
 	}
 
 	return contact

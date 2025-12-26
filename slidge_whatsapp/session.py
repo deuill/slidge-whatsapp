@@ -214,8 +214,16 @@ class Session(BaseSession[str, Recipient]):
             # more history.
             muc.history_requested = False  # type:ignore[attr-defined]
 
-    async def on_wa_contact(self, contact: whatsapp.Contact) -> None:
-        await self.contacts.add_whatsapp_contact(contact)
+    async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
+        if wa_contact.Actor.JID:
+            contact = await self.contacts.add_whatsapp_contact(wa_contact)
+            if contact is not None and contact.is_friend:
+                # slidge core would do that automatically if the is_friend flag
+                # was set in update_info(), but it actually happens in
+                # update_whatsapp_info()
+                await contact.add_to_roster()
+        elif wa_contact.Actor.LID:
+            await self.bookmarks.rename_anonymous_participants(wa_contact)
 
     async def on_wa_group(self, group: whatsapp.Group) -> None:
         await self.bookmarks.add_whatsapp_group(group)
@@ -665,8 +673,9 @@ class Session(BaseSession[str, Recipient]):
         if not data.JID:
             return
 
-        await self.contacts.add_whatsapp_contact(data)
-        contact = await self.contacts.by_legacy_id(data.JID)
+        contact = await self.contacts.add_whatsapp_contact(data)
+        assert contact is not None
+        await contact.add_to_roster()
 
         return SearchResult(
             fields=[FormField("phone"), FormField("jid", type="jid-single")],

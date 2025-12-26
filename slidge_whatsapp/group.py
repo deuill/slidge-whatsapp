@@ -296,6 +296,16 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
 
         return whatsapp_group_id
 
+    async def rename_anonymous_participants(self, contact: whatsapp.Contact) -> None:
+        if not contact.Name:
+            return
+        for muc in self:
+            participant = await muc.get_participant(
+                occupant_id=contact.Actor.LID, create=False
+            )
+            if participant is not None:
+                participant.nickname = contact.Name
+
 
 def replace_whatsapp_mentions(text: str, mapping: dict[str, str]):
     def match(m: re.Match):
