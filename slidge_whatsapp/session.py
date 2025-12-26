@@ -226,6 +226,11 @@ class Session(BaseSession[str, Recipient]):
         # TODO: LID participant presence update?
 
     async def on_wa_chat_state(self, state: whatsapp.ChatState):
+        if not state.Chat.IsGroup and not state.Actor.JID:
+            # For unknown/new contacts, we receive 1:1 *LID* chat states.
+            # We currently have no way to map those, so let's ignore them.
+            return
+
         contact, _muc = await self.__get_contact_or_participant(state.Chat, state.Actor)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
