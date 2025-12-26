@@ -171,7 +171,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         async for p in self.get_participants():
             if p.contact is not None:
                 mapping[p.contact.legacy_id.removeprefix("+")] = p.nickname
-            mapping[p.occupant_id] = p.nickname
+            mapping[p.occupant_id.removesuffix("@lid")] = p.nickname
         if self.session.user_phone:
             mapping[self.session.user_phone] = self.user_nick
 
