@@ -50,9 +50,13 @@ class Gateway(BaseGateway):
     GROUPS = True
     PROPER_RECEIPTS = True
 
-    DB_POOL_SIZE = (
-        os.cpu_count() or 1
-    ) + 31  # This should be higher than the number of threads
+    # This should be higher than the number of maximum concurrent threads or goroutines
+    # trying to acquire an SQLAlchemy ORM session. The default value is 5, and is not
+    # enough in practice, leading to timeouts, cf <https://docs.sqlalchemy.org/en/20/errors.html#error-3o7r>.
+    # The +31 bit is a margin that proved empirically necessary on my (nicoco) production
+    # slidge-whatsapp instance. It is a workaround for some potential underlying design
+    # flaws in slidge core, cf <https://codeberg.org/slidge/slidge-whatsapp/pulls/103#issuecomment-9237104>.
+    DB_POOL_SIZE = (os.cpu_count() or 1) + 31
 
     def __init__(self):
         super().__init__()
