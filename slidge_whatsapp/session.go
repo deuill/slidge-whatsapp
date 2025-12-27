@@ -256,7 +256,6 @@ func (s *Session) SendMessage(message Message) error {
 			// A message retraction by the person who sent it
 			originLID = types.EmptyJID
 		}
-		fmt.Printf("revoke %s %s %s", jid, originLID, message.ID)
 		payload = s.client.BuildRevoke(jid, originLID, message.ID)
 	case MessageReaction:
 		// Send message as emoji reaction to a given message.
