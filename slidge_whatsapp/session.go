@@ -431,7 +431,7 @@ func (s *Session) SendReceipt(receipt Receipt) error {
 	}
 
 	ids := slices.Clone(receipt.MessageIDs)
-	return s.client.MarkRead(s.ctx, ids, time.Unix(0, 0), chatJID, senderLID)
+	return s.client.MarkRead(s.ctx, ids, time.Unix(receipt.Timestamp, 0), chatJID, senderLID)
 }
 
 // SendPresence sets the activity state and (optional) status message for the current session and

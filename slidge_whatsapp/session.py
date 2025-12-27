@@ -1,4 +1,5 @@
 import asyncio
+import time
 import warnings
 from datetime import datetime, timezone
 from functools import wraps
@@ -546,6 +547,7 @@ class Session(BaseSession[str, Recipient]):
             MessageIDs=go.Slice_string([legacy_msg_id]),
             Chat=c.get_wa_chat(),
             OriginActor=await c.get_wa_actor(legacy_msg_id),
+            Timestamp=round(int(time.time())),
         )
         self.whatsapp.SendReceipt(receipt)
 
