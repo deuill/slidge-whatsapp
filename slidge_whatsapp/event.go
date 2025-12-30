@@ -94,8 +94,14 @@ type Contact struct {
 
 // NewContactEvent returns event data meant for [Session.propagateEvent] for a "live contact" event
 func newContactEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Contact) (EventKind, *EventPayload) {
-	lid, _ := types.ParseJID(evt.Action.GetLidJID())
-	jid, _ := types.ParseJID(evt.Action.GetPnJID())
+	lid, errlid := types.ParseJID(evt.Action.GetLidJID())
+	jid, errjid := types.ParseJID(evt.Action.GetPnJID())
+
+	if errlid != nil && errjid != nil {
+		client.Log.Warnf("Ignoring contact event: %s (LID) %s (JID)", errlid, errjid)
+		return EventUnknown, nil
+	}
+
 	actor := newActor(ctx, client, evt.JID, lid, jid)
 	contact := newContact(actor, types.ContactInfo{
 		FullName:  evt.Action.GetFullName(),
