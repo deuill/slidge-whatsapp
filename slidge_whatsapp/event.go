@@ -103,7 +103,7 @@ func newContactEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 	}
 
 	actor := newActor(ctx, client, evt.JID, lid, jid)
-	contact := newContact(actor, types.ContactInfo{
+	contact := newContact(client, actor, types.ContactInfo{
 		FullName:  evt.Action.GetFullName(),
 		FirstName: evt.Action.GetFirstName(),
 		PushName:  evt.Action.GetUsername(), // Username === PushName?? maybe not
@@ -115,7 +115,7 @@ func newContactEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 func newContactEventFromHistory(ctx context.Context, client *whatsmeow.Client, evt *waHistorySync.Pushname) (EventKind, *EventPayload) {
 	jid, _ := types.ParseJID(evt.GetID())
 	actor := newActor(ctx, client, jid)
-	contact := newContact(actor, types.ContactInfo{PushName: evt.GetPushname()})
+	contact := newContact(client, actor, types.ContactInfo{PushName: evt.GetPushname()})
 	return EventContact, &EventPayload{Contact: contact}
 }
 
@@ -127,12 +127,12 @@ func newContactEventFromPushName(ctx context.Context, client *whatsmeow.Client, 
 	}
 	contactInfo.PushName = evt.NewPushName
 	actor := newActor(ctx, client, evt.JID, evt.JIDAlt)
-	return EventContact, &EventPayload{Contact: newContact(actor, contactInfo)}
+	return EventContact, &EventPayload{Contact: newContact(client, actor, contactInfo)}
 }
 
 // NewContact returns a concrete [Contact] instance for the JID and additional information given.
 // In cases where a valid contact can't be returned, [Contact.JID] will be left empty.
-func newContact(actor Actor, info types.ContactInfo) Contact {
+func newContact(client *whatsmeow.Client, actor Actor, info types.ContactInfo) Contact {
 	var contact = Contact{
 		Actor:    actor,
 		IsFriend: info.FullName != "", // Only trusted contacts have full names attached on WhatsApp.
@@ -144,6 +144,11 @@ func newContact(actor Actor, info types.ContactInfo) Contact {
 			contact.Name = n
 			break
 		}
+	}
+
+	if contact.Name == "" {
+		client.Log.Warnf("Could not find a name for this contact: %+v", info)
+		return Contact{}
 	}
 
 	return contact

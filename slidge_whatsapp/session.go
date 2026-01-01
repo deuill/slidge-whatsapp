@@ -482,7 +482,7 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 
 	var contacts []Contact
 	for jid, info := range data {
-		c := newContact(newActor(s.ctx, s.client, jid), info)
+		c := newContact(s.client, newActor(s.ctx, s.client, jid), info)
 		contacts = append(contacts, c)
 	}
 
@@ -743,7 +743,7 @@ func (s *Session) FindContact(phone string) (Contact, error) {
 	jid := types.NewJID(phone, DefaultUserServer)
 	actor := newActor(s.ctx, s.client, jid)
 	if info, err := s.client.Store.Contacts.GetContact(s.ctx, jid); err == nil && info.Found {
-		if c := newContact(actor, info); c.Actor.JID != "" {
+		if c := newContact(s.client, actor, info); c.Actor.JID != "" {
 			return c, nil
 		}
 	}
