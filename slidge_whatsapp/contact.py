@@ -63,6 +63,10 @@ class Contact(AvatarMixin, LegacyContact[str]):
             IsMe=carbon,
         )
 
+    @property
+    def phone(self) -> str:
+        return self.legacy_id.split("@")[0]
+
 
 class Roster(LegacyRoster[str, Contact]):
     session: "Session"

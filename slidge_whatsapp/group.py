@@ -50,6 +50,10 @@ class Participant(LegacyParticipant):
             self.affiliation = "member"
             self.role = "participant"
 
+    @property
+    def lid(self) -> str:
+        return self.occupant_id.removesuffix("@lid")
+
 
 class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
     session: "Session"
@@ -170,10 +174,10 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         mapping: dict[str, str] = {}
         async for p in self.get_participants():
             if p.contact is not None:
-                mapping[p.contact.legacy_id.removeprefix("+")] = p.nickname
-            mapping[p.occupant_id.removesuffix("@lid")] = p.nickname
+                mapping[p.contact.phone] = p.nickname
+            mapping[p.lid] = p.nickname
         if self.session.user_phone:
-            mapping[self.session.user_phone] = self.user_nick
+            mapping[self.session.user_phone.removeprefix("+")] = self.user_nick
 
         return replace_whatsapp_mentions(text, mapping=mapping)
 

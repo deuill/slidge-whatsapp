@@ -948,4 +948,5 @@ def make_sync(func, loop):
 
 def mention_map(mention: Mention) -> str:
     # mentions are @phonenumber, without the @s.whatsapp.net or @lid suffix
-    return f"@{mention.contact.legacy_id.split('@')[0]}"
+    assert isinstance(mention.contact, Contact)
+    return f"@{mention.contact.phone}"
