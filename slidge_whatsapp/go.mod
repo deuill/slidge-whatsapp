@@ -8,9 +8,9 @@ require (
 	github.com/gen2brain/go-fitz v1.24.15
 	github.com/go-python/gopy v0.4.11-0.20241206185020-5f285b890023
 	github.com/h2non/filetype v1.1.3
-	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/mattn/go-sqlite3 v1.14.33
 	go.mau.fi/libsignal v0.2.1
-	go.mau.fi/whatsmeow v0.0.0-20251217143725-11cf47c62d32
+	go.mau.fi/whatsmeow v0.0.0-20260107124630-ccfa04f8e445
 	golang.org/x/image v0.34.0
 )
 
@@ -29,9 +29,9 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.31 // indirect
 	go.mau.fi/util v0.9.4 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
+	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
