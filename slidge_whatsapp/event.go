@@ -154,14 +154,15 @@ func newContact(client *whatsmeow.Client, actor Actor, info types.ContactInfo) C
 	return contact
 }
 
-// Chat identifies a contact or a group, ie, the "Conversation" where an event takes place
+// Chat identifies a contact or a group, in other words, the "conversation" where an event takes
+// place.
 type Chat struct {
 	JID     string
 	IsGroup bool
 }
 
-// Actor identifies who has triggered the event. It is either a contact identified by a proper JID (in 1:1)
-// or a participant identified by a LID (in groups)
+// Actor identifies who has triggered the event. It is either a contact identified by a proper JID
+// (in 1:1) or a participant identified by a LID (in groups).
 type Actor struct {
 	JID  string
 	LID  string
@@ -333,7 +334,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 		Timestamp: evt.Info.Timestamp.Unix(),
 	}
 
-	message.Chat = newChat(evt.Info.IsGroup, evt.Info.Chat, message.Actor)
+	message.Chat = newChat(ctx, client, evt.Info.Chat, evt.Info.IsGroup)
 	message.Actor.IsMe = evt.Info.IsFromMe
 
 	if evt.Info.Chat.Server == types.BroadcastServer {
@@ -952,14 +953,14 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 			return EventUnknown, nil
 		}
 		message.Actor = newActor(ctx, client, jid)
-		message.Chat = newChat(true, jid, message.Actor)
+		message.Chat = newChat(ctx, client, jid, true)
 	} else if info.GetKey().GetFromMe() {
 		message.Actor = newActor(ctx, client, client.Store.LID, *client.Store.ID)
 		jid, err := types.ParseJID(jid)
 		if err != nil {
 			return EventUnknown, nil
 		}
-		message.Chat = newChat(true, jid, message.Actor)
+		message.Chat = newChat(ctx, client, jid, true)
 	} else {
 		// It's likely we cannot handle this message correctly if we don't know the concrete
 		// sender, so just ignore it completely.
@@ -1089,7 +1090,7 @@ func newChatStateEvent(ctx context.Context, client *whatsmeow.Client, evt *event
 	var state = ChatState{
 		Actor: newActor(ctx, client, evt.Sender, evt.SenderAlt),
 	}
-	state.Chat = newChat(evt.IsGroup, evt.Chat, state.Actor)
+	state.Chat = newChat(ctx, client, evt.Chat, evt.IsGroup)
 	switch evt.State {
 	case types.ChatPresenceComposing:
 		state.Kind = ChatStateComposing
@@ -1129,7 +1130,7 @@ func newReceiptEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 		Actor:      newActor(ctx, client, evt.Sender, evt.SenderAlt),
 		Timestamp:  evt.Timestamp.Unix(),
 	}
-	receipt.Chat = newChat(evt.IsGroup, evt.Chat, receipt.Actor)
+	receipt.Chat = newChat(ctx, client, evt.Chat, evt.IsGroup)
 	receipt.Actor.IsMe = evt.IsFromMe
 
 	if len(receipt.MessageIDs) == 0 {
@@ -1357,35 +1358,43 @@ func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState
 	}}
 }
 
-// On the python side, we consider LIDs as unique anonymous identifiers for non-contact participants in groups.
-// In WhatsApp events though, actors are sometimes identified with their JID, and sometimes with their LID,
-// even when they are not anonymous to the slidge user, ie, when whatsmeow knows the LID/JID mapping.
-// newActor() takes data from whatsapp event, and make sure that a corresponding JID is attached in this case.
-// It also identifies events originating from the slidge user, using the IsMe field.
-func newActor(ctx context.Context, client *whatsmeow.Client, def types.JID, alt ...types.JID) Actor {
-	var jids = append([]types.JID{def}, alt...)
-	var actor = Actor{}
-	var lid = types.JID{}
-	for _, s := range jids {
-		if s.IsEmpty() {
-			continue
-		}
-		var id = s.ToNonAD().String()
+// NewActor returns a concrete [Actor] for the given primary or alternative [types.JID], representing
+// one or more phone-number or anonymous IDs (JIDs and LIDs, in WhatsApp nomenclature).
+//
+// This function makes a best-effort search for JID or LID when either are missing, based on
+// internal mappings, or other stored data; it is possible, however, that [Actor] representations
+// returned are partial or empty.
+func newActor(ctx context.Context, client *whatsmeow.Client, primaryJID types.JID, altJIDs ...types.JID) Actor {
+	var phoneID, anonID types.JID
+	var actor Actor
 
-		if s.Server == types.HiddenUserServer && actor.LID == "" {
-			actor.LID = id
-			lid = s
-			if s == client.Store.GetLID() {
-				actor.IsMe = true
-			}
-		} else if s.Server == types.DefaultUserServer && actor.JID == "" {
-			actor.JID = id
-			if s == client.Store.GetJID() {
-				actor.IsMe = true
-			}
-		} else {
-			client.Log.Debugf("Unused JID or LID: %s", s)
+	// Find (phone-number) JID and (numeric) LID from list of identifiers given in best-effort search.
+	for _, id := range append([]types.JID{primaryJID}, altJIDs...) {
+		if id.Server == types.HiddenUserServer && anonID.IsEmpty() {
+			anonID = id
+		} else if id.Server == types.DefaultUserServer && phoneID.IsEmpty() {
+			phoneID = id
+		} else if !id.IsEmpty() {
+			client.Log.Debugf("Unused JID or LID: %s", id)
 		}
+	}
+
+	// Try to get JID or LID from internal mapping, if possible.
+	if phoneID.IsEmpty() && !anonID.IsEmpty() {
+		phoneID, _ = client.Store.LIDs.GetPNForLID(ctx, anonID)
+	} else if !phoneID.IsEmpty() && anonID.IsEmpty() {
+		anonID, _ = client.Store.LIDs.GetLIDForPN(ctx, phoneID)
+	}
+
+	// Set actor JID and LID based on values given, or try to fall back stored values for own device
+	// if we've surmised that either JID or LID is for the self-actor.
+	if !phoneID.IsEmpty() {
+		actor.JID = phoneID.ToNonAD().String()
+		actor.IsMe = phoneID.ToNonAD() == client.Store.GetJID().ToNonAD()
+	}
+	if !anonID.IsEmpty() {
+		actor.LID = anonID.ToNonAD().String()
+		actor.IsMe = anonID.ToNonAD() == client.Store.GetLID().ToNonAD()
 	}
 
 	if actor.IsMe {
@@ -1395,33 +1404,28 @@ func newActor(ctx context.Context, client *whatsmeow.Client, def types.JID, alt 
 		if actor.LID == "" {
 			actor.LID = client.Store.GetLID().ToNonAD().String()
 		}
-	} else if actor.JID == "" && !lid.IsEmpty() {
-		if jid, _ := client.Store.LIDs.GetPNForLID(ctx, lid); !jid.IsEmpty() {
-			actor.JID = jid.ToNonAD().String()
-		}
 	}
 
 	return actor
 }
 
-// newChat combines data extracted from an incoming WhatsApp event combined with
-// data obtained through newActor() to ensure that a Chat is always identified
-// with a JID.
-func newChat(isGroup bool, chatJID types.JID, actor Actor) Chat {
-	var chat = Chat{IsGroup: isGroup}
-	if isGroup {
-		if chatJID.Server == types.GroupServer {
-			chat.JID = chatJID.ToNonAD().String()
-		}
-	} else {
-		if chatJID.Server == types.DefaultUserServer {
-			chat.JID = chatJID.ToNonAD().String()
-		} else {
-			// WTF? Well, sometimes MessageSource.Chat is actually a LID
-			// I have noticed this for ChatState, but just to be safe, let's check
-			// for everything.
-			chat.JID = actor.JID
-		}
+// NewChat returns a concrete [Chat] instance for the JID given, which is expected to be a concrete
+// group-chat JID or phone-number JID. In cases where the JID given is an anonymous LID for a user,
+// we will attempt a best-effort mapping back to the phone-number JID.
+func newChat(ctx context.Context, client *whatsmeow.Client, jid types.JID, isGroup bool) Chat {
+	var chatJID types.JID
+	if jid.Server == types.DefaultUserServer || jid.Server == types.GroupServer {
+		chatJID = jid
+	} else if jid.Server == types.HiddenUserServer && !isGroup {
+		chatJID, _ = client.Store.LIDs.GetPNForLID(ctx, jid)
 	}
-	return chat
+
+	if chatJID.IsEmpty() {
+		return Chat{}
+	}
+
+	return Chat{
+		JID:     chatJID.ToNonAD().String(),
+		IsGroup: isGroup,
+	}
 }
