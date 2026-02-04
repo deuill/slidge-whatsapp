@@ -669,8 +669,8 @@ class Session(BaseSession[str, Recipient]):
         if not is_valid_phone_number(phone):
             raise ValueError("Not a valid phone number", phone)
 
-        data = self.whatsapp.FindContact(phone)
-        if not data.JID:
+        data: whatsapp.Contact = self.whatsapp.FindContact(phone)
+        if not data.Actor.JID:
             return
 
         contact = await self.contacts.add_whatsapp_contact(data)
