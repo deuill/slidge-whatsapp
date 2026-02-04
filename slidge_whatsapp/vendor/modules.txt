@@ -116,7 +116,7 @@ go.mau.fi/util/jsontime
 go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20260123225751-89be06b020db
+# go.mau.fi/whatsmeow v0.0.0-20260129212019-7787ab952245
 ## explicit; go 1.24.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
@@ -158,6 +158,7 @@ go.mau.fi/whatsmeow/proto/waMultiDevice
 go.mau.fi/whatsmeow/proto/waServerSync
 go.mau.fi/whatsmeow/proto/waStatusAttributions
 go.mau.fi/whatsmeow/proto/waSyncAction
+go.mau.fi/whatsmeow/proto/waSyncdSnapshotRecovery
 go.mau.fi/whatsmeow/proto/waUserPassword
 go.mau.fi/whatsmeow/proto/waVnameCert
 go.mau.fi/whatsmeow/proto/waWa6
