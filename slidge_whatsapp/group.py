@@ -215,7 +215,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
                 return
             else:
                 action = whatsapp.GroupParticipantActionDemote
-        elif affiliation == "admin":
+        elif affiliation in ("admin", "owner"):
             action = whatsapp.GroupParticipantActionPromote
         elif affiliation == "outcast" or affiliation == "none":
             action = whatsapp.GroupParticipantActionRemove
