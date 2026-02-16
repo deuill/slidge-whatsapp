@@ -11,14 +11,12 @@ labels:
 steps:
   build:
     image: codeberg.org/${CI_REPO_OWNER}/slidge-whatsapp:ci-amd64
-    pull: true
     commands:
       - uv sync --all-groups --all-extras
       - cd docs && make html
 
   publish:
     image: codeberg.org/slidge/woodpecker-publish-pages
-    pull: true
     when:
       event: [push, tag]
     settings:

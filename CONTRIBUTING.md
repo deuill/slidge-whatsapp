@@ -1,7 +1,7 @@
 # Contributing
 
 We are really happy to welcome new contributors to slidge-whatsapp!
-Before starting anything, please join [our chat room](xmpp:slidge@conference.nicoco.fr?join)
+Before starting anything, please join [our chat room](xmpp:dev@rooms.slidge.im?join)
 to say hi and see if anyone is already working on the bug you want to fix or
 the feature you want to implement.
 

@@ -75,6 +75,7 @@ steps:
 
   build-ci:
     when:
+      - event: push
         path: *paths
         branch: ${CI_REPO_DEFAULT_BRANCH}
     image: woodpeckerci/plugin-docker-buildx:6.0.2

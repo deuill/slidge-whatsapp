@@ -32,11 +32,9 @@ labels:
 steps:
   changelog:
     image: codeberg.org/slidge/woodpecker-generate-changelog
-    pull: true
 
   build:
     image: *ci-image
-    pull: true
     commands:
       - uv python install ${PYTHON_VERSION}
       - uv python pin ${PYTHON_VERSION}
