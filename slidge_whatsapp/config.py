@@ -4,7 +4,6 @@ core configuration framework.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from slidge import global_config
 
@@ -12,9 +11,9 @@ from slidge import global_config
 # called by slidge's main(), which is a problem for tests, docs and the
 # dedicated slidge-whatsapp setuptools entrypoint
 try:
-    DB_PATH: Optional[Path] = global_config.HOME_DIR / "whatsapp" / "whatsapp.db"
+    DB_PATH: Path | None = global_config.HOME_DIR / "whatsapp" / "whatsapp.db"
 except AttributeError:
-    DB_PATH: Optional[Path] = None  # type:ignore
+    DB_PATH: Path | None = None  # type:ignore
 
 DB_PATH__DOC = (
     "The path to the database used for the WhatsApp plugin. Default to "

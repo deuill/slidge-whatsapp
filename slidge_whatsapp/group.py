@@ -1,6 +1,6 @@
 import re
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slidge.util.types import Hat, HoleBound, MucAffiliation
@@ -20,8 +20,8 @@ class Participant(LegacyParticipant):
 
     def online(
         self,
-        status: Optional[str] = None,
-        last_seen: Optional[datetime] = None,
+        status: str | None = None,
+        last_seen: datetime | None = None,
     ) -> None:
         if self.is_user:
             # "user participant" presences are not something we want to bridge
@@ -145,7 +145,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             if info.Subject.Subject:
                 self.subject = info.Subject.Subject
                 if info.Subject.SetAt:
-                    set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
+                    set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=UTC)
                     self.subject_date = set_at
                 if info.Subject.SetBy and info.Subject.SetBy.JID:
                     self.subject_setter = await self.get_participant_by_actor(
@@ -181,7 +181,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
 
         return replace_whatsapp_mentions(text, mapping=mapping)
 
-    async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
+    async def on_avatar(self, data: bytes | None, mime: str | None) -> None:
         return self.session.whatsapp.SetAvatar(
             self.legacy_id,
             go.Slice_byte.from_bytes(data) if data else go.Slice_byte(),
@@ -189,8 +189,8 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
 
     async def on_set_config(
         self,
-        name: Optional[str],
-        description: Optional[str],
+        name: str | None,
+        description: str | None,
     ):
         # there are no group descriptions in WA, but topics=subjects
         if self.name != name:
@@ -204,8 +204,8 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self,
         contact: "Contact",  # type:ignore
         affiliation: MucAffiliation,
-        reason: Optional[str],
-        nickname: Optional[str],
+        reason: str | None,
+        nickname: str | None,
     ):
         if affiliation == "member":
             participant = await self.get_participant_by_contact(contact, create=False)  # type:ignore[call-overload]

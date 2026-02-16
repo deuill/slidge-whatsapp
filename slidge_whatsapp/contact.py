@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, AsyncIterator
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from slidge import LegacyContact, LegacyRoster
 from slixmpp.exceptions import XMPPError
@@ -22,7 +23,7 @@ class Contact(AvatarMixin, LegacyContact[str]):
         self, presence: whatsapp.PresenceKind, last_seen_timestamp: int
     ):
         last_seen = (
-            datetime.fromtimestamp(last_seen_timestamp, tz=timezone.utc)
+            datetime.fromtimestamp(last_seen_timestamp, tz=UTC)
             if last_seen_timestamp > 0
             else None
         )

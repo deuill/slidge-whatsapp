@@ -1,12 +1,12 @@
 import asyncio
 import time
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
-from typing import Optional, Union, cast
+from typing import Optional, cast
 
 import sqlalchemy
 from aiohttp import ClientSession
@@ -54,7 +54,7 @@ VIDEO_PREVIEW_DOMAINS = (
 )
 
 
-Recipient = Union[Contact, MUC]
+Recipient = Contact | MUC
 
 
 def ignore_contact_is_user(func):
@@ -81,7 +81,7 @@ class Session(BaseSession[str, Recipient]):
         except KeyError:
             device = whatsapp.LinkedDevice()
         self.__presence_status: str = ""
-        self.user_phone: Optional[str] = None
+        self.user_phone: str | None = None
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self.__handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self.__handle_event)
@@ -278,7 +278,7 @@ class Session(BaseSession[str, Recipient]):
         else:
             text = "Call " + text
         if call.Timestamp > 0:
-            call_at = datetime.fromtimestamp(call.Timestamp, tz=timezone.utc)
+            call_at = datetime.fromtimestamp(call.Timestamp, tz=UTC)
             text = text + f" at {call_at}"
         self.send_gateway_message(text)
 
@@ -328,7 +328,7 @@ class Session(BaseSession[str, Recipient]):
 
     def __get_timestamp(self, message: whatsapp.Message) -> datetime | None:
         return (
-            datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
+            datetime.fromtimestamp(message.Timestamp, tz=UTC)
             if message.Timestamp > 0
             else None
         )
@@ -392,9 +392,9 @@ class Session(BaseSession[str, Recipient]):
     async def on_wa_msg_poll(
         self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
     ) -> None:
-        body = "🗳 %s" % message.Poll.Title
+        body = f"🗳 {message.Poll.Title}"
         for option in message.Poll.Options:
-            body = body + "\n☐ %s" % option.Title
+            body = body + f"\n☐ {option.Title}"
         actor.send_text(
             body=body,
             legacy_msg_id=message.ID,
@@ -415,10 +415,10 @@ class Session(BaseSession[str, Recipient]):
         chat: Recipient,
         text: str,
         *,
-        reply_to_msg_id: Optional[str] = None,
-        reply_to_fallback_text: Optional[str] = None,
+        reply_to_msg_id: str | None = None,
+        reply_to_fallback_text: str | None = None,
         reply_to: Sender | None = None,
-        mentions: Optional[list[Mention]] = None,
+        mentions: list[Mention] | None = None,
         **_,
     ):
         """
@@ -450,8 +450,8 @@ class Session(BaseSession[str, Recipient]):
         chat: Recipient,
         url: str,
         http_response,
-        reply_to_msg_id: Optional[str] = None,
-        reply_to_fallback_text: Optional[str] = None,
+        reply_to_msg_id: str | None = None,
+        reply_to_fallback_text: str | None = None,
         reply_to: Sender | None = None,
         **_,
     ):
@@ -493,7 +493,7 @@ class Session(BaseSession[str, Recipient]):
         show: PseudoPresenceShow,
         status: str,
         resources: dict[str, ResourceDict],
-        merged_resource: Optional[ResourceDict],
+        merged_resource: ResourceDict | None,
     ):
         """
         Send outgoing availability status (i.e. presence) based on combined status of all connected
@@ -591,7 +591,7 @@ class Session(BaseSession[str, Recipient]):
         self,
         muc: MUC,  # type:ignore
         legacy_msg_id: str,
-        reason: Optional[str],
+        reason: str | None,
     ):
         message = whatsapp.Message(
             Kind=whatsapp.MessageRevoke,
@@ -627,11 +627,11 @@ class Session(BaseSession[str, Recipient]):
 
     async def on_avatar(
         self,
-        bytes_: Optional[bytes],
-        hash_: Optional[str],
-        type_: Optional[str],
-        width: Optional[int],
-        height: Optional[int],
+        bytes_: bytes | None,
+        hash_: str | None,
+        type_: str | None,
+        width: int | None,
+        height: int | None,
     ) -> None:
         """
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
@@ -705,23 +705,23 @@ class Session(BaseSession[str, Recipient]):
         if muc:
             body = await muc.replace_mentions(body)
         if message.Location.Latitude != 0 or message.Location.Longitude != 0:
-            body = "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude)
+            body = f"geo:{message.Location.Latitude:f},{message.Location.Longitude:f}"
             if message.Location.Accuracy > 0:
-                body = body + ";u=%d" % message.Location.Accuracy
+                body += ";u={message.Location.Accuracy:d}"
         if message.IsForwarded:
             body = "↱ Forwarded message:\n " + add_quote_prefix(body)
         if message.Album.IsAlbum:
-            body = body + "Album: "
+            body += "Album: "
             if message.Album.ImageCount > 0:
-                body = body + "%d photos, " % message.Album.ImageCount
+                body += f"{message.Album.ImageCount} photos, "
             if message.Album.VideoCount > 0:
-                body = body + "%d videos" % message.Album.VideoCount
+                body += f"{message.Album.VideoCount} videos"
             body = body.rstrip(" ,:")
         return body
 
     async def __get_reply_to(
         self, message: whatsapp.Message, muc: Optional["MUC"] = None
-    ) -> Optional[MessageReference]:
+    ) -> MessageReference | None:
         if not message.ReplyID:
             return None
         reply_to = MessageReference(
@@ -740,7 +740,7 @@ class Session(BaseSession[str, Recipient]):
             )
         return reply_to
 
-    async def __get_preview(self, text: str) -> Optional[whatsapp.Preview]:
+    async def __get_preview(self, text: str) -> whatsapp.Preview | None:
         if not config.ENABLE_LINK_PREVIEWS:
             return None
         match = search(URL_SEARCH_REGEX, text)
@@ -798,7 +798,7 @@ class Session(BaseSession[str, Recipient]):
             self.log.debug("Could not generate a preview for %s", url, exc_info=e)
             return None
 
-    async def __get_location(self, text: str) -> Optional[whatsapp.Location]:
+    async def __get_location(self, text: str) -> whatsapp.Location | None:
         match = search(GEO_URI_SEARCH_REGEX, text)
         if not match:
             return None
@@ -850,8 +850,8 @@ class Session(BaseSession[str, Recipient]):
         self,
         chat: Recipient,
         message: whatsapp.Message,
-        reply_to_msg_id: Optional[str] = None,
-        reply_to_fallback_text: Optional[str] = None,
+        reply_to_msg_id: str | None = None,
+        reply_to_fallback_text: str | None = None,
         reply_to: Contact | Participant | None = None,
     ) -> whatsapp.Message:
         if chat.is_group:
@@ -923,7 +923,7 @@ def strip_quote_prefix(text: str):
     return "\n".join(x.lstrip(">").strip() for x in text.split("\n")).strip()
 
 
-async def get_url_bytes(client: ClientSession, url: str) -> Optional[bytes]:
+async def get_url_bytes(client: ClientSession, url: str) -> bytes | None:
     async with client.get(url) as resp:
         if resp.status == 200:
             return await resp.read()
