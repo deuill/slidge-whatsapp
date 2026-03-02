@@ -449,6 +449,13 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 			message.Body = e.GetText()
 		}
 
+		message.Preview = Preview{
+			URL:         e.GetMatchedText(),
+			Description: e.GetDescription(),
+			Title:       e.GetTitle(),
+			Thumbnail:   e.GetJPEGThumbnail(),
+		}
+
 		// Handle group-chat invite link in text message.
 		if code, ok := strings.CutPrefix(e.GetMatchedText(), whatsmeow.InviteLinkPrefix); ok {
 			if info, err := client.GetGroupInfoFromLink(ctx, e.GetMatchedText()); err != nil {

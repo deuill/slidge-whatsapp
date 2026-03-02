@@ -24,6 +24,9 @@ from slidge.util.types import (
     ResourceDict,
     Sender,
 )
+from slidge.util.types import (
+    LinkPreview as SlidgeLinkPreview,
+)
 from slixmpp.exceptions import XMPPError
 
 from . import config
@@ -342,6 +345,7 @@ class Session(BaseSession[str, Recipient]):
             when=self.__get_timestamp(message),
             reply_to=await self.__get_reply_to(message, muc),
             carbon=message.Actor.IsMe,
+            link_previews=_get_link_previews(message.Preview),
         )
 
     async def on_wa_msg_attachment(
@@ -950,3 +954,19 @@ def mention_map(mention: Mention) -> str:
     # mentions are @phonenumber, without the @s.whatsapp.net or @lid suffix
     assert isinstance(mention.contact, Contact)
     return f"@{mention.contact.phone}"
+
+
+def _get_link_previews(preview: whatsapp.Preview) -> list[SlidgeLinkPreview]:
+    if preview:
+        return [
+            SlidgeLinkPreview(
+                about=preview.URL,
+                title=preview.Title or None,
+                description=preview.Description or None,
+                url=None,
+                image=preview.Thumbnail,
+                type=None,
+                site_name=None,
+            )
+        ]
+    return []

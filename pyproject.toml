@@ -17,7 +17,8 @@ keywords = ["xmpp", "gateway", "bridge", "instant messaging", "chat", "whatsapp"
 dynamic = ["version"]
 dependencies = [
     "linkpreview>=0.11.0",
-    "slidge>=0.3.7,<0.4",
+    "slidge>=0.3.8.dev10,<0.4",  # TODO: specify a stable slidge ver before releasing the next slidge-whatsapp
+    "slixmpp>=1.13.dev",         # TODO: remove me after specifying a stable slidge
 ]
 
 [project.urls]
@@ -82,6 +83,10 @@ slidge-sphinx-extensions = { index = "codeberg" }
 name = "codeberg"
 url = "https://codeberg.org/api/packages/slidge/pypi/simple"
 publish-url = "https://codeberg.org/api/packages/slidge/pypi"
+
+[[tool.uv.index]]
+name = "codeberg-poezio"
+url = "https://codeberg.org/api/packages/poezio/pypi/simple/"
 
 [[tool.uv.index]]
 name = "pypi"
