@@ -376,35 +376,42 @@ func getAudioVideoSpec(ctx context.Context, data []byte) (*Spec, error) {
 		return nil, err
 	}
 
-	if s, ok := out["streams"].([]any); ok {
-		if len(s) == 0 {
+	if stream, ok := out["streams"].([]any); ok {
+		if len(stream) == 0 {
 			return nil, fmt.Errorf("no valid audio/video streams found in data")
-		} else if r, ok := s[0].(map[string]any); ok {
-			if v, ok := r["duration"].(string); ok {
-				if v, err := strconv.ParseFloat(v, 64); err == nil {
-					result.Duration = time.Duration(v * float64(time.Second))
+		}
+		for i := range stream {
+			if s, ok := stream[i].(map[string]any); ok {
+				if v, ok := s["duration"].(string); ok {
+					if v, err := strconv.ParseFloat(v, 64); err == nil {
+						result.Duration = time.Duration(v * float64(time.Second))
+					}
 				}
-			}
-			if v, ok := r["width"].(string); ok {
-				if v, err := strconv.Atoi(v); err == nil {
-					result.VideoWidth = v
+				if v, ok := s["width"].(string); ok {
+					if v, err := strconv.Atoi(v); err == nil {
+						result.VideoWidth = v
+					}
+				} else if v, ok := s["width"].(float64); ok {
+					result.VideoWidth = int(v)
 				}
-			}
-			if v, ok := r["height"].(string); ok {
-				if v, err := strconv.Atoi(v); err == nil {
-					result.VideoHeight = v
+				if v, ok := s["height"].(string); ok {
+					if v, err := strconv.Atoi(v); err == nil {
+						result.VideoHeight = v
+					}
+				} else if v, ok := s["height"].(float64); ok {
+					result.VideoHeight = int(v)
 				}
-			}
-			if v, ok := r["sample_rate"].(string); ok {
-				if v, err := strconv.Atoi(v); err == nil {
-					result.AudioSampleRate = v
+				if v, ok := s["sample_rate"].(string); ok {
+					if v, err := strconv.Atoi(v); err == nil {
+						result.AudioSampleRate = v
+					}
 				}
-			}
-			if v, ok := r["codec_name"].(string); ok {
-				if result.VideoWidth > 0 || result.VideoHeight > 0 {
-					result.VideoCodec = VideoCodec(v)
-				} else {
-					result.AudioCodec = AudioCodec(v)
+				if v, ok := s["codec_name"].(string); ok {
+					if result.VideoWidth > 0 || result.VideoHeight > 0 {
+						result.VideoCodec = VideoCodec(v)
+					} else {
+						result.AudioCodec = AudioCodec(v)
+					}
 				}
 			}
 		}
