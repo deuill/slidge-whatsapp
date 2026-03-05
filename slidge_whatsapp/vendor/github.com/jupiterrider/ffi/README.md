@@ -13,6 +13,7 @@ You can use [purego](https://github.com/ebitengine/purego) to call C code withou
 - freebsd/arm64
 - linux/amd64
 - linux/arm64
+- linux/riscv64
 - windows/amd64
 - windows/arm64
 
@@ -24,7 +25,7 @@ You can use [purego](https://github.com/ebitengine/purego) to call C code withou
 sudo pacman -S libffi
 ```
 
-### Debian 12, Ubuntu 22.04, Ubuntu 24.04
+### Debian, Ubuntu
 ```sh
 sudo apt install libffi8
 ```
