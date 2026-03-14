@@ -964,9 +964,17 @@ def _get_link_previews(preview: whatsapp.Preview) -> list[SlidgeLinkPreview]:
                 title=preview.Title or None,
                 description=preview.Description or None,
                 url=None,
-                image=preview.Thumbnail,
+                image=_bytes_conversion(preview.Thumbnail),
                 type=None,
                 site_name=None,
             )
         ]
     return []
+
+
+def _bytes_conversion(slice_byte: go.Slice_byte) -> bytes | None:
+    if len(slice_byte) == 0:
+        # if we call bytes() on an empty one, we get panic:
+        # panic: runtime error: index out of range [0] with length 0
+        return None
+    return bytes(slice_byte)
