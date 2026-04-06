@@ -16,11 +16,16 @@ registry <https://codeberg.org/slidge/-/packages/container/slidge-whatsapp/lates
 
 .. code:: sh
 
-   docker run codeberg.org/slidge/slidge-whatsapp  # works with podman too
+   docker run codeberg.org/slidge/slidge-whatsapp:latest-amd64  # works with podman too
 
 Use the ``:latest-amd64`` tag for the latest release, ``:vX.X.X-amd64`` for release
 X.X.X, and ``:main-amd64`` for the bleeding edge.
 ``-arm64`` images are also available.
+
+For data persistence, mount a writeable directory into ``/var/lib/slidge``. Inside the container,
+slidge-whatsapp runs as the ``slidge`` user with UID/GID 10000/10000.
+
+slidge-whatsapp must be able to :ref:`reach your XMPP server <setup-component>`, so set up networking accordingly.
 
 Python packages
 ~~~~~~~~~~~~~~~

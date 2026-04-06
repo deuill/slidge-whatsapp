@@ -12,7 +12,7 @@ slidge-whatsapp
 
    `Source <https://codeberg.org/slidge/slidge-whatsapp>`_
 
-   `Chat room <xmpp:slidge@conference.nicoco.fr?join>`_
+   `Chat room <xmpp:support@rooms.slidge.im?join>`_
 
    `Bug tracker <https://codeberg.org/slidge/slidge-whatsapp/issues>`_
 

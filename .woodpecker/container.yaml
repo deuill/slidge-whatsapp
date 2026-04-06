@@ -1,7 +1,6 @@
 # DO NOT EDIT
 # Generated from .copier-answers.yml
 
-
 matrix:
   ARCH:
     - amd64
@@ -45,6 +44,7 @@ when:
     cron: container-main
   - event: cron
     cron: container-latest
+  - event: manual
 
 steps:
   build-tag:
@@ -65,6 +65,7 @@ steps:
         path: *paths
       - event: cron
         cron: container-main
+      - event: manual
     image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
@@ -98,6 +99,7 @@ steps:
       - git checkout $TAG
       - git reset --hard
       - echo latest-${ARCH} > .tags
+      - '[ ${ARCH} = "amd64" ] && echo latest >> .tags'
 
   rebuild-tag:
     image: woodpeckerci/plugin-docker-buildx:6.0.2
