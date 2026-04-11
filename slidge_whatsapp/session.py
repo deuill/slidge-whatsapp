@@ -7,6 +7,7 @@ from os.path import basename
 from pathlib import Path
 from re import search
 from typing import Optional, cast
+from urllib.parse import quote as url_quote
 
 import sqlalchemy
 from aiohttp import ClientSession
@@ -215,7 +216,7 @@ class Session(BaseSession[str, Recipient]):
             # When we are logged out, the initial history sync may not completely
             # cover the "hole" between logout and re-pair, so we want to request
             # more history.
-            muc.history_requested = False  # type:ignore[attr-defined]
+            muc.history_requested = False  # type: ignore[attr-defined]
 
     async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
         if wa_contact.Actor.JID:
@@ -307,8 +308,11 @@ class Session(BaseSession[str, Recipient]):
         )
         actor.online(last_seen=datetime.now())
         if message.GroupInvite.JID:
-            text = f"Received group invite for xmpp:{message.GroupInvite.JID} from {actor.name}, auto-joining..."
-            self.send_gateway_message(text)
+            muc = await self.bookmarks.by_legacy_id(message.GroupInvite.JID)
+            muc_name = f"{muc.name} xmpp:{url_quote(muc.jid.user)}@{muc.jid.server}"
+            self.send_gateway_message(
+                f"Received group invite for {muc_name} from {actor.name}, auto-joining…"
+            )
 
         match message.Kind:
             case whatsapp.MessagePlain:
@@ -444,7 +448,7 @@ class Session(BaseSession[str, Recipient]):
             message,
             reply_to_msg_id,
             reply_to_fallback_text,
-            reply_to,  # type:ignore[arg-type]
+            reply_to,  # type: ignore[arg-type]
         )
         self.whatsapp.SendMessage(message)
         return message_id
@@ -486,7 +490,7 @@ class Session(BaseSession[str, Recipient]):
             message,
             reply_to_msg_id,
             reply_to_fallback_text,
-            reply_to,  # type:ignore[arg-type]
+            reply_to,  # type: ignore[arg-type]
         )
         self.whatsapp.SendMessage(message)
         return message_id
@@ -593,7 +597,7 @@ class Session(BaseSession[str, Recipient]):
 
     async def on_moderate(
         self,
-        muc: MUC,  # type:ignore
+        muc: MUC,  # type: ignore
         legacy_msg_id: str,
         reason: str | None,
     ):
@@ -647,7 +651,7 @@ class Session(BaseSession[str, Recipient]):
     async def on_create_group(
         self,
         name: str,
-        contacts: list[Contact],  # type:ignore
+        contacts: list[Contact],  # type: ignore
     ):
         """
         Creates a WhatsApp group for the given human-readable name and participant list.
@@ -658,7 +662,7 @@ class Session(BaseSession[str, Recipient]):
         muc = await self.bookmarks.by_legacy_id(group.JID)
         return muc.legacy_id
 
-    async def on_leave_group(self, legacy_muc_id: str):  # type:ignore
+    async def on_leave_group(self, legacy_muc_id: str):  # type: ignore
         """
         Removes own user from given WhatsApp group.
         """
@@ -835,13 +839,17 @@ class Session(BaseSession[str, Recipient]):
         if chat.IsGroup:
             muc = await self.bookmarks.by_legacy_id(chat.JID)
             if actor.IsMe:
-                return await muc.get_user_participant(
-                    occupant_id=actor.LID or None
-                ), muc
+                return (
+                    await muc.get_user_participant(occupant_id=actor.LID or None),
+                    muc,
+                )
             elif actor.JID:
-                return await muc.get_participant_by_legacy_id(  # type:ignore[call-overload]
-                    actor.JID, occupant_id=actor.LID or None
-                ), muc
+                return (
+                    await muc.get_participant_by_legacy_id(  # type: ignore[call-overload]
+                        actor.JID, occupant_id=actor.LID or None
+                    ),
+                    muc,
+                )
             else:
                 assert actor.LID
                 return await muc.get_participant(occupant_id=actor.LID), muc

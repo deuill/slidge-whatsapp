@@ -458,16 +458,15 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 
 		// Handle group-chat invite link in text message.
 		if code, ok := strings.CutPrefix(e.GetMatchedText(), whatsmeow.InviteLinkPrefix); ok {
-			if info, err := client.GetGroupInfoFromLink(ctx, e.GetMatchedText()); err != nil {
-				client.Log.Errorf("Failed getting group info from invite: %s", err)
-			} else if _, err := client.JoinGroupWithLink(ctx, code); err != nil {
+			code, _, _ := strings.Cut(code, "?")
+			if groupJID, err := client.JoinGroupWithLink(ctx, code); err != nil {
 				client.Log.Errorf("Failed joining group with invite: %s", err)
 			} else {
-				message.GroupInvite = newGroup(ctx, client, info)
+				message.GroupInvite = Group{JID: groupJID.ToNonAD().String()}
 			}
-		} else {
-			message = getMessageWithContext(ctx, client, message, e.GetContextInfo())
 		}
+
+		message = getMessageWithContext(ctx, client, message, e.GetContextInfo())
 	}
 
 	// Ignore obviously invalid messages.
@@ -486,15 +485,13 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 		return message
 	}
 
+	remoteJID, _ := types.ParseJID(info.GetRemoteJID())
 	originJID, err := types.ParseJID(info.GetParticipant())
 	if err != nil {
 		return message
 	}
 
 	message.ReplyID = info.GetStanzaID()
-
-	remoteJID, _ := types.ParseJID(info.GetRemoteJID())
-
 	message.OriginActor = newActor(ctx, client, originJID, remoteJID)
 	message.IsForwarded = info.GetIsForwarded()
 
