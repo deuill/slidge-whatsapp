@@ -42,6 +42,23 @@ class Gateway(BaseGateway):
     WELCOME_MESSAGE = WELCOME_MESSAGE
     REGISTRATION_FIELDS = []
 
+    PREFERENCES = BaseGateway.PREFERENCES + [
+        FormField(
+            var="enable_link_previews",
+            label="Generate link previews for URLs sent in outgoing messages",
+            value="true",
+            required=False,
+            type="boolean",
+        ),
+        FormField(
+            var="roster_add_non_friends",
+            label="Synchronize non-friends (such as group participants) to the XMPP roster",
+            value="true",
+            required=False,
+            type="boolean",
+        ),
+    ]
+
     SEARCH_FIELDS = [
         FormField(var="phone", label="Phone number", required=True),
     ]

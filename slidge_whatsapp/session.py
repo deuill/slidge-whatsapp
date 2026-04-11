@@ -749,7 +749,8 @@ class Session(BaseSession[str, Recipient]):
         return reply_to
 
     async def __get_preview(self, text: str) -> whatsapp.Preview | None:
-        if not config.ENABLE_LINK_PREVIEWS:
+        enable_previews = self.user.preferences.get("enable_link_previews", True)
+        if not enable_previews:
             return None
         match = search(URL_SEARCH_REGEX, text)
         if not match:

@@ -27,13 +27,3 @@ ALWAYS_SYNC_ROSTER = False
 ALWAYS_SYNC_ROSTER__DOC = (
     "Whether or not to perform a full sync of the WhatsApp roster on startup"
 )
-
-ENABLE_LINK_PREVIEWS = True
-ENABLE_LINK_PREVIEWS__DOC = (
-    "Whether or not previews for links (URLs) should be generated on outgoing messages"
-)
-
-ADD_GROUP_PARTICIPANTS_TO_ROSTER = True
-ADD_GROUP_PARTICIPANTS_TO_ROSTER__DOC = (
-    "Whether or not group participants will be added to the XMPP roster"
-)
