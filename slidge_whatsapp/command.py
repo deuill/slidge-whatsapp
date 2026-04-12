@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 
-from slidge.command import Command, CommandAccess, Form, FormField
+from slidge.command import Command, CommandAccess, FormField
+from slidge.command.base import FormSession
 from slidge.util import is_valid_phone_number
 from slixmpp import JID
 from slixmpp.exceptions import XMPPError
@@ -58,8 +59,8 @@ class PairPhone(Command):
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
         *args,
-    ) -> Form:
-        return Form(
+    ) -> FormSession:
+        return FormSession(
             title="Pair to WhatsApp via phone number",
             instructions="Enter your phone number in international format (e.g. +447700900000)",
             fields=[FormField(var="phone", label="Phone number", required=True)],
@@ -91,8 +92,8 @@ class ChangePresence(Command):
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
         *args,
-    ) -> Form:
-        return Form(
+    ) -> FormSession:
+        return FormSession(
             title="Set WhatsApp web presence",
             instructions="Choose what type of presence you want to set",
             fields=[

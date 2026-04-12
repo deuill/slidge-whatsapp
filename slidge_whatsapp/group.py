@@ -2,6 +2,7 @@ import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from slidge.db.meta import JSONSerializable
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slidge.util.types import Hat, HoleBound, MucAffiliation
 from slixmpp.exceptions import XMPPError
@@ -75,11 +76,11 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self._history_requested = flag
         self.commit()
 
-    def serialize_extra_attributes(self) -> dict[str, bool]:
+    def serialize_extra_attributes(self) -> JSONSerializable:
         return {"history_requested": self._history_requested}
 
-    def deserialize_extra_attributes(self, data: dict[str, bool]) -> None:
-        self._history_requested = data.get("history_requested", False)
+    def deserialize_extra_attributes(self, data: JSONSerializable) -> None:
+        self._history_requested = bool(data.get("history_requested", False))
 
     async def update_info(self):
         # stuff happens in self.update_whatsapp_info()

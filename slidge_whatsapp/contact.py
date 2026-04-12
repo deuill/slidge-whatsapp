@@ -48,8 +48,9 @@ class Contact(AvatarMixin, LegacyContact[str]):
                 "User named %s, friend: %s", wa_contact.Name, wa_contact.IsFriend
             )
             self.name = wa_contact.Name
-            self.is_friend = wa_contact.IsFriend or self.session.user.preferences.get(
-                "roster_add_non_friends", True
+            self.is_friend = bool(
+                wa_contact.IsFriend
+                or self.session.user.preferences.get("roster_add_non_friends", True)
             )
             await self.update_whatsapp_avatar()
             self.set_vcard(full_name=self.name, phone=str(self.jid.local))

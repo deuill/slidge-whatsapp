@@ -30,7 +30,6 @@ from slidge.util.types import (
 )
 from slixmpp.exceptions import XMPPError
 
-from . import config
 from .contact import Contact, Roster
 from .gateway import Gateway
 from .generated import go, whatsapp
@@ -413,7 +412,7 @@ class Session(BaseSession[str, Recipient]):
 
     async def on_wa_avatar(self, avatar: whatsapp.Avatar) -> None:
         if avatar.IsGroup:
-            chat = await self.bookmarks.by_legacy_id(avatar.ResourceID)
+            chat: MUC | Contact = await self.bookmarks.by_legacy_id(avatar.ResourceID)
         else:
             chat = await self.contacts.by_legacy_id(avatar.ResourceID)
         chat.avatar = Avatar(url=avatar.URL or None, unique_id=avatar.ID or None)
