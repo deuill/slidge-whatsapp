@@ -6,13 +6,14 @@ from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
-from typing import Optional, cast
+from typing import Any, Optional, cast
 from urllib.parse import quote as url_quote
 
 import sqlalchemy
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
+from slidge.command.user import SyncContacts
 from slidge.contact.roster import ContactIsUser
 from slidge.db.models import ArchivedMessage
 from slidge.util import is_valid_phone_number, replace_mentions
@@ -688,6 +689,19 @@ class Session(BaseSession[str, Recipient]):
             fields=[FormField("phone"), FormField("jid", type="jid-single")],
             items=[{"phone": cast(str, phone), "jid": contact.jid.bare}],
         )
+
+    async def on_preferences(
+        self, previous: dict[str, Any], new: dict[str, Any]
+    ) -> None:
+        if previous.get("roster_add_non_friends") != new.get("roster_add_non_friends"):
+            self.log.debug(
+                "Running contact sync after group contacts in roster policy change"
+            )
+            # This updates the "friend" status of contacts
+            for wa_contact in self.whatsapp.GetContacts(refresh=True):
+                await self.contacts.add_whatsapp_contact(wa_contact)
+            # This works but is really hacky, slidge core should expose this more cleanly
+            await SyncContacts.sync(self, self, self.user_jid)  # type:ignore
 
     def message_is_carbon(self, c: Recipient, legacy_msg_id: str) -> bool:
         with self.xmpp.store.session() as orm:
