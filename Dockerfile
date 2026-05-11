@@ -42,8 +42,14 @@ RUN [ -z "$SLIDGE_USE_LOCKFILE" ] && rm uv.lock || true
 # .git/ needs to be mounted for setuptools-scm to set the version
 RUN --mount=source=.git,target=/build/.git,type=bind \
     uv sync --no-dev
-ARG SLIDGE_PRERELEASE
-RUN [ ! -z "$SLIDGE_PRERELEASE" ] && uv pip install slidge --upgrade --prerelease allow || true
+# (Optionnally) append .dev to the required slidge version in pyproject.toml,
+# invalidating the lockfile and setting the prerelease=allow policy for slidge.
+ARG SLIDGE_PRERELEASE=
+RUN --mount=source=.git,target=/build/.git,type=bind \
+    [ ! -z "$SLIDGE_PRERELEASE" ] && \
+    sed -ri 's/(slidge.=)([^,"d]*)([,"])/\1\2.dev\3/' pyproject.toml && \
+    uv sync --no-dev \
+    || true
 
 # CI container
 # ************
