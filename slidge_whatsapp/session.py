@@ -1,14 +1,16 @@
 import asyncio
 import time
 import warnings
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
-from typing import Any, Optional, cast
+from typing import Any, Concatenate, Optional, ParamSpec, TypeVar, cast
 from urllib.parse import quote as url_quote
 
+import aiohttp
 import sqlalchemy
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
@@ -61,13 +63,23 @@ VIDEO_PREVIEW_DOMAINS = (
 Recipient = Contact | MUC
 
 
-def ignore_contact_is_user(func):
+P = ParamSpec("P")
+T = TypeVar("T")
+
+
+WrappedSessionMethod = Callable[Concatenate["Session", P], Coroutine[Any, Any, T]]
+
+
+def ignore_contact_is_user(
+    func: WrappedSessionMethod[P, T],
+) -> WrappedSessionMethod[P, T | None]:
     @wraps(func)
-    async def wrapped(self, *a, **k):
+    async def wrapped(self: Session, *a: P.args, **k: P.kwargs) -> T | None:
         try:
             return await func(self, *a, **k)
         except ContactIsUser as e:
             self.log.debug("A wild ContactIsUser has been raised!", exc_info=e)
+            return None
 
     return wrapped
 
@@ -77,7 +89,7 @@ class Session(BaseSession[str, Recipient]):
     contacts: Roster
     bookmarks: Bookmarks
 
-    def __init__(self, user: GatewayUser):
+    def __init__(self, user: GatewayUser) -> None:
         super().__init__(user)
         self.migrate()
         try:
@@ -91,7 +103,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SetEventHandler(self.__handle_event)
         self.__reset_connected()
 
-    def migrate(self):
+    def migrate(self) -> None:
         user_shelf_path = (
             global_config.HOME_DIR / "whatsapp" / (self.user_jid.bare + ".shelf")
         )
@@ -111,7 +123,7 @@ class Session(BaseSession[str, Recipient]):
                 self.legacy_module_data_set({"device_id": device_id})
         user_shelf_path.unlink()
 
-    async def login(self):
+    async def login(self) -> str:
         """
         Initiate login process and connect session to WhatsApp. Depending on existing state, login
         might either return having initiated the Linked Device registration process in the background,
@@ -121,7 +133,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.Login()
         return await self.__connected
 
-    async def logout(self):
+    async def logout(self) -> None:
         """
         Disconnect the active WhatsApp session. This will not remove any local or remote state, and
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
@@ -130,7 +142,7 @@ class Session(BaseSession[str, Recipient]):
         self.logged = False
 
     @ignore_contact_is_user
-    async def handle_event(self, event_kind: int, ptr):
+    async def handle_event(self, event_kind: int, ptr: int) -> None:
         """
         Handle incoming event, as propagated by the WhatsApp adapter. Typically, events carry all
         state required for processing by the Gateway itself, and will do minimal processing themselves.
@@ -216,7 +228,7 @@ class Session(BaseSession[str, Recipient]):
             # When we are logged out, the initial history sync may not completely
             # cover the "hole" between logout and re-pair, so we want to request
             # more history.
-            muc.history_requested = False  # type: ignore[attr-defined]
+            muc.history_requested = False  # type: ignore[attr-defined]  # ty:ignore[unresolved-attribute]
 
     async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
         if wa_contact.Actor.JID:
@@ -238,7 +250,7 @@ class Session(BaseSession[str, Recipient]):
             await contact.update_presence(presence.Kind, presence.LastSeen)
         # TODO: LID participant presence update?
 
-    async def on_wa_chat_state(self, state: whatsapp.ChatState):
+    async def on_wa_chat_state(self, state: whatsapp.ChatState) -> None:
         if not state.Chat.IsGroup and not state.Actor.JID:
             # For unknown/new contacts, we receive 1:1 *LID* chat states.
             # We currently have no way to map those, so let's ignore them.
@@ -251,7 +263,7 @@ class Session(BaseSession[str, Recipient]):
         elif state.Kind == whatsapp.ChatStatePaused:
             contact.paused()
 
-    async def on_wa_receipt(self, receipt: whatsapp.Receipt):
+    async def on_wa_receipt(self, receipt: whatsapp.Receipt) -> None:
         """
         Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
         """
@@ -269,7 +281,7 @@ class Session(BaseSession[str, Recipient]):
                 contact.displayed(legacy_msg_id=message_id, carbon=receipt.Actor.IsMe)
                 contact.online(last_seen=datetime.now())
 
-    async def on_wa_call(self, call: whatsapp.Call):
+    async def on_wa_call(self, call: whatsapp.Call) -> None:
         if not call.Actor.JID:
             warnings.warn(f"Ignoring a call: {call}")
             return
@@ -286,7 +298,7 @@ class Session(BaseSession[str, Recipient]):
             text = text + f" at {call_at}"
         self.send_gateway_message(text)
 
-    async def on_wa_message(self, message: whatsapp.Message):
+    async def on_wa_message(self, message: whatsapp.Message) -> None:
         """
         Handle incoming message, as propagated by the WhatsApp adapter. Messages can be one of many
         types, including plain-text messages, media messages, reactions, etc., and may also include
@@ -427,8 +439,8 @@ class Session(BaseSession[str, Recipient]):
         reply_to_fallback_text: str | None = None,
         reply_to: Sender | None = None,
         mentions: list[Mention] | None = None,
-        **_,
-    ):
+        **_,  # noqa
+    ) -> str:
         """
         Send outgoing plain-text message to given WhatsApp contact.
         """
@@ -448,7 +460,7 @@ class Session(BaseSession[str, Recipient]):
             message,
             reply_to_msg_id,
             reply_to_fallback_text,
-            reply_to,  # type: ignore[arg-type]
+            reply_to,  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         )
         self.whatsapp.SendMessage(message)
         return message_id
@@ -457,12 +469,12 @@ class Session(BaseSession[str, Recipient]):
         self,
         chat: Recipient,
         url: str,
-        http_response,
+        http_response: aiohttp.ClientResponse,
         reply_to_msg_id: str | None = None,
         reply_to_fallback_text: str | None = None,
         reply_to: Sender | None = None,
-        **_,
-    ):
+        **_,  # noqa
+    ) -> str:
         """
         Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
         """
@@ -490,7 +502,7 @@ class Session(BaseSession[str, Recipient]):
             message,
             reply_to_msg_id,
             reply_to_fallback_text,
-            reply_to,  # type: ignore[arg-type]
+            reply_to,  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         )
         self.whatsapp.SendMessage(message)
         return message_id
@@ -502,7 +514,7 @@ class Session(BaseSession[str, Recipient]):
         status: str,
         resources: dict[str, ResourceDict],
         merged_resource: ResourceDict | None,
-    ):
+    ) -> None:
         """
         Send outgoing availability status (i.e. presence) based on combined status of all connected
         XMPP clients.
@@ -524,52 +536,77 @@ class Session(BaseSession[str, Recipient]):
                 self.__presence_status = status
             self.whatsapp.SendPresence(presence, status)
 
-    async def on_active(self, c: Recipient, thread=None):
+    async def on_active(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        thread: str | None = None,
+    ) -> None:
         """
         WhatsApp has no equivalent to the "active" chat state, so calls to this function are no-ops.
         """
         pass
 
-    async def on_inactive(self, c: Recipient, thread=None):
+    async def on_inactive(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        thread: str | None = None,
+    ) -> None:
         """
         WhatsApp has no equivalent to the "inactive" chat state, so calls to this function are no-ops.
         """
         pass
 
-    async def on_composing(self, c: Recipient, thread=None):
+    async def on_composing(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        thread: str | None = None,
+    ) -> None:
         """
         Send "composing" chat state to given WhatsApp contact, signifying that a message is currently
         being composed.
         """
-        self.__send_state(c, whatsapp.ChatStateComposing)
+        self.__send_state(chat, whatsapp.ChatStateComposing)
 
-    async def on_paused(self, c: Recipient, thread=None):
+    async def on_paused(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        thread: str | None = None,
+    ) -> None:
         """
         Send "paused" chat state to given WhatsApp contact, signifying that an (unsent) message is no
         longer being composed.
         """
-        self.__send_state(c, whatsapp.ChatStatePaused)
+        self.__send_state(chat, whatsapp.ChatStatePaused)
 
-    def __send_state(self, c: Recipient, kind) -> None:
+    def __send_state(self, c: Recipient, kind: int) -> None:
         state = whatsapp.ChatState(Chat=c.get_wa_chat(), Kind=kind)
         self.whatsapp.SendChatState(state)
 
-    async def on_displayed(self, c: Recipient, legacy_msg_id: str, thread=None):
+    async def on_displayed(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        legacy_msg_id: str,
+        thread: str | None = None,
+    ) -> None:
         """
         Send "read" receipt, signifying that the WhatsApp message sent has been displayed on the XMPP
         client.
         """
         receipt = whatsapp.Receipt(
             MessageIDs=go.Slice_string([legacy_msg_id]),
-            Chat=c.get_wa_chat(),
-            OriginActor=await c.get_wa_actor(legacy_msg_id),
+            Chat=chat.get_wa_chat(),
+            OriginActor=await chat.get_wa_actor(legacy_msg_id),
             Timestamp=round(int(time.time())),
         )
         self.whatsapp.SendReceipt(receipt)
 
-    async def on_react(
-        self, c: Recipient, legacy_msg_id: str, emojis: list[str], thread=None
-    ):
+    async def on_react(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        legacy_msg_id: str,
+        emojis: list[str],
+        thread: str | None = None,
+    ) -> None:
         """
         Send or remove emoji reaction to existing WhatsApp message.
         Slidge core makes sure that the emojis parameter is always empty or a
@@ -578,29 +615,34 @@ class Session(BaseSession[str, Recipient]):
         message = whatsapp.Message(
             Kind=whatsapp.MessageReaction,
             ID=legacy_msg_id,
-            Chat=c.get_wa_chat(),
+            Chat=chat.get_wa_chat(),
             Body=emojis[0] if emojis else "",
-            OriginActor=await c.get_wa_actor(legacy_msg_id),
+            OriginActor=await chat.get_wa_actor(legacy_msg_id),
         )
         self.whatsapp.SendMessage(message)
 
-    async def on_retract(self, c: Recipient, legacy_msg_id: str, thread=None):
+    async def on_retract(  # type:ignore[override]
+        self,
+        chat: Recipient,
+        legacy_msg_id: str,
+        thread: str | None = None,
+    ) -> None:
         """
         Request deletion (aka retraction) for a given WhatsApp message.
         """
         message = whatsapp.Message(
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
-            Chat=c.get_wa_chat(),
+            Chat=chat.get_wa_chat(),
         )
         self.whatsapp.SendMessage(message)
 
-    async def on_moderate(
+    async def on_moderate(  # type:ignore[override]  # ty:ignore[invalid-method-override]
         self,
-        muc: MUC,  # type: ignore
+        muc: MUC,  # type: ignore[arg-type]
         legacy_msg_id: str,
         reason: str | None,
-    ):
+    ) -> None:
         message = whatsapp.Message(
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
@@ -613,15 +655,15 @@ class Session(BaseSession[str, Recipient]):
         part = await muc.get_user_participant()
         part.moderate(legacy_msg_id)
 
-    async def on_correct(
+    async def on_correct(  # type:ignore[override]  # ty:ignore[invalid-method-override]
         self,
         c: Recipient,
         text: str,
         legacy_msg_id: str,
-        thread=None,
-        link_previews=(),
-        mentions=None,
-    ):
+        thread: str | None = None,
+        link_previews=(),  # noqa
+        mentions=None,  # noqa
+    ) -> None:
         """
         Request correction (aka editing) for a given WhatsApp message.
         """
@@ -648,11 +690,11 @@ class Session(BaseSession[str, Recipient]):
             "", go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte()
         )
 
-    async def on_create_group(
+    async def on_create_group(  # type:ignore[override]  # ty:ignore[invalid-method-override]
         self,
         name: str,
         contacts: list[Contact],  # type: ignore
-    ):
+    ) -> str:
         """
         Creates a WhatsApp group for the given human-readable name and participant list.
         """
@@ -662,13 +704,13 @@ class Session(BaseSession[str, Recipient]):
         muc = await self.bookmarks.by_legacy_id(group.JID)
         return muc.legacy_id
 
-    async def on_leave_group(self, legacy_muc_id: str):  # type: ignore
+    async def on_leave_group(self, legacy_muc_id: str) -> None:  # type: ignore
         """
         Removes own user from given WhatsApp group.
         """
         self.whatsapp.LeaveGroup(legacy_muc_id)
 
-    async def on_search(self, form_values: dict[str, str]):
+    async def on_search(self, form_values: dict[str, str]) -> SearchResult | None:
         """
         Searches for, and automatically adds, WhatsApp contact based on phone number. Phone numbers
         not registered on WhatsApp will be ignored with no error.
@@ -679,7 +721,7 @@ class Session(BaseSession[str, Recipient]):
 
         data: whatsapp.Contact = self.whatsapp.FindContact(phone)
         if not data.Actor.JID:
-            return
+            return None
 
         contact = await self.contacts.add_whatsapp_contact(data)
         assert contact is not None
@@ -711,12 +753,12 @@ class Session(BaseSession[str, Recipient]):
                 )
             )
 
-    def __reset_connected(self):
+    def __reset_connected(self) -> None:
         if hasattr(self, "__connected") and not self.__connected.done():
             self.xmpp.loop.call_soon_threadsafe(self.__connected.cancel)
         self.__connected: asyncio.Future[str] = self.xmpp.loop.create_future()
 
-    def __get_connected_status_message(self):
+    def __get_connected_status_message(self) -> str:
         return f"Connected as {self.user_phone}"
 
     async def __get_body(
@@ -753,7 +795,7 @@ class Session(BaseSession[str, Recipient]):
                 else await muc.replace_mentions(message.ReplyBody)
             ),
         )
-        if message.OriginActor.JID == self.contacts.user_legacy_id:
+        if self.contacts.user_legacy_id == message.OriginActor.JID:
             reply_to.author = "user"
         else:
             reply_to.author, _muc = await self.__get_contact_or_participant(
@@ -935,14 +977,14 @@ class Attachment(LegacyAttachment):
         )
 
 
-def add_quote_prefix(text: str):
+def add_quote_prefix(text: str) -> str:
     """
     Return multi-line text with leading quote marks (i.e. the ">" character).
     """
     return "\n".join(("> " + x).strip() for x in text.split("\n")).strip()
 
 
-def strip_quote_prefix(text: str):
+def strip_quote_prefix(text: str) -> str:
     """
     Return multi-line text without leading quote marks (i.e. the ">" character).
     """
@@ -956,18 +998,17 @@ async def get_url_bytes(client: ClientSession, url: str) -> bytes | None:
     return None
 
 
-def make_sync(func, loop):
+def make_sync(
+    func: Callable[P, Coroutine[Any, Any, T]], loop: asyncio.AbstractEventLoop
+) -> Callable[P, T]:
     """
     Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
     """
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         result = func(*args, **kwargs)
-        if asyncio.iscoroutine(result):
-            future = asyncio.run_coroutine_threadsafe(result, loop)
-            return future.result()
-        return result
+        future = asyncio.run_coroutine_threadsafe(result, loop)
+        return future.result()
 
     return wrapper
 

@@ -26,7 +26,7 @@ class Logout(Command):
         self,
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
-        *args,
+        *args: str,
     ) -> str:
         assert session is not None
         try:
@@ -58,7 +58,7 @@ class PairPhone(Command):
         self,
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
-        *args,
+        *args: str,
     ) -> FormSession:
         return FormSession(
             title="Pair to WhatsApp via phone number",
@@ -68,7 +68,7 @@ class PairPhone(Command):
         )
 
     @staticmethod
-    async def finish(form_values: dict, session: "Session", _ifrom: JID):
+    async def finish(form_values: dict, session: "Session", _ifrom: JID) -> str:
         p = form_values.get("phone")
         if not is_valid_phone_number(p):
             raise ValueError("Not a valid phone number", p)
@@ -91,7 +91,7 @@ class ChangePresence(Command):
         self,
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
-        *args,
+        *args: str,
     ) -> FormSession:
         return FormSession(
             title="Set WhatsApp web presence",
@@ -111,7 +111,7 @@ class ChangePresence(Command):
         )
 
     @staticmethod
-    async def finish(form_values: dict, session: "Session", _ifrom: JID):
+    async def finish(form_values: dict, session: "Session", _ifrom: JID) -> str:
         p = form_values.get("presence")
         if p == "available":
             session.whatsapp.SendPresence(whatsapp.PresenceAvailable, "")
@@ -137,7 +137,7 @@ class SubscribeToPresences(Command):
         self,
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
-        *args,
+        *args,  # noqa
     ) -> str:
         assert session is not None
         session.whatsapp.GetContacts(False)

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from slidge import BaseGateway, FormField, global_config
+from slixmpp import JID
 
 from . import config
 from .generated import whatsapp
@@ -40,9 +41,10 @@ class Gateway(BaseGateway):
 
     REGISTRATION_INSTRUCTIONS = REGISTRATION_INSTRUCTIONS
     WELCOME_MESSAGE = WELCOME_MESSAGE
-    REGISTRATION_FIELDS = []
+    REGISTRATION_FIELDS = ()
 
-    PREFERENCES = BaseGateway.PREFERENCES + [
+    PREFERENCES = [  # noqa
+        *BaseGateway.PREFERENCES,
         FormField(
             var="enable_link_previews",
             label="Generate link previews for URLs sent in outgoing messages",
@@ -59,9 +61,7 @@ class Gateway(BaseGateway):
         ),
     ]
 
-    SEARCH_FIELDS = [
-        FormField(var="phone", label="Phone number", required=True),
-    ]
+    SEARCH_FIELDS = (FormField(var="phone", label="Phone number", required=True),)
 
     MARK_ALL_MESSAGES = True
     GROUPS = True
@@ -75,7 +75,7 @@ class Gateway(BaseGateway):
     # flaws in slidge core, cf <https://codeberg.org/slidge/slidge-whatsapp/pulls/103#issuecomment-9237104>.
     DB_POOL_SIZE = (os.cpu_count() or 1) + 31
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.whatsapp = whatsapp.NewGateway()
         self.whatsapp.Name = "Slidge on " + str(global_config.JID)
@@ -89,14 +89,16 @@ class Gateway(BaseGateway):
         self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")
         self.whatsapp.Init()
 
-    async def validate(self, user_jid, registration_form):
+    async def validate(
+        self, user_jid: JID, registration_form: dict[str, str | None]
+    ) -> None:
         """
         Validate registration form. A no-op for WhatsApp, as actual registration takes place
         after in-band registration commands complete; see :meth:`.Session.login` for more.
         """
         pass
 
-    async def unregister(self, session: "Session"):  # type:ignore[override]
+    async def unregister(self, session: "Session") -> None:  # type:ignore[override]
         """
         Logout from the active WhatsApp session. This will also force a remote log-out, and thus
         require pairing on next login. For simply disconnecting the active session, look at the

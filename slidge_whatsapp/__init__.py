@@ -16,7 +16,7 @@ except PackageNotFoundError:
     __version__ = "dev"
 
 
-def main():
+def main() -> None:
     if len(sys.argv) == 2 and sys.argv[1] == "--version":
         print("slidge-whatsapp version", __version__)
         exit(0)

@@ -82,7 +82,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
     def deserialize_extra_attributes(self, data: JSONSerializable) -> None:
         self._history_requested = bool(data.get("history_requested", False))
 
-    async def update_info(self):
+    async def update_info(self) -> None:
         # stuff happens in self.update_whatsapp_info()
         pass
 
@@ -90,7 +90,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self,
         after: HoleBound | None = None,
         before: HoleBound | None = None,
-    ):
+    ) -> None:
         """
         Request history for messages older than the oldest message given by ID and date.
         """
@@ -113,7 +113,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
         self.history_requested = True
 
-    def get_sender_lid(self, legacy_msg_id: str):
+    def get_sender_lid(self, legacy_msg_id: str) -> str:
         for message in self.get_archived_messages(legacy_msg_id):
             break
         else:
@@ -122,7 +122,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             )
         occupant_id = message.occupant_id
         if occupant_id == "slidge-user":
-            return self.session.contacts.user_legacy_id
+            return self.session.contacts.user_legacy_id  # type:ignore
         if occupant_id.endswith("@lid"):
             return occupant_id
         # this part _should_ not be reached, but it is a safeguard against sending
@@ -192,22 +192,22 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         self,
         name: str | None,
         description: str | None,
-    ):
+    ) -> None:
         # there are no group descriptions in WA, but topics=subjects
         if self.name != name:
             self.session.whatsapp.SetGroupName(self.legacy_id, name)
 
-    async def on_set_subject(self, subject: str):
+    async def on_set_subject(self, subject: str) -> None:
         if self.subject != subject:
             self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)
 
-    async def on_set_affiliation(
+    async def on_set_affiliation(  # type:ignore[override]  # ty:ignore[invalid-method-override]
         self,
         contact: "Contact",  # type:ignore
         affiliation: MucAffiliation,
         reason: str | None,
         nickname: str | None,
-    ):
+    ) -> None:
         if affiliation == "member":
             participant = await self.get_participant_by_contact(contact, create=False)  # type:ignore[call-overload]
             if participant is None or participant.affiliation in ("outcast", "none"):
@@ -279,20 +279,20 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
 class Bookmarks(LegacyBookmarks[str, MUC]):
     session: "Session"
 
-    async def fill(self):
+    async def fill(self) -> None:
         groups = self.session.whatsapp.GetGroups()
         for group in groups:
             await self.add_whatsapp_group(group)
 
-    async def add_whatsapp_group(self, data: whatsapp.Group):
+    async def add_whatsapp_group(self, data: whatsapp.Group) -> None:
         muc = await self.by_legacy_id(data.JID)
         await muc.update_whatsapp_info(data)
         await muc.add_to_bookmarks()
 
-    async def legacy_id_to_jid_local_part(self, legacy_id: str):
+    async def legacy_id_to_jid_local_part(self, legacy_id: str) -> str:
         return "#" + legacy_id[: legacy_id.find("@")]
 
-    async def jid_local_part_to_legacy_id(self, local_part: str):
+    async def jid_local_part_to_legacy_id(self, local_part: str) -> str:
         if not local_part.startswith("#"):
             raise XMPPError("bad-request", "Invalid group ID, expected '#' prefix")
 
@@ -316,8 +316,8 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
                 participant.nickname = contact.Name
 
 
-def replace_whatsapp_mentions(text: str, mapping: dict[str, str]):
-    def match(m: re.Match):
+def replace_whatsapp_mentions(text: str, mapping: dict[str, str]) -> str:
+    def match(m: re.Match) -> str:
         group = m.group(0)
         return mapping.get(group.removeprefix("@"), group)
 

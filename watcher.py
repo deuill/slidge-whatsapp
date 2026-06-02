@@ -12,7 +12,7 @@ from watchdog.tricks import AutoRestartTrick, ShellCommandTrick
 if __name__ == "__main__":
     observer = Observer()
     auto_restart = AutoRestartTrick(
-        command=["python", "-m", "slidge"] + sys.argv[2:] if len(sys.argv) > 2 else [],
+        command=["python", "-m", "slidge", *sys.argv[2:]] if len(sys.argv) > 2 else [],
         patterns=["*.py"],
         ignore_patterns=["generated/*.py"],
     )

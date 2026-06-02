@@ -11,13 +11,13 @@ from packaging.tags import sys_tags
 SRC_PATH = Path(".") / "slidge_whatsapp"
 
 
-def is_musl():
+def is_musl() -> bool:
     # taken from https://stackoverflow.com/a/75172415/5902284
     tags = list(sys_tags())
     return "musllinux" in tags[0].platform
 
 
-def get_correct_lib_suffix():
+def get_correct_lib_suffix() -> str | None:
     system = platform.system().lower()
     machine = platform.machine().lower()
     suffix = "_musl" if is_musl() else ""
@@ -28,7 +28,7 @@ def get_correct_lib_suffix():
     return None
 
 
-def main():
+def main() -> None:
     build_go()
     suffix = get_correct_lib_suffix()
     if suffix is None:
@@ -39,7 +39,7 @@ def main():
             path.unlink()
 
 
-def build_go():
+def build_go() -> None:
     current_sum = ""
     for p in sorted(list(SRC_PATH.glob("**/*.go"))):
         p_rel = p.relative_to(SRC_PATH)

@@ -21,7 +21,7 @@ class Contact(AvatarMixin, LegacyContact[str]):
 
     async def update_presence(
         self, presence: whatsapp.PresenceKind, last_seen_timestamp: int
-    ):
+    ) -> None:
         last_seen = (
             datetime.fromtimestamp(last_seen_timestamp, tz=UTC)
             if last_seen_timestamp > 0
@@ -92,7 +92,7 @@ class Roster(LegacyRoster[str, Contact]):
         Adds a WhatsApp contact to local roster, filling all required and optional information.
         """
         # Don't attempt to add ourselves to the roster.
-        if data.Actor.JID == self.user_legacy_id:
+        if self.user_legacy_id == data.Actor.JID:
             return None
         if not data.Actor.JID:
             return None
