@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .session import Session
 
 
-class Logout(Command):
+class Logout(Command["Session"]):
     NAME = "🔓 Disconnect from WhatsApp"
     HELP = (
         "Disconnects active WhatsApp session without removing any linked device credentials. "
@@ -24,7 +24,7 @@ class Logout(Command):
 
     async def run(
         self,
-        session: Optional["Session"],  # type:ignore
+        session: Optional["Session"],
         ifrom: JID,
         *args: str,
     ) -> str:
@@ -42,7 +42,7 @@ class Logout(Command):
         return "Logged out successfully"
 
 
-class PairPhone(Command):
+class PairPhone(Command["Session"]):
     NAME = "📱 Complete registration via phone number"
     HELP = (
         "As an alternative to QR code verification, this allows you to complete registration "
@@ -56,19 +56,21 @@ class PairPhone(Command):
 
     async def run(
         self,
-        session: Optional["Session"],  # type:ignore
+        session: Optional["Session"],
         ifrom: JID,
         *args: str,
-    ) -> FormSession:
+    ) -> FormSession["Session"]:
         return FormSession(
             title="Pair to WhatsApp via phone number",
             instructions="Enter your phone number in international format (e.g. +447700900000)",
             fields=[FormField(var="phone", label="Phone number", required=True)],
-            handler=self.finish,  # type:ignore
+            handler=self.finish,
         )
 
     @staticmethod
-    async def finish(form_values: dict, session: "Session", _ifrom: JID) -> str:
+    async def finish(
+        form_values: dict[str, str | None], session: "Session", _ifrom: JID
+    ) -> str:
         p = form_values.get("phone")
         if not is_valid_phone_number(p):
             raise ValueError("Not a valid phone number", p)
@@ -76,7 +78,7 @@ class PairPhone(Command):
         return f"Please open the official WhatsApp client and input the following code: {code}"
 
 
-class ChangePresence(Command):
+class ChangePresence(Command["Session"]):
     NAME = "📴 Set WhatsApp web presence"
     HELP = (
         "If you want to receive notifications in the WhatsApp official client,"
@@ -89,10 +91,10 @@ class ChangePresence(Command):
 
     async def run(
         self,
-        session: Optional["Session"],  # type:ignore
+        session: Optional["Session"],
         ifrom: JID,
         *args: str,
-    ) -> FormSession:
+    ) -> FormSession["Session"]:
         return FormSession(
             title="Set WhatsApp web presence",
             instructions="Choose what type of presence you want to set",
@@ -107,11 +109,13 @@ class ChangePresence(Command):
                     ],
                 )
             ],
-            handler=self.finish,  # type:ignore
+            handler=self.finish,
         )
 
     @staticmethod
-    async def finish(form_values: dict, session: "Session", _ifrom: JID) -> str:
+    async def finish(
+        form_values: dict[str, str], session: "Session", _ifrom: JID
+    ) -> str:
         p = form_values.get("presence")
         if p == "available":
             session.whatsapp.SendPresence(whatsapp.PresenceAvailable, "")
@@ -122,7 +126,7 @@ class ChangePresence(Command):
         return f"Presence succesfully set to {p}"
 
 
-class SubscribeToPresences(Command):
+class SubscribeToPresences(Command["Session"]):
     NAME = "🔔 Subscribe to contacts' presences"
     HELP = (
         "Subscribes to and refreshes contacts' presences; typically this is "
@@ -135,9 +139,9 @@ class SubscribeToPresences(Command):
 
     async def run(
         self,
-        session: Optional["Session"],  # type:ignore
+        session: Optional["Session"],
         ifrom: JID,
-        *args,  # noqa
+        *args: str,
     ) -> str:
         assert session is not None
         session.whatsapp.GetContacts(False)

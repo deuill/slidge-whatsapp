@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from slidge import LegacyContact, LegacyRoster
+from slidge.contact import LegacyContact, LegacyRoster
 from slixmpp.exceptions import XMPPError
 
 from . import config
@@ -27,13 +27,13 @@ class Contact(AvatarMixin, LegacyContact[str]):
             if last_seen_timestamp > 0
             else None
         )
-        if presence == whatsapp.PresenceUnavailable:
+        if presence == whatsapp.PresenceUnavailable:  # type:ignore[comparison-overlap]
             self.away(last_seen=last_seen)
         else:
             self.online(last_seen=last_seen)
 
     async def update_info(self) -> None:
-        if whatsapp.IsAnonymousJID(self.legacy_id):
+        if whatsapp.IsAnonymousJID(self.legacy_id):  # type:ignore[no-untyped-call]
             raise XMPPError(
                 "item-not-found", f"LIDs are not valid contact IDs: {self.legacy_id}"
             )
@@ -56,11 +56,11 @@ class Contact(AvatarMixin, LegacyContact[str]):
             self.set_vcard(full_name=self.name, phone=str(self.jid.local))
 
     def get_wa_chat(self) -> whatsapp.Chat:
-        return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)
+        return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)  # type:ignore[no-untyped-call]
 
     async def get_wa_actor(self, legacy_msg_id: str) -> whatsapp.Actor:
         carbon = self.session.message_is_carbon(self, legacy_msg_id)
-        return whatsapp.Actor(
+        return whatsapp.Actor(  # type:ignore[no-untyped-call]
             JID=self.session.contacts.user_legacy_id if carbon else self.legacy_id,
             IsMe=carbon,
         )

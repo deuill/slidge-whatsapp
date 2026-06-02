@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 import warnings
@@ -7,17 +9,18 @@ from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
-from typing import Any, Concatenate, Optional, ParamSpec, TypeVar, cast
+from typing import Any, Concatenate, ParamSpec, TypeVar, cast
 from urllib.parse import quote as url_quote
 
 import aiohttp
 import sqlalchemy
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
-from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
+from slidge import BaseSession, global_config
+from slidge.command import FormField, SearchResult
 from slidge.command.user import SyncContacts
 from slidge.contact.roster import ContactIsUser
-from slidge.db.models import ArchivedMessage
+from slidge.db.models import ArchivedMessage, GatewayUser
 from slidge.util import is_valid_phone_number, replace_mentions
 from slidge.util.types import (
     Avatar,
@@ -25,13 +28,13 @@ from slidge.util.types import (
     Mention,
     MessageReference,
     PseudoPresenceShow,
-    ResourceDict,
     Sender,
 )
 from slidge.util.types import (
     LinkPreview as SlidgeLinkPreview,
 )
 from slixmpp.exceptions import XMPPError
+from slixmpp.types import ResourceDict
 
 from .contact import Contact, Roster
 from .gateway import Gateway
@@ -74,7 +77,7 @@ def ignore_contact_is_user(
     func: WrappedSessionMethod[P, T],
 ) -> WrappedSessionMethod[P, T | None]:
     @wraps(func)
-    async def wrapped(self: Session, *a: P.args, **k: P.kwargs) -> T | None:
+    async def wrapped(self: Session, /, *a: P.args, **k: P.kwargs) -> T | None:
         try:
             return await func(self, *a, **k)
         except ContactIsUser as e:
@@ -93,9 +96,9 @@ class Session(BaseSession[str, Recipient]):
         super().__init__(user)
         self.migrate()
         try:
-            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
+            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])  # type:ignore[no-untyped-call]
         except KeyError:
-            device = whatsapp.LinkedDevice()
+            device = whatsapp.LinkedDevice()  # type:ignore[no-untyped-call]
         self.__presence_status: str = ""
         self.user_phone: str | None = None
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
@@ -157,7 +160,7 @@ class Session(BaseSession[str, Recipient]):
         ):
             await self.contacts.ready
             await self.bookmarks.ready
-        event = whatsapp.EventPayload(handle=ptr)
+        event = whatsapp.EventPayload(handle=ptr)  # type:ignore[no-untyped-call]
         match event_kind:
             case whatsapp.EventQRCode:
                 await self.on_wa_qr(event.QRCode)
@@ -228,7 +231,7 @@ class Session(BaseSession[str, Recipient]):
             # When we are logged out, the initial history sync may not completely
             # cover the "hole" between logout and re-pair, so we want to request
             # more history.
-            muc.history_requested = False  # type: ignore[attr-defined]  # ty:ignore[unresolved-attribute]
+            muc.history_requested = False
 
     async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
         if wa_contact.Actor.JID:
@@ -430,7 +433,7 @@ class Session(BaseSession[str, Recipient]):
             chat = await self.contacts.by_legacy_id(avatar.ResourceID)
         chat.avatar = Avatar(url=avatar.URL or None, unique_id=avatar.ID or None)
 
-    async def on_text(
+    async def on_text(  # type:ignore[no-untyped-def]
         self,
         chat: Recipient,
         text: str,
@@ -444,16 +447,16 @@ class Session(BaseSession[str, Recipient]):
         """
         Send outgoing plain-text message to given WhatsApp contact.
         """
-        message_id = self.whatsapp.GenerateMessageID()
-        message_preview = await self.__get_preview(text) or whatsapp.Preview()
-        message_location = await self.__get_location(text) or whatsapp.Location()
-        message = whatsapp.Message(
+        message_id: str = self.whatsapp.GenerateMessageID()
+        message_preview = await self.__get_preview(text) or whatsapp.Preview()  # type:ignore[no-untyped-call]
+        message_location = await self.__get_location(text) or whatsapp.Location()  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
             ID=message_id,
             Chat=chat.get_wa_chat(),
             Body=replace_mentions(text, mentions, mention_map),
             Preview=message_preview,
             Location=message_location,
-            MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),
+            MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),  # type:ignore[no-untyped-call]
         )
         self.__set_reply_to(
             chat,
@@ -465,7 +468,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SendMessage(message)
         return message_id
 
-    async def on_file(
+    async def on_file(  # type:ignore[no-untyped-def]
         self,
         chat: Recipient,
         url: str,
@@ -484,18 +487,18 @@ class Session(BaseSession[str, Recipient]):
                 "internal-server-error",
                 "Unable to retrieve file from XMPP server, try again",
             )
-        message_id = self.whatsapp.GenerateMessageID()
-        message_attachment = whatsapp.Attachment(
+        message_id: str = self.whatsapp.GenerateMessageID()
+        message_attachment = whatsapp.Attachment(  # type:ignore[no-untyped-call]
             MIME=http_response.content_type,
             Filename=basename(url),
-            Data=go.Slice_byte.from_bytes(data),
+            Data=go.Slice_byte.from_bytes(data),  # type:ignore[no-untyped-call]
         )
-        message = whatsapp.Message(
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageAttachment,
             ID=message_id,
             Chat=chat.get_wa_chat(),
             ReplyID=reply_to_msg_id if reply_to_msg_id else "",
-            Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),
+            Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),  # type:ignore[no-untyped-call]
         )
         self.__set_reply_to(
             chat,
@@ -579,7 +582,7 @@ class Session(BaseSession[str, Recipient]):
         self.__send_state(chat, whatsapp.ChatStatePaused)
 
     def __send_state(self, c: Recipient, kind: int) -> None:
-        state = whatsapp.ChatState(Chat=c.get_wa_chat(), Kind=kind)
+        state = whatsapp.ChatState(Chat=c.get_wa_chat(), Kind=kind)  # type:ignore[no-untyped-call]
         self.whatsapp.SendChatState(state)
 
     async def on_displayed(  # type:ignore[override]
@@ -592,8 +595,8 @@ class Session(BaseSession[str, Recipient]):
         Send "read" receipt, signifying that the WhatsApp message sent has been displayed on the XMPP
         client.
         """
-        receipt = whatsapp.Receipt(
-            MessageIDs=go.Slice_string([legacy_msg_id]),
+        receipt = whatsapp.Receipt(  # type:ignore[no-untyped-call]
+            MessageIDs=go.Slice_string([legacy_msg_id]),  # type:ignore[no-untyped-call]
             Chat=chat.get_wa_chat(),
             OriginActor=await chat.get_wa_actor(legacy_msg_id),
             Timestamp=round(int(time.time())),
@@ -612,7 +615,7 @@ class Session(BaseSession[str, Recipient]):
         Slidge core makes sure that the emojis parameter is always empty or a
         *single* emoji.
         """
-        message = whatsapp.Message(
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageReaction,
             ID=legacy_msg_id,
             Chat=chat.get_wa_chat(),
@@ -630,7 +633,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Request deletion (aka retraction) for a given WhatsApp message.
         """
-        message = whatsapp.Message(
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
             Chat=chat.get_wa_chat(),
@@ -639,11 +642,11 @@ class Session(BaseSession[str, Recipient]):
 
     async def on_moderate(  # type:ignore[override]  # ty:ignore[invalid-method-override]
         self,
-        muc: MUC,  # type: ignore[arg-type]
+        muc: MUC,
         legacy_msg_id: str,
         reason: str | None,
     ) -> None:
-        message = whatsapp.Message(
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
             Chat=muc.get_wa_chat(),
@@ -655,7 +658,7 @@ class Session(BaseSession[str, Recipient]):
         part = await muc.get_user_participant()
         part.moderate(legacy_msg_id)
 
-    async def on_correct(  # type:ignore[override]  # ty:ignore[invalid-method-override]
+    async def on_correct(  # type:ignore[override,no-untyped-def]  # ty:ignore[invalid-method-override]
         self,
         c: Recipient,
         text: str,
@@ -667,7 +670,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Request correction (aka editing) for a given WhatsApp message.
         """
-        message = whatsapp.Message(
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageEdit,
             ID=legacy_msg_id,
             Chat=c.get_wa_chat(),
@@ -687,7 +690,8 @@ class Session(BaseSession[str, Recipient]):
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
         """
         self.whatsapp.SetAvatar(
-            "", go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte()
+            "",
+            go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte(),  # type:ignore[no-untyped-call]
         )
 
     async def on_create_group(  # type:ignore[override]  # ty:ignore[invalid-method-override]
@@ -699,7 +703,8 @@ class Session(BaseSession[str, Recipient]):
         Creates a WhatsApp group for the given human-readable name and participant list.
         """
         group = self.whatsapp.CreateGroup(
-            name, go.Slice_string([c.legacy_id for c in contacts])
+            name,
+            go.Slice_string([c.legacy_id for c in contacts]),  # type:ignore[no-untyped-call]
         )
         muc = await self.bookmarks.by_legacy_id(group.JID)
         return muc.legacy_id
@@ -762,9 +767,9 @@ class Session(BaseSession[str, Recipient]):
         return f"Connected as {self.user_phone}"
 
     async def __get_body(
-        self, message: whatsapp.Message, muc: Optional["MUC"] = None
+        self, message: whatsapp.Message, muc: MUC | None = None
     ) -> str:
-        body = message.Body
+        body: str = message.Body
         if muc:
             body = await muc.replace_mentions(body)
         if message.Location.Latitude != 0 or message.Location.Longitude != 0:
@@ -783,8 +788,8 @@ class Session(BaseSession[str, Recipient]):
         return body
 
     async def __get_reply_to(
-        self, message: whatsapp.Message, muc: Optional["MUC"] = None
-    ) -> MessageReference | None:
+        self, message: whatsapp.Message, muc: MUC | None = None
+    ) -> MessageReference[str] | None:
         if not message.ReplyID:
             return None
         reply_to = MessageReference(
@@ -847,15 +852,15 @@ class Session(BaseSession[str, Recipient]):
                     if url.startswith(VIDEO_PREVIEW_DOMAINS)
                     else whatsapp.PreviewPlain
                 )
-                return whatsapp.Preview(
+                return whatsapp.Preview(  # type:ignore[no-untyped-call]
                     Kind=kind,
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,
                     Thumbnail=(
-                        go.Slice_byte.from_bytes(thumbnail)
+                        go.Slice_byte.from_bytes(thumbnail)  # type:ignore[no-untyped-call]
                         if thumbnail
-                        else go.Slice_byte()
+                        else go.Slice_byte()  # type:ignore[no-untyped-call]
                     ),
                 )
         except Exception as e:
@@ -870,7 +875,7 @@ class Session(BaseSession[str, Recipient]):
         longitude = match.group("lon")
         if latitude == "" or longitude == "":
             return None
-        return whatsapp.Location(
+        return whatsapp.Location(  # type:ignore[no-untyped-call]
             Latitude=float(latitude),
             Longitude=float(longitude),
             Accuracy=int(match.group("acc") or 0),
@@ -901,7 +906,7 @@ class Session(BaseSession[str, Recipient]):
                 )
             elif actor.JID:
                 return (
-                    await muc.get_participant_by_legacy_id(  # type: ignore[call-overload]
+                    await muc.get_participant_by_legacy_id(
                         actor.JID, occupant_id=actor.LID or None
                     ),
                     muc,
@@ -957,14 +962,14 @@ class Session(BaseSession[str, Recipient]):
 class Attachment(LegacyAttachment):
     @staticmethod
     async def convert_list(
-        attachments: list, muc: Optional["MUC"] = None
-    ) -> list["Attachment"]:
+        attachments: list[whatsapp.Attachment], muc: MUC | None = None
+    ) -> list[Attachment]:
         return [await Attachment.convert(attachment, muc) for attachment in attachments]
 
     @staticmethod
     async def convert(
-        wa_attachment: whatsapp.Attachment, muc: Optional["MUC"] = None
-    ) -> "Attachment":
+        wa_attachment: whatsapp.Attachment, muc: MUC | None = None
+    ) -> Attachment:
         return Attachment(
             content_type=wa_attachment.MIME,
             data=bytes(wa_attachment.Data),

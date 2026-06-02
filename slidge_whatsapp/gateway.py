@@ -4,7 +4,8 @@ from logging import getLevelName, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from slidge import BaseGateway, FormField, global_config
+from slidge import BaseGateway, global_config
+from slidge.command import FormField
 from slixmpp import JID
 
 from . import config
@@ -77,7 +78,7 @@ class Gateway(BaseGateway):
 
     def __init__(self) -> None:
         super().__init__()
-        self.whatsapp = whatsapp.NewGateway()
+        self.whatsapp = whatsapp.NewGateway()  # type:ignore[no-untyped-call]
         self.whatsapp.Name = "Slidge on " + str(global_config.JID)
         self.whatsapp.LogLevel = getLevelName(getLogger().level)
 
@@ -107,7 +108,7 @@ class Gateway(BaseGateway):
         session.whatsapp.Logout()
         try:
             device_id = session.user.legacy_module_data["device_id"]
-            self.whatsapp.CleanupSession(whatsapp.LinkedDevice(ID=device_id))
+            self.whatsapp.CleanupSession(whatsapp.LinkedDevice(ID=device_id))  # type:ignore[no-untyped-call]
         except KeyError:
             pass
         except RuntimeError as err:

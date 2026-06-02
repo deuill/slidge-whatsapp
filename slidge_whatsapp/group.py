@@ -105,7 +105,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             # on startup, as long as we have not been logged out by WhatsApp
 
         assert isinstance(before.id, str)
-        oldest_message = whatsapp.Message(
+        oldest_message = whatsapp.Message(  # type:ignore[no-untyped-call]
             ID=before.id,
             Actor=await self.get_wa_actor(before.id),
             Timestamp=int(before.timestamp.timestamp()),
@@ -183,9 +183,9 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         return replace_whatsapp_mentions(text, mapping=mapping)
 
     async def on_avatar(self, data: bytes | None, mime: str | None) -> None:
-        return self.session.whatsapp.SetAvatar(
+        self.session.whatsapp.SetAvatar(
             self.legacy_id,
-            go.Slice_byte.from_bytes(data) if data else go.Slice_byte(),
+            go.Slice_byte.from_bytes(data) if data else go.Slice_byte(),  # type:ignore[no-untyped-call]
         )
 
     async def on_set_config(
@@ -203,7 +203,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
 
     async def on_set_affiliation(  # type:ignore[override]  # ty:ignore[invalid-method-override]
         self,
-        contact: "Contact",  # type:ignore
+        contact: "Contact",
         affiliation: MucAffiliation,
         reason: str | None,
         nickname: str | None,
@@ -227,17 +227,18 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             )
         self.session.whatsapp.UpdateGroupParticipants(
             self.legacy_id,
-            whatsapp.Slice_whatsapp_GroupParticipant(
+            whatsapp.Slice_whatsapp_GroupParticipant(  # type:ignore[no-untyped-call]
                 [
-                    whatsapp.GroupParticipant(
-                        Actor=whatsapp.Actor(JID=contact.legacy_id), Action=action
+                    whatsapp.GroupParticipant(  # type:ignore[no-untyped-call]
+                        Actor=whatsapp.Actor(JID=contact.legacy_id),  # type:ignore[no-untyped-call]
+                        Action=action,
                     )
                 ]
             ),
         )
 
     def get_wa_chat(self) -> whatsapp.Chat:
-        return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)
+        return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)  # type:ignore[no-untyped-call]
 
     async def get_participant_by_actor(
         self, actor: whatsapp.Actor, nickname: str = "", create: bool = True
@@ -248,13 +249,14 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             assert isinstance(actor.JID, str)
             assert isinstance(actor.LID, str)
             # call-overload? because https://github.com/python/mypy/issues/14764
-            return await self.get_participant_by_legacy_id(  # type:ignore[call-overload]
+            # FIXME?: missing overload in slidge core
+            return await self.get_participant_by_legacy_id(  # type:ignore[call-overload,no-any-return]
                 actor.JID, occupant_id=actor.LID, create=create
             )
         else:
             if not actor.LID:
                 return None
-            return await self.get_participant(  # type:ignore[call-overload]
+            return await self.get_participant(  # type:ignore[call-overload,no-any-return]
                 nickname,
                 occupant_id=actor.LID,
                 create=create,
@@ -269,7 +271,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
         #     jid = part.contact.legacy_id
         # elif part.is_user:
         #     jid = self.session.contacts.user_legacy_id
-        return whatsapp.Actor(
+        return whatsapp.Actor(  # type:ignore[no-untyped-call]
             JID=jid,
             LID=lid or "",
             IsMe=self.session.message_is_carbon(self, legacy_msg_id),
@@ -317,7 +319,7 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
 
 
 def replace_whatsapp_mentions(text: str, mapping: dict[str, str]) -> str:
-    def match(m: re.Match) -> str:
+    def match(m: re.Match[str]) -> str:
         group = m.group(0)
         return mapping.get(group.removeprefix("@"), group)
 

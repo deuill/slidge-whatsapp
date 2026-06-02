@@ -99,11 +99,10 @@ exclude = [
     "slidge_whatsapp/generated",
 ]
 check_untyped_defs = true
-strict = false
+strict = true
 
 [[tool.mypy.overrides]]
 module = [
-    "slidge_style_parser.*",
     "linkpreview",
     "slidge_whatsapp.generated",
 ]
