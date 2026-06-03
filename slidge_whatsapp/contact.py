@@ -1,19 +1,20 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from slidge.contact import LegacyContact, LegacyRoster
+from slidge.util.types import XMPPMessage
 from slixmpp.exceptions import XMPPError
 
 from . import config
-from .avatar import AvatarMixin
 from .generated import whatsapp
+from .mixins import AvatarMixin, RecipientMixin, strip_quote_prefix
 
 if TYPE_CHECKING:
     from .session import Session
 
 
-class Contact(AvatarMixin, LegacyContact[str]):
+class Contact(AvatarMixin, RecipientMixin, LegacyContact):
     session: "Session"
 
     CORRECTION = True
@@ -69,8 +70,26 @@ class Contact(AvatarMixin, LegacyContact[str]):
     def phone(self) -> str:
         return self.legacy_id.split("@")[0]
 
+    def _set_reply_to(self, xmpp_msg: XMPPMessage, wa_msg: whatsapp.Message) -> None:
+        if not xmpp_msg.reply:
+            return
 
-class Roster(LegacyRoster[str, Contact]):
+        wa_msg.ReplyID = xmpp_msg.reply.msg_id
+
+        if xmpp_msg.reply.fallback:
+            wa_msg.ReplyBody = strip_quote_prefix(xmpp_msg.reply.fallback)
+            wa_msg.Body = wa_msg.Body.lstrip()
+
+        if not xmpp_msg.reply.to:
+            wa_msg.OriginActor.IsMe = True
+            wa_msg.OriginActor.JID = self.session.contacts.user_legacy_id
+            return
+
+        xmpp_msg.reply.to = cast(Contact, xmpp_msg.reply.to)
+        wa_msg.OriginActor.JID = self.legacy_id
+
+
+class Roster(LegacyRoster[Contact]):
     session: "Session"
 
     async def fill(self) -> AsyncIterator[Contact]:
@@ -78,14 +97,14 @@ class Roster(LegacyRoster[str, Contact]):
         Retrieve contacts from remote WhatsApp service, subscribing to their presence and adding to
         local roster.
         """
-        wa_contacts = self.session.whatsapp.GetContacts(
+        wa_contacts = self.session.whatsapp.GetContacts(  # type:ignore[no-untyped-call]
             refresh=config.ALWAYS_SYNC_ROSTER
         )
         for wa_contact in wa_contacts:
             contact = await self.add_whatsapp_contact(wa_contact)
             if contact is not None:
                 yield contact
-        self.session.whatsapp.SubscribeToPresences()
+        self.session.whatsapp.SubscribeToPresences()  # type:ignore[no-untyped-call]
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:
         """

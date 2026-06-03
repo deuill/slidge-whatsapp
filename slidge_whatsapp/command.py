@@ -74,7 +74,7 @@ class PairPhone(Command["Session"]):
         p = form_values.get("phone")
         if not is_valid_phone_number(p):
             raise ValueError("Not a valid phone number", p)
-        code = session.whatsapp.PairPhone(p)
+        code = session.whatsapp.PairPhone(p)  # type:ignore[no-untyped-call]
         return f"Please open the official WhatsApp client and input the following code: {code}"
 
 
@@ -118,9 +118,9 @@ class ChangePresence(Command["Session"]):
     ) -> str:
         p = form_values.get("presence")
         if p == "available":
-            session.whatsapp.SendPresence(whatsapp.PresenceAvailable, "")
+            session.whatsapp.SendPresence(whatsapp.PresenceAvailable, "")  # type:ignore[no-untyped-call]
         elif p == "unavailable":
-            session.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")
+            session.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")  # type:ignore[no-untyped-call]
         else:
             raise ValueError("Not a valid presence kind.", p)
         return f"Presence succesfully set to {p}"
@@ -144,5 +144,5 @@ class SubscribeToPresences(Command["Session"]):
         *args: str,
     ) -> str:
         assert session is not None
-        session.whatsapp.GetContacts(False)
+        session.whatsapp.GetContacts(False)  # type:ignore[no-untyped-call]
         return "Looks like no exception was raised. Success, I guess?"

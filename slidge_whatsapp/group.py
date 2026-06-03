@@ -1,23 +1,23 @@
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from slidge.db.meta import JSONSerializable
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.types import Hat, HoleBound, MucAffiliation
+from slidge.util.types import Hat, HoleBound, MucAffiliation, XMPPMessage
 from slixmpp.exceptions import XMPPError
 
-from .avatar import AvatarMixin
 from .generated import go, whatsapp
+from .mixins import AvatarMixin, RecipientMixin, strip_quote_prefix
 
 if TYPE_CHECKING:
     from .contact import Contact
     from .session import Session
 
 
-class Participant(LegacyParticipant):
-    contact: "Contact"
+class Participant(LegacyParticipant["Contact"]):
     muc: "MUC"
+    session: "Session"
 
     def online(
         self,
@@ -55,8 +55,46 @@ class Participant(LegacyParticipant):
     def lid(self) -> str:
         return self.occupant_id.removesuffix("@lid")
 
+    async def on_set_affiliation(  # type:ignore[override]  # ty:ignore[invalid-method-override]
+        self,
+        contact: "Contact",
+        affiliation: MucAffiliation,
+        reason: str | None,
+        nickname: str | None,
+    ) -> None:
+        if affiliation == "member":
+            participant = await self.muc.get_participant_by_contact(  # type:ignore[call-overload]  # ty:ignore
+                contact, create=False
+            )
+            if participant is None or participant.affiliation in ("outcast", "none"):
+                action = whatsapp.GroupParticipantActionAdd
+            elif participant.affiliation == "member":
+                return
+            else:
+                action = whatsapp.GroupParticipantActionDemote
+        elif affiliation in ("admin", "owner"):
+            action = whatsapp.GroupParticipantActionPromote
+        elif affiliation == "outcast" or affiliation == "none":
+            action = whatsapp.GroupParticipantActionRemove
+        else:
+            raise XMPPError(
+                "bad-request",
+                f"You can't make a participant '{affiliation}' in WhatsApp",
+            )
+        self.session.whatsapp.UpdateGroupParticipants(
+            contact.legacy_id,
+            whatsapp.Slice_whatsapp_GroupParticipant(  # type:ignore[no-untyped-call]
+                [
+                    whatsapp.GroupParticipant(  # type:ignore[no-untyped-call]
+                        Actor=whatsapp.Actor(JID=contact.legacy_id),  # type:ignore[no-untyped-call]
+                        Action=action,
+                    )
+                ]
+            ),
+        )
 
-class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
+
+class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
     session: "Session"
 
     HAS_DESCRIPTION = False
@@ -110,7 +148,7 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             Actor=await self.get_wa_actor(before.id),
             Timestamp=int(before.timestamp.timestamp()),
         )
-        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
+        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)  # type:ignore[no-untyped-call]
         self.history_requested = True
 
     def get_sender_lid(self, legacy_msg_id: str) -> str:
@@ -195,47 +233,30 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
     ) -> None:
         # there are no group descriptions in WA, but topics=subjects
         if self.name != name:
-            self.session.whatsapp.SetGroupName(self.legacy_id, name)
+            self.session.whatsapp.SetGroupName(self.legacy_id, name)  # type:ignore[no-untyped-call]
 
     async def on_set_subject(self, subject: str) -> None:
         if self.subject != subject:
-            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)
+            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)  # type:ignore[no-untyped-call]
 
-    async def on_set_affiliation(  # type:ignore[override]  # ty:ignore[invalid-method-override]
-        self,
-        contact: "Contact",
-        affiliation: MucAffiliation,
-        reason: str | None,
-        nickname: str | None,
-    ) -> None:
-        if affiliation == "member":
-            participant = await self.get_participant_by_contact(contact, create=False)  # type:ignore[call-overload]
-            if participant is None or participant.affiliation in ("outcast", "none"):
-                action = whatsapp.GroupParticipantActionAdd
-            elif participant.affiliation == "member":
-                return
-            else:
-                action = whatsapp.GroupParticipantActionDemote
-        elif affiliation in ("admin", "owner"):
-            action = whatsapp.GroupParticipantActionPromote
-        elif affiliation == "outcast" or affiliation == "none":
-            action = whatsapp.GroupParticipantActionRemove
-        else:
-            raise XMPPError(
-                "bad-request",
-                f"You can't make a participant '{affiliation}' in WhatsApp",
-            )
-        self.session.whatsapp.UpdateGroupParticipants(
-            self.legacy_id,
-            whatsapp.Slice_whatsapp_GroupParticipant(  # type:ignore[no-untyped-call]
-                [
-                    whatsapp.GroupParticipant(  # type:ignore[no-untyped-call]
-                        Actor=whatsapp.Actor(JID=contact.legacy_id),  # type:ignore[no-untyped-call]
-                        Action=action,
-                    )
-                ]
-            ),
+    async def on_moderate(self, legacy_msg_id: str, reason: str | None) -> None:
+        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+            Kind=whatsapp.MessageRevoke,
+            ID=legacy_msg_id,
+            Chat=self.get_wa_chat(),
+            OriginActor=await self.get_wa_actor(legacy_msg_id),
         )
+        self.session.whatsapp.SendMessage(message)  # type:ignore[no-untyped-call]
+        # Apparently, no revoke event is received by whatsmeow after sending
+        # the revoke message, so we need to "echo" it here.
+        part = await self.get_user_participant()
+        part.moderate(legacy_msg_id)
+
+    async def on_leave_group(self, legacy_muc_id: str) -> None:
+        """
+        Removes own user from given WhatsApp group.
+        """
+        self.session.whatsapp.LeaveGroup(legacy_muc_id)  # type:ignore[no-untyped-call]
 
     def get_wa_chat(self) -> whatsapp.Chat:
         return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)  # type:ignore[no-untyped-call]
@@ -277,12 +298,39 @@ class MUC(AvatarMixin, LegacyMUC[str, str, Participant, str]):
             IsMe=self.session.message_is_carbon(self, legacy_msg_id),
         )
 
+    def _set_reply_to(self, xmpp_msg: XMPPMessage, wa_msg: whatsapp.Message) -> None:
+        wa_msg.OriginActor.GroupJID = self.legacy_id
 
-class Bookmarks(LegacyBookmarks[str, MUC]):
+        if not xmpp_msg.reply:
+            return
+
+        wa_msg.ReplyID = xmpp_msg.reply.msg_id
+
+        if xmpp_msg.reply.fallback:
+            wa_msg.ReplyBody = strip_quote_prefix(xmpp_msg.reply.fallback)
+            wa_msg.Body = wa_msg.Body.lstrip()
+
+        if not xmpp_msg.reply.to:
+            wa_msg.OriginActor.IsMe = False
+            wa_msg.OriginActor.JID = self.session.contacts.user_legacy_id
+            return
+
+        xmpp_msg.reply.to = cast(Participant, xmpp_msg.reply.to)
+        wa_msg.OriginActor.IsMe = xmpp_msg.reply.to.is_user
+        wa_msg.OriginActor.GroupJID = self.legacy_id
+        if xmpp_msg.reply.to.contact:
+            wa_msg.OriginActor.JID = xmpp_msg.reply.to.contact.legacy_id
+        if xmpp_msg.reply.to.occupant_id and xmpp_msg.reply.to.occupant_id.endswith(
+            "@lid"
+        ):
+            wa_msg.OriginActor.LID = xmpp_msg.reply.to.occupant_id
+
+
+class Bookmarks(LegacyBookmarks[MUC]):
     session: "Session"
 
     async def fill(self) -> None:
-        groups = self.session.whatsapp.GetGroups()
+        groups = self.session.whatsapp.GetGroups()  # type:ignore[no-untyped-call]
         for group in groups:
             await self.add_whatsapp_group(group)
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import warnings
 from logging import getLevelName, getLogger
@@ -34,7 +36,7 @@ if os.cpu_count() is None:
     )
 
 
-class Gateway(BaseGateway):
+class Gateway(BaseGateway["Session"]):
     COMPONENT_NAME = "WhatsApp (slidge)"
     COMPONENT_TYPE = "whatsapp"
     COMPONENT_AVATAR = "https://www.whatsapp.com/apple-touch-icon.png"
@@ -99,13 +101,13 @@ class Gateway(BaseGateway):
         """
         pass
 
-    async def unregister(self, session: "Session") -> None:  # type:ignore[override]
+    async def unregister(self, session: Session) -> None:
         """
         Logout from the active WhatsApp session. This will also force a remote log-out, and thus
         require pairing on next login. For simply disconnecting the active session, look at the
         :meth:`.Session.disconnect` function.
         """
-        session.whatsapp.Logout()
+        session.whatsapp.Logout()  # type:ignore[no-untyped-call]
         try:
             device_id = session.user.legacy_module_data["device_id"]
             self.whatsapp.CleanupSession(whatsapp.LinkedDevice(ID=device_id))  # type:ignore[no-untyped-call]
