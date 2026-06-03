@@ -73,7 +73,6 @@ class Session(BaseSession[Contact]):
 
     def __init__(self, user: GatewayUser) -> None:
         super().__init__(user)
-        self.migrate()
         try:
             device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])  # type:ignore[no-untyped-call]
         except KeyError:
@@ -84,26 +83,6 @@ class Session(BaseSession[Contact]):
         self.__handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self.__handle_event)
         self.__reset_connected()
-
-    def migrate(self) -> None:
-        user_shelf_path = (
-            global_config.HOME_DIR / "whatsapp" / (self.user_jid.bare + ".shelf")
-        )
-        if not user_shelf_path.exists():
-            return
-        import shelve
-
-        with shelve.open(str(user_shelf_path)) as shelf:
-            try:
-                device_id = shelf["device_id"]
-            except KeyError:
-                pass
-            else:
-                self.log.info(
-                    "Migrated data from %s to the slidge main DB", user_shelf_path
-                )
-                self.legacy_module_data_set({"device_id": device_id})
-        user_shelf_path.unlink()
 
     async def login(self) -> str:
         """
