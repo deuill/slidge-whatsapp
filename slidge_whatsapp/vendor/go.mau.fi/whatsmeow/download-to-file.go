@@ -46,23 +46,10 @@ func (cli *Client) DownloadToFile(ctx context.Context, msg DownloadableMessage, 
 	if mediaType == "" {
 		return fmt.Errorf("%w %T", ErrUnknownMediaType, msg)
 	}
-	urlable, ok := msg.(downloadableMessageWithURL)
-	var url string
-	var isWebWhatsappNetURL bool
-	if ok {
-		url = urlable.GetURL()
-		isWebWhatsappNetURL = strings.HasPrefix(url, "https://web.whatsapp.net")
-	}
-	if len(url) > 0 && !isWebWhatsappNetURL {
-		return cli.downloadAndDecryptToFile(ctx, url, msg.GetMediaKey(), mediaType, getSize(msg), msg.GetFileEncSHA256(), msg.GetFileSHA256(), file)
-	} else if len(msg.GetDirectPath()) > 0 {
-		return cli.DownloadMediaWithPathToFile(ctx, msg.GetDirectPath(), msg.GetFileEncSHA256(), msg.GetFileSHA256(), msg.GetMediaKey(), getSize(msg), mediaType, mediaTypeToMMSType[mediaType], file)
-	} else {
-		if isWebWhatsappNetURL {
-			cli.Log.Warnf("Got a media message with a web.whatsapp.net URL (%s) and no direct path", url)
-		}
+	if len(msg.GetDirectPath()) == 0 {
 		return ErrNoURLPresent
 	}
+	return cli.DownloadMediaWithPathToFile(ctx, msg.GetDirectPath(), msg.GetFileEncSHA256(), msg.GetFileSHA256(), msg.GetMediaKey(), getSize(msg), mediaType, mediaTypeToMMSType[mediaType], file)
 }
 
 func (cli *Client) DownloadFBToFile(
@@ -83,6 +70,9 @@ func (cli *Client) DownloadMediaWithPathToFile(
 	mmsType string,
 	file File,
 ) error {
+	if !strings.HasPrefix(directPath, "/") {
+		return fmt.Errorf("media download path does not start with slash: %s", directPath)
+	}
 	mediaConn, err := cli.refreshMediaConn(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed to refresh media connections: %w", err)
@@ -124,7 +114,15 @@ func (cli *Client) downloadAndDecryptToFile(
 	if mac, err := cli.downloadPossiblyEncryptedMediaWithRetriesToFile(ctx, url, fileEncSHA256, file); err != nil {
 		return err
 	} else if mediaKey == nil && fileEncSHA256 == nil && mac == nil {
-		// Unencrypted media, just return the downloaded data
+		// Unencrypted media, just check the hash and return
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return fmt.Errorf("failed to seek to start of file: %w", err)
+		} else if _, err = io.Copy(hasher, file); err != nil {
+			return fmt.Errorf("failed to hash file: %w", err)
+		} else if !hmac.Equal(fileSHA256, hasher.Sum(nil)) {
+			return ErrInvalidUnencryptedMediaSHA256
+		}
 		return nil
 	} else if err = validateMediaFile(file, iv, macKey, mac); err != nil {
 		return err

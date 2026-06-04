@@ -30,7 +30,7 @@ func init() {
 	if os.MkdirAll(destDir, 0755) == nil {
 		if fileInfo, err := os.Stat(destLib); err != nil {
 			if os.IsNotExist(err) {
-				if os.WriteFile(destLib, embeddedLib, 0755) == nil {
+				if os.WriteFile(destLib, embeddedLib, 0644) == nil {
 					filename = destLib
 				}
 			}

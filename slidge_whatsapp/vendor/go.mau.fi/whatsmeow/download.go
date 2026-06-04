@@ -11,6 +11,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waMediaTransport"
 	"go.mau.fi/whatsmeow/proto/waServerSync"
 	"go.mau.fi/whatsmeow/socket"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/util/cbcutil"
 	"go.mau.fi/whatsmeow/util/hkdfutil"
 )
@@ -87,6 +89,7 @@ var (
 	_ DownloadableMessage   = (*waE2E.HistorySyncNotification)(nil)
 	_ DownloadableMessage   = (*waServerSync.ExternalBlobReference)(nil)
 	_ DownloadableThumbnail = (*waE2E.ExtendedTextMessage)(nil)
+	_ DownloadableMessage   = (*types.StickerPackItem)(nil)
 )
 
 type downloadableMessageWithLength interface {
@@ -97,11 +100,6 @@ type downloadableMessageWithLength interface {
 type downloadableMessageWithSizeBytes interface {
 	DownloadableMessage
 	GetFileSizeBytes() uint64
-}
-
-type downloadableMessageWithURL interface {
-	DownloadableMessage
-	GetURL() string
 }
 
 var classToMediaType = map[protoreflect.Name]MediaType{
@@ -191,15 +189,33 @@ func (cli *Client) DownloadThumbnail(ctx context.Context, msg DownloadableThumbn
 
 // GetMediaType returns the MediaType value corresponding to the given protobuf message.
 func GetMediaType(msg DownloadableMessage) MediaType {
-	protoReflecter, ok := msg.(proto.Message)
-	if !ok {
-		mediaTypeable, ok := msg.(MediaTypeable)
-		if !ok {
-			return ""
-		}
-		return mediaTypeable.GetMediaType()
+	switch typedMsg := msg.(type) {
+	case *types.StickerPackItem:
+		return MediaImage
+	case proto.Message:
+		return classToMediaType[typedMsg.ProtoReflect().Descriptor().Name()]
+	case MediaTypeable:
+		return typedMsg.GetMediaType()
+	default:
+		return ""
 	}
-	return classToMediaType[protoReflecter.ProtoReflect().Descriptor().Name()]
+}
+
+func (cli *Client) FetchStickerPack(ctx context.Context, packID string) (*types.StickerPack, error) {
+	url := fmt.Sprintf("https://static.whatsapp.net/sticker?lottie=1&cat=sticker_pack_data&id=%s&lg=en", packID)
+	resp, err := cli.doMediaDownloadRequest(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	var packs []types.StickerPack
+	err = json.NewDecoder(resp.Body).Decode(&packs)
+	_ = resp.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	} else if len(packs) == 0 {
+		return nil, fmt.Errorf("no sticker pack found in response")
+	}
+	return &packs[0], nil
 }
 
 // Download downloads the attachment from the given protobuf message.
@@ -219,23 +235,10 @@ func (cli *Client) Download(ctx context.Context, msg DownloadableMessage) ([]byt
 	if mediaType == "" {
 		return nil, fmt.Errorf("%w %T", ErrUnknownMediaType, msg)
 	}
-	urlable, ok := msg.(downloadableMessageWithURL)
-	var url string
-	var isWebWhatsappNetURL bool
-	if ok {
-		url = urlable.GetURL()
-		isWebWhatsappNetURL = strings.HasPrefix(url, "https://web.whatsapp.net")
-	}
-	if len(url) > 0 && !isWebWhatsappNetURL {
-		return cli.downloadAndDecrypt(ctx, url, msg.GetMediaKey(), mediaType, getSize(msg), msg.GetFileEncSHA256(), msg.GetFileSHA256())
-	} else if len(msg.GetDirectPath()) > 0 {
-		return cli.DownloadMediaWithPath(ctx, msg.GetDirectPath(), msg.GetFileEncSHA256(), msg.GetFileSHA256(), msg.GetMediaKey(), getSize(msg), mediaType, mediaTypeToMMSType[mediaType])
-	} else {
-		if isWebWhatsappNetURL {
-			cli.Log.Warnf("Got a media message with a web.whatsapp.net URL (%s) and no direct path", url)
-		}
+	if len(msg.GetDirectPath()) == 0 {
 		return nil, ErrNoURLPresent
 	}
+	return cli.DownloadMediaWithPath(ctx, msg.GetDirectPath(), msg.GetFileEncSHA256(), msg.GetFileSHA256(), msg.GetMediaKey(), getSize(msg), mediaType, mediaTypeToMMSType[mediaType])
 }
 
 func (cli *Client) DownloadFB(
@@ -300,8 +303,11 @@ func (cli *Client) downloadAndDecrypt(
 	if ciphertext, mac, err = cli.downloadPossiblyEncryptedMediaWithRetries(ctx, url, fileEncSHA256); err != nil {
 
 	} else if mediaKey == nil && fileEncSHA256 == nil && mac == nil {
-		// Unencrypted media, just return the downloaded data
+		// Unencrypted media, just check the hash and return
 		data = ciphertext
+		if sha256.Sum256(data) != *(*[32]byte)(fileSHA256) {
+			err = ErrInvalidUnencryptedMediaSHA256
+		}
 	} else if err = validateMedia(iv, ciphertext, macKey, mac); err != nil {
 
 	} else if data, err = cbcutil.Decrypt(cipherKey, iv, ciphertext); err != nil {
@@ -310,6 +316,7 @@ func (cli *Client) downloadAndDecrypt(
 		if fileLength >= 0 && len(data) != fileLength {
 			err = fmt.Errorf("%w: expected %d, got %d", ErrFileLengthMismatch, fileLength, len(data))
 		} else if len(fileSHA256) == 32 && sha256.Sum256(data) != *(*[32]byte)(fileSHA256) {
+			// TODO maybe move this out of ReturnDownloadWarnings if whatsapp has started enforcing it in official clients
 			err = ErrInvalidMediaSHA256
 		}
 	}

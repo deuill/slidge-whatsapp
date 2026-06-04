@@ -40,6 +40,15 @@ func (l Lib) Prep(name string, ret *Type, args ...*Type) (f Fun, err error) {
 	return
 }
 
+// MustPrep is like [Lib.Prep] but panics on error.
+func (l Lib) MustPrep(name string, ret *Type, args ...*Type) (f Fun) {
+	f, err := l.Prep(name, ret, args...)
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
 // PrepVar is used to get and describe a variadic function.
 //
 // In general its operation is the same as for [Lib.Prep] except that:
@@ -78,5 +87,14 @@ func (l Lib) PrepVar(name string, nFixedArgs int, ret *Type, args ...*Type) (f F
 		return f, fmt.Errorf("%s: error preparing function: %s", name, status)
 	}
 
+	return
+}
+
+// MustPrepVar is like [Lib.PrepVar] but panics on error.
+func (l Lib) MustPrepVar(name string, nFixedArgs int, ret *Type, args ...*Type) (f Fun) {
+	f, err := l.PrepVar(name, nFixedArgs, ret, args...)
+	if err != nil {
+		panic(err)
+	}
 	return
 }

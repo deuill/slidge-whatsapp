@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-10
+
+### Added
+
+- Additional must functions for `Lib.Prep` and `Lib.PrepVar` added:
+    - `func (l Lib) MustPrep(name string, ret *Type, args ...*Type) (f Fun)`
+    - `func (l Lib) MustPrepVar(name string, nFixedArgs int, ret *Type, args ...*Type) (f Fun)`
+
+### Changed
+
+- Unneeded execution bit from embedded libffi binary removed.
+- Dependency `github.com/ebitengine/purego` updated.
+
 ## [0.6.0] - 2026-02-11
 
 ### Added
@@ -97,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dependencies `github.com/ebitengine/purego` and `golang.org/x/sys` updated.
 
+[0.7.0]: https://github.com/JupiterRider/ffi/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/JupiterRider/ffi/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/JupiterRider/ffi/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/JupiterRider/ffi/compare/v0.4.1...v0.5.0
