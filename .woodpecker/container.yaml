@@ -98,8 +98,8 @@ steps:
       - export TAG=$(git describe --tags --abbrev=0)
       - git checkout $TAG
       - git reset --hard
-      - echo latest-${ARCH} > .tags
-      - '[ ${ARCH} = "amd64" ] && echo "latest " >> .tags || true'
+      - echo -n latest-${ARCH} > .tags
+      - '[ ${ARCH} = "amd64" ] && echo " latest" >> .tags || true'
 
   rebuild-tag:
     image: woodpeckerci/plugin-docker-buildx:6.0.2
