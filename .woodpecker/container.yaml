@@ -79,6 +79,7 @@ steps:
       - event: push
         path: *paths
         branch: ${CI_REPO_DEFAULT_BRANCH}
+      - event: manual
     image: woodpeckerci/plugin-docker-buildx:6.0.2
     settings:
       <<: *settings
@@ -99,7 +100,7 @@ steps:
       - git checkout $TAG
       - git reset --hard
       - echo -n latest-${ARCH} > .tags
-      - '[ ${ARCH} = "amd64" ] && echo " latest" >> .tags || true'
+      - '[ ${ARCH} = "amd64" ] && echo ",latest" >> .tags || true'
 
   rebuild-tag:
     image: woodpeckerci/plugin-docker-buildx:6.0.2

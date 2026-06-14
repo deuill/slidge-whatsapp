@@ -10,47 +10,85 @@
 Configuration
 =============
 
+Both
+:ref:`slidge-whatsapp-specific options <config-slidge-whatsapp>` and
+:ref:`slidge generic options <generic-config>`
+can be set using
+:ref:`config text file(s) <config-file>`,
+:ref:`command-line arguments <config-cli>`,
+or :ref:`environment variables <config-env>`.
+
 .. _config-file:
 
-Config file location
-********************
+Config files
+************
 
-By default, slidge-whatsapp uses all config files found in ``/etc/slidge/conf.d/*``.
-You can change this using the ``SLIDGE_CONF_DIR`` env var, eg ``SLIDGE_CONF_DIR=/path/dir1:/path/dir2:/path/dir3``.
+Location
+--------
 
-It is recommended to use ``/etc/slidge/conf.d/`` to store configuration options
-common to all slidge components (eg, attachment handling, logging options,
-etc.), and to specify a plugin-specific file on startup, eg:
+By default, slidge-whatsapp uses all config files found in ``/etc/slidge/conf.d/*.conf``.
+You can change this using the ``SLIDGE_CONF_DIR`` env var, eg
+``SLIDGE_CONF_DIR=/path/dir1:/path/dir2:/path/dir3``.
+
+We recommend using ``/etc/slidge/conf.d/common.conf`` file to set
+the options common to several slidge-based gateways
+(eg, attachment handling, logging options, etc.),
+then use a slidge-whatsapp-specific dedicated config file, eg
+``/etc/slidge/slidge-whatsapp.conf``.
+
+Point to this specific file using the ``-c`` command line argument when
+launching slidge-whatsapp.
 
 .. code-block:: bash
 
-    slidge -c /etc/slidge/superduper.conf
+    slidge-whatsapp -c /etc/slidge/slidge-whatsapp.conf
 
-Optional dependencies
----------------------
 
-WhatsApp requires that image, audio, and video attachments are sent in
-specific formats; these formats are generaly incompatible with prevailing
-standards across XMPP clients.
+Syntax
+------
 
-Thus, sending attachments with full client compatibility requires that we
-convert these on-the-fly; this requires that FFmpeg is installed. If a
-valid FFmpeg installation is not found, attachments will still be sent in
-their original formats, which may cause these to appear as "document"
-attachments in official WhatsApp clients.
+Config files are simple text files with ``key=value`` entries.
 
-FFmpeg is widely used and packaged -- please refer to your distribution's
-documentation on how to install the FFmpeg package.
+.. code-block::
+
+    some-option=some-value
+    some-other-option=some-other-value
+
+.. _config-cli:
+
+Command-line arguments
+**********************
+
+To pass options as command-line arguments, prepend their name with ``--``.
+
+.. code-block::
+
+    slidge-whatsapp --some-option=some-value --some-other-option=some-other-value
+
+.. _config-env:
+
+Environment variables
+*********************
+
+To pass options as environment variables:
+
+* uppercase their name;
+* substitue dashed for underscores;
+* prepend with ``SLIDGE_`` for :ref:`generic slidge options <generic-config>`,
+  or ``SLIDGE_WHATSAPP_`` for
+  :ref:`slidge-whatsapp-specific options <config-slidge-whatsapp>`.
+
+.. code-block::
+
+    SLIDGE_SOME_GENERIC_OPTION=some-value
+    SLIDGE_WHATSAPP_SOME_SPECIFIC_OPTION=some-other-value
+
+.. _config-slidge-whatsapp:
 
 slidge-whatsapp-specific config
 *******************************
 
-slidge-whatsapp provides the component-wide options displayed in the table below.
-They can be used:
-
-* as ``key=value`` in a :ref:`config file <config-file>`;
-* as command line arguments, prepended with ``--``, e.g., ``--some-option=value``;
-* as environment variables, upper case, prepended with ``SLIDGE_WHATSAPP_``, and with dashes substituted with underscores, e.g., ``SLIDGE_WHATSAPP_SOME_OPTION=value``.
+slidge-whatsapp provides the instance-wide options displayed in the table below.
 
 .. config-obj:: slidge_whatsapp.config
 
@@ -59,26 +97,14 @@ They can be used:
 Generic slidge config
 *********************
 
-.. warning::
-
-    Because of an ugly mess that will soon™ be fixed, it is impossible to use
-    the config file to turn off boolean arguments that are true by default.
-    As a workaround, use CLI args instead, e.g., ``--some-opt=false``.
-
-The following options can be used:
-
-* as ``key=value`` in a :ref:`config file <config-file>`;
-* as command line arguments, prepended with ``--``, e.g., ``--some-option=value``;
-* as environment variables, upper case, prepended with ``SLIDGE_``,
-  and with dashes substituted with underscores, e.g., ``SLIDGE_SOME_OPTION=value``.
-
-
 .. note::
 
     The following options are for slidge version |slidge_version|.
     Depending on how you installed slidge-whatsapp, you might have a different version of slidge.
     Use ``slidge-whatsapp --help`` for the exact list of options you can use.
 
+Slidge provides the generic instance-wide options displayed in the table below.
+They may not all have an effect on slidge-whatsapp's behaviour.
 
 .. config-obj:: slidge.core.config
 

@@ -61,6 +61,9 @@ declare slidge-whatsapp privileges in the appropriate virtualhost block:
         ["whatsapp.example.org"] = _privileges;
       }
 
+    Component "whatsapp.example.org"
+      modules_enabled = {"privilege"}
+
 Then either restart the prosody server, or reload the config.
 You might need to use
 `mod_reload_component <https://modules.prosody.im/mod_reload_components.html>`_,
