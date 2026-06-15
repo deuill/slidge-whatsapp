@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import warnings
 from logging import getLevelName, getLogger
 from pathlib import Path
@@ -27,13 +26,6 @@ WELCOME_MESSAGE = (
     "or use the 'pair-phone' command to complete registration, or type 'help' to list "
     "other available commands."
 )
-
-if os.cpu_count() is None:
-    warnings.warn(
-        "Could not determine the CPU count, assuming 1. "
-        "Consider launching slidge_whatsapp with 'python -X cpu_count=n -m slidge_whatsapp ...' "
-        "if you run into crashes related to the DB QueuePool."
-    )
 
 
 class Gateway(BaseGateway["Session"]):
@@ -69,14 +61,6 @@ class Gateway(BaseGateway["Session"]):
     MARK_ALL_MESSAGES = True
     GROUPS = True
     PROPER_RECEIPTS = True
-
-    # This should be higher than the number of maximum concurrent threads or goroutines
-    # trying to acquire an SQLAlchemy ORM session. The default value is 5, and is not
-    # enough in practice, leading to timeouts, cf <https://docs.sqlalchemy.org/en/20/errors.html#error-3o7r>.
-    # The +31 bit is a margin that proved empirically necessary on my (nicoco) production
-    # slidge-whatsapp instance. It is a workaround for some potential underlying design
-    # flaws in slidge core, cf <https://codeberg.org/slidge/slidge-whatsapp/pulls/103#issuecomment-9237104>.
-    DB_POOL_SIZE = (os.cpu_count() or 1) + 31
 
     def __init__(self) -> None:
         super().__init__()
