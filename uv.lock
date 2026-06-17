@@ -1644,7 +1644,7 @@ wheels = [
 
 [[package]]
 name = "slidge"
-version = "0.4.0a1.dev34+g53a0a808a"
+version = "0.4.0b1.dev3+gd56d33e47"
 source = { registry = "https://codeberg.org/api/packages/slidge/pypi/simple" }
 dependencies = [
     { name = "aiohttp", extra = ["speedups"] },
@@ -1658,9 +1658,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "thumbhash" },
 ]
-sdist = { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.4.0a1.dev34+g53a0a808a/slidge-0.4.0a1.dev34+g53a0a808a.tar.gz", hash = "sha256:0cc074bc00a96ffd5e088f52f058fb3a0be0244edbfb011d6fd254266bd50436" }
+sdist = { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.4.0b1.dev3+gd56d33e47/slidge-0.4.0b1.dev3+gd56d33e47.tar.gz", hash = "sha256:d939d9f696c9305fd1ec3c00dcb2ae1e5474c74c9c15c27471957ba2b0efdf7e" }
 wheels = [
-    { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.4.0a1.dev34+g53a0a808a/slidge-0.4.0a1.dev34+g53a0a808a-py3-none-any.whl", hash = "sha256:492773fb1ab476a5010e7e6f213ad0b7a7a99ccde57cc17fde3235c32452e802" },
+    { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.4.0b1.dev3+gd56d33e47/slidge-0.4.0b1.dev3+gd56d33e47-py3-none-any.whl", hash = "sha256:94a931d10ab262502336a549d2878de7eb97a3557b3e78072b0d967348903ecb" },
 ]
 
 [[package]]
@@ -1684,7 +1684,6 @@ source = { editable = "." }
 dependencies = [
     { name = "linkpreview" },
     { name = "slidge" },
-    { name = "slixmpp" },
 ]
 
 [package.dev-dependencies]
@@ -1702,8 +1701,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "linkpreview", specifier = ">=0.11.0" },
-    { name = "slidge", specifier = ">=0.4.0a1.dev0,<0.5" },
-    { name = "slixmpp", specifier = ">=1.15.1.dev0" },
+    { name = "slidge", specifier = ">=0.4.0b0,<0.5" },
 ]
 
 [package.metadata.requires-dev]
@@ -1720,31 +1718,31 @@ dev = [
 
 [[package]]
 name = "slixmpp"
-version = "1.15.1.dev22+ga77830691"
+version = "1.16.0"
 source = { registry = "https://codeberg.org/api/packages/poezio/pypi/simple/" }
 dependencies = [
     { name = "aiodns" },
     { name = "pyasn1" },
     { name = "pyasn1-modules" },
 ]
-sdist = { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691.tar.gz", hash = "sha256:6b26142ed538f61f3e42b8133ec4348be9cea069a9128b54d472b22a8c1a0b9b" }
+sdist = { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0.tar.gz", hash = "sha256:7d0f7c4066ebc9e7cd0bd0f3cfed768fef106f20568cbfe6a232cf5e8be61912" }
 wheels = [
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:c37439491f629eb8fc5ac3db26acddf13cab8a286489d3c225b782b55ed95f66" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:325661f287e19aa02cda289fde752cf15c5a00dfe4bc090470141c2c2fd4692c" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:b1a6efd98b79da7910a62226005db90ce13e5605ab08cf693bf64de1ef3e6bd6" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:7f1432022ef42e74b6ab4ac41f68339c73f62d9bb76d5b803f77cc97bb44f8f0" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:63dd7a0ffc6883a1a5638db89de2c7cfe54edbb6a0fe99df6e2f87c9c9e54f95" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:31993ccfd44005110fb515b90985e44ec5fd759471c1d07a907808e9991bcce4" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:64275d2b42c2bff093ed331160d78191cfce268e003786fbfd8ae726e07efdc2" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:5a520af99310880572a3ada639ca84ecb665d7f0d7aad85ed293c673fd63cbc4" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:e99bc76dd0efa06e1b92e973d5851f128c776e551257e78d972c837453561308" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:2b0cbac98d7bc30cdd5ddd727f3f8dae3f9ae761833f38a0c9371613fd7ff1b6" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:fa3df98509a38b4ba1004b13010faa302112accf36fac9f8291494b7f784b7c2" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:d88cb6259d6b708eb3c46e0bc577881c2351804072a0586dc88436bb90e5e8e9" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9162a0cf7a5e98cb62b76cf3c191c19a5636fb1cfede7d4a7642db106506c93b" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:18cc046d4aa8795cd26407abc99aa34bf4c9399761e11a2b095c2bead8a8e5dd" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:4dfe8193a742567ec578f95031f327c03eac47f73e4afb88449650fb0cd66ac7" },
-    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.15.1.dev22+ga77830691/slixmpp-1.15.1.dev22+ga77830691-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:14d929d9944e5ec604862ab309ddd4998249c4b432678979935f7b71cf5efa64" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:24b9db8d479100a5495b881d3a6cacaae430d5e54bc7361759340b95aed6f7bf" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0642e32262abaa4563ff323c3cfc75ddc2f6390a72ed979cc706628244a2c60f" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:609235e64e9afd944ada525d731bd5bd07afa6fd8d98afa7ff250a061e72b05c" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:d0d02804477d3c26849a9d258e20c38a7ea4e054c8ecc1248bde074be2c3d647" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:4d200ddd4f00a43e1b25d084d2c8833003da47be0b68ff0935b40415a70a08ac" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c3c8dee2b25fdf827afcc179d492ec367ca037cbdaa602fc5eb62026fe51b846" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:5f3ec366f502b1d4c3209c39cfc6bea2c540970e5d5b5a49e500a5fe284f2163" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:456764c02db6fdc42ba34ed1019115d6187de66c9f5b9546a7f104e366937629" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:d068f44f23a65a30527fc5cacb4e97e5bde5ec101601c201a23b4c020d84b039" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:147ac3eee4a4ddfed5e5ec86a3ed977d1d6b3ddb3d69a3cc729bbd7da854469a" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:e7b0873168da23ef0fa879e46d1d06116eb2d69d544c78fad41a690b586079fe" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:7120b739708aa623698749c45d0798ccbb0749a3c15bf485bf4f3027150f0111" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:a4b1c1319f549adc2eea44cfe327b3d8d532f61a0dbbc86af2d5c3af0bcc55f1" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:fb1b97981f210f0b11a97650d2bb3270ee39a1a3077d8f3fe0fffb3742aa71e1" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:0ac273d9b2e97facf62ea38d1754d9984579e97dddb33f771adab641d97922ec" },
+    { url = "https://codeberg.org/api/packages/poezio/pypi/files/slixmpp/1.16.0/slixmpp-1.16.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:3b641687c14287b29c9fbd099ea2623a744d57cbf28cb734bb17eecd38686923" },
 ]
 
 [[package]]
