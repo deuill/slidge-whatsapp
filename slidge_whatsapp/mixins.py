@@ -99,6 +99,7 @@ class RecipientMixin(abc.ABC):
         )
         self._set_reply_to(xmpp_msg, message)
         self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.session.sent_msg_date_store.add(message_id)
         return message_id
 
     async def _on_file(self, xmpp_msg: XMPPAttachmentMessage) -> str:
@@ -132,12 +133,21 @@ class RecipientMixin(abc.ABC):
         )
         self._set_reply_to(xmpp_msg, message)
         self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.session.sent_msg_date_store.add(message_id)
         return message_id
 
     async def _on_correct(self, xmpp_msg: XMPPMessage) -> None:
         """
         Request correction (aka editing) for a given WhatsApp message.
         """
+        assert xmpp_msg.replace
+        if xmpp_msg.replace and not self.session.sent_msg_date_store.is_editable(
+            xmpp_msg.replace
+        ):
+            raise XMPPError(
+                "bad-request",
+                "WhatsApp does not let you edit messages older than 15 minutes.",
+            )
         assert xmpp_msg.body
         message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageEdit,
@@ -263,6 +273,11 @@ class RecipientMixin(abc.ABC):
         """
         Request deletion (aka retraction) for a given WhatsApp message.
         """
+        if not self.session.sent_msg_date_store.is_retractable(legacy_msg_id):
+            raise XMPPError(
+                "bad-request",
+                "WhatsApp does not let you retract messages older than 2 days.",
+            )
         message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,

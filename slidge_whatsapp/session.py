@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import warnings
 from collections.abc import Callable, Coroutine
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Any, Concatenate, ParamSpec, TypeVar, cast
@@ -74,6 +74,7 @@ class Session(BaseSession[Contact]):
 
     def __init__(self, user: GatewayUser) -> None:
         super().__init__(user)
+        self.sent_msg_date_store = AutoExpiryStore()
         try:
             device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])  # type:ignore[no-untyped-call]
         except KeyError:
@@ -602,6 +603,45 @@ class Attachment(LegacyAttachment):
             ),
             name=wa_attachment.Filename,
         )
+
+
+class AutoExpiryStore:
+    _AUTO_CLEANUP_INTERVAL = 60 * 60  # once per hour
+    _MAXIMUM_EDIT_TIME = timedelta(minutes=20)
+    _MAXIMUM_RETRACT_TIME = timedelta(days=2)
+
+    def __init__(self) -> None:
+        self._store: dict[str, datetime] = {}
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    def add(self, msg_id: str) -> None:
+        self._store[msg_id] = datetime.now()
+
+    def is_editable(self, msg_id: str) -> bool:
+        return self._is_newer_than(msg_id, self._MAXIMUM_EDIT_TIME)
+
+    def is_retractable(self, msg_id: str) -> bool:
+        return self._is_newer_than(msg_id, self._MAXIMUM_RETRACT_TIME)
+
+    def _is_newer_than(self, msg_id: str, delta: timedelta) -> bool:
+        created_at = self._store.get(msg_id)
+        if created_at is None:
+            return False
+        return datetime.now() < created_at + delta
+
+    def _cleanup(self) -> None:
+        now = datetime.now()
+        to_remove: list[str] = []
+        for msg_id, created_at in self._store.items():
+            if now > created_at + self._MAXIMUM_RETRACT_TIME:
+                to_remove.append(msg_id)
+        for msg_id in to_remove:
+            del self._store[msg_id]
+
+    async def _cleanup_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self._AUTO_CLEANUP_INTERVAL)
+            self._cleanup()
 
 
 def add_quote_prefix(text: str) -> str:
