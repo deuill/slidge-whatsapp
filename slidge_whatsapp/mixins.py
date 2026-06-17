@@ -67,14 +67,14 @@ class RecipientMixin(abc.ABC):
     ) -> None: ...
 
     async def on_message(self, message: XMPPMessage) -> str | None:
+        if message.attachments:
+            return await self._on_file(message)
         if message.body:
             if message.replace:
                 await self._on_correct(message)
                 return None
             else:
                 return await self._on_text(message)
-        elif message.attachments:
-            return await self._on_file(message)
         raise XMPPError("internal-server-error", "This should not happen!")
 
     async def _on_text(self, xmpp_msg: XMPPMessage) -> str:
@@ -121,6 +121,7 @@ class RecipientMixin(abc.ABC):
             MIME=content_type,
             Filename=basename(att.url),
             Data=go.Slice_byte.from_bytes(data),  # type:ignore[no-untyped-call]
+            Caption=xmpp_msg.body or "",
         )
         message = whatsapp.Message(  # type:ignore[no-untyped-call]
             Kind=whatsapp.MessageAttachment,
