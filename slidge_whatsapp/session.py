@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import warnings
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
@@ -329,13 +330,23 @@ class Session(BaseSession[Contact]):
         self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
     ) -> None:
         attachments = await Attachment.convert_list(message.Attachments, muc)
-        await actor.send_files(
-            attachments=attachments,
-            legacy_msg_id=message.ID,
-            reply_to=await self.__get_reply_to(message, muc),
-            when=self.__get_timestamp(message),
-            carbon=message.Actor.IsMe,
-        )
+        try:
+            await actor.send_files(
+                attachments=attachments,
+                legacy_msg_id=message.ID,
+                reply_to=await self.__get_reply_to(message, muc),
+                when=self.__get_timestamp(message),
+                carbon=message.Actor.IsMe,
+            )
+        finally:
+            for att in message.Attachments:
+                assert isinstance(att, whatsapp.Attachment)
+                if path := att.TempFilePath:
+                    self.log.debug("Unlinking %s", path)
+                    try:
+                        os.unlink(path)
+                    except Exception:
+                        self.log.exception("Unlinking attachment tempfile failed.")
 
     async def on_wa_msg_edit(
         self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
@@ -584,15 +595,21 @@ class Attachment(LegacyAttachment):
     async def convert(
         wa_attachment: whatsapp.Attachment, muc: MUC | None = None
     ) -> Attachment:
+        content_type = wa_attachment.MIME
+        caption = (
+            wa_attachment.Caption
+            if muc is None
+            else await muc.replace_mentions(wa_attachment.Caption)
+        )
+        name = wa_attachment.Filename
+        data = bytes(wa_attachment.Data) if wa_attachment.Data else None
+        path = wa_attachment.TempFilePath if wa_attachment.TempFilePath else None
         return Attachment(
-            content_type=wa_attachment.MIME,
-            data=bytes(wa_attachment.Data),
-            caption=(
-                wa_attachment.Caption
-                if muc is None
-                else await muc.replace_mentions(wa_attachment.Caption)
-            ),
-            name=wa_attachment.Filename,
+            content_type=content_type,
+            caption=caption,
+            name=name,
+            data=data,
+            path=path,
         )
 
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"mime"
+	"os"
 	"slices"
 	"strings"
 
@@ -247,10 +248,11 @@ type Message struct {
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
 // a message, for display or storage on the recepient client.
 type Attachment struct {
-	MIME     string // The MIME type for attachment.
-	Filename string // The recommended file name for this attachment. May be an auto-generated name.
-	Caption  string // The user-provided caption, provided alongside this attachment.
-	Data     []byte // Data for the attachment.
+	MIME         string // The MIME type for attachment.
+	Filename     string // The recommended file name for this attachment. May be an auto-generated name.
+	Caption      string // The user-provided caption, provided alongside this attachment.
+	Data         []byte // Data for the attachment.
+	TempFilePath string // If the file is above maxInRamMediaSize, Data is empty and the content of this file should be used instead
 
 	// Internal fields.
 	spec *media.Spec // Metadata specific to audio/video files, used in processing.
@@ -507,6 +509,24 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 	return message
 }
 
+// getSize returns the size of a downloadable attachment, as reported by the
+// uploader.
+// If that size is not available for any reason, 0 is returned.
+func getSize(msg whatsmeow.DownloadableMessage) int {
+	switch s := msg.(type) {
+	case interface{ GetFileLength() int32 }:
+		return int(s.GetFileLength())
+	case interface{ GetFileLength() uint64 }:
+		return int(s.GetFileLength())
+	case interface{ GetFileSizeBytes() int64 }:
+		return int(s.GetFileSizeBytes())
+	case interface{ GetFileSizeBytes() uint64 }:
+		return int(s.GetFileSizeBytes())
+	}
+	// If we couldn't get the info, assume it's larger than what we want in RAM
+	return 0
+}
+
 // GetMessageAttachments fetches and decrypts attachments (images, audio, video, or documents) sent
 // via WhatsApp. Any failures in retrieving any attachment will return an error immediately.
 func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, message *waE2E.Message) ([]Attachment, *waE2E.ContextInfo, error) {
@@ -548,16 +568,31 @@ func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, messag
 		}
 
 		// Attempt to download and decrypt raw attachment data, if any.
-		data, err := client.Download(ctx, msg)
-		if err != nil {
-			return nil, nil, err
+		size := getSize(msg)
+		client.Log.Debugf("Reported size: %s", size)
+		if size == 0 || size > maxInRamMediaSize {
+			tempFile, err := os.CreateTemp(media.TempDir, "whatsmeow-attachment-*")
+			if err != nil {
+				return nil, nil, err
+			}
+			defer tempFile.Close()
+			err = client.DownloadToFile(ctx, msg, tempFile)
+			if err != nil {
+				os.Remove(tempFile.Name())
+				return nil, nil, err
+			}
+			a.TempFilePath = tempFile.Name()
+		} else {
+			data, err := client.Download(ctx, msg)
+			if err != nil {
+				return nil, nil, err
+			}
+			a.Data = data
 		}
-
-		a.Data = data
 
 		// Convert incoming data if a specification has been given, ignoring any errors that occur.
 		if convertSpec != nil {
-			data, err = media.Convert(ctx, a.Data, convertSpec)
+			data, err := media.Convert(ctx, a.Data, convertSpec)
 			if err != nil {
 				client.Log.Warnf("failed to convert incoming attachment: %s", err)
 			} else {
@@ -599,6 +634,9 @@ const (
 
 	// The maximum number of samples to return in media waveforms.
 	maxWaveformSamples = 64
+
+	// The maximum size before a media (=attachment) is written to a temporary file, in bytes
+	maxInRamMediaSize = 1024 * 1024 * 10
 )
 
 var (

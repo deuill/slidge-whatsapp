@@ -526,7 +526,7 @@ func GetWaveform(ctx context.Context, data []byte, spec *Spec, maxSamples int) (
 
 var (
 	// The default path for storing temporary files.
-	tempDir = os.TempDir()
+	TempDir = os.TempDir()
 )
 
 // SetTempDirectory sets the global temporary directory used internally by media conversion commands.
@@ -535,7 +535,7 @@ func SetTempDirectory(path string) error {
 		return err
 	}
 
-	tempDir = path
+	TempDir = path
 	return nil
 }
 
@@ -543,7 +543,7 @@ func SetTempDirectory(path string) error {
 // system-wide temporary directory, if no override value was set) and returns the absolute path for
 // the file, or an error if none could be created.
 func createTempFile(data []byte) (string, error) {
-	f, err := os.CreateTemp(tempDir, "media-*")
+	f, err := os.CreateTemp(TempDir, "media-*")
 	if err != nil {
 		return "", fmt.Errorf("failed creating temporary file: %w", err)
 	}
