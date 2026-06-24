@@ -132,7 +132,6 @@ var (
 	ErrMediaDownloadFailedWith404    = DownloadHTTPError{Response: &http.Response{StatusCode: 404}}
 	ErrMediaDownloadFailedWith410    = DownloadHTTPError{Response: &http.Response{StatusCode: 410}}
 	ErrNoURLPresent                  = errors.New("no url present")
-	ErrFileLengthMismatch            = errors.New("file length does not match")
 	ErrTooShortFile                  = errors.New("file too short")
 	ErrInvalidMediaHMAC              = errors.New("invalid media hmac")
 	ErrInvalidMediaEncSHA256         = errors.New("hash of media ciphertext doesn't match")
@@ -140,6 +139,9 @@ var (
 	ErrInvalidUnencryptedMediaSHA256 = errors.New("hash of unencrypted media doesn't match")
 	ErrUnknownMediaType              = errors.New("unknown media type")
 	ErrNothingDownloadableFound      = errors.New("didn't find any attachments in message")
+
+	// Deprecated: this is no longer returned anywhere
+	ErrFileLengthMismatch = errors.New("file length does not match")
 )
 
 var (
@@ -212,9 +214,9 @@ func parseIQError(node *waBinary.Node) error {
 func (iqe *IQError) Error() string {
 	if iqe.Code == 0 {
 		if iqe.ErrorNode != nil {
-			return fmt.Sprintf("info query returned unknown error: %s", iqe.ErrorNode.XMLString())
+			return fmt.Sprintf("info query returned unknown error: %s", iqe.ErrorNode)
 		} else if iqe.RawNode != nil {
-			return fmt.Sprintf("info query returned unexpected response: %s", iqe.RawNode.XMLString())
+			return fmt.Sprintf("info query returned unexpected response: %s", iqe.RawNode)
 		} else {
 			return "unknown info query error"
 		}
@@ -229,7 +231,7 @@ func (iqe *IQError) Is(other error) bool {
 	} else if iqe.Code != 0 && otherIQE.Code != 0 {
 		return otherIQE.Code == iqe.Code && otherIQE.Text == iqe.Text
 	} else if iqe.ErrorNode != nil && otherIQE.ErrorNode != nil {
-		return iqe.ErrorNode.XMLString() == otherIQE.ErrorNode.XMLString()
+		return iqe.ErrorNode.String() == otherIQE.ErrorNode.String()
 	} else {
 		return false
 	}
