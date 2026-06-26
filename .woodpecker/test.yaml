@@ -3,7 +3,7 @@
 
 when:
   event: [push, pull_request]
-  path: [pyproject.toml, uv.lock, "**/*.py", ".woodpecker/test.yaml"]
+  path: [pyproject.toml, uv.lock, "**/*.py", ".woodpecker/test.yaml", "**/*.go"]
 
 labels:
   platform: linux/amd64
