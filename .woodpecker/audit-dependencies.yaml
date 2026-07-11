@@ -1,0 +1,11 @@
+when:
+  event: [push, pull_request]
+
+labels:
+  platform: linux/amd64
+
+steps:
+  audit:
+    image: ghcr.io/astral-sh/uv:python3.14-alpine
+    commands:
+      - uv audit
