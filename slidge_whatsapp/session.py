@@ -10,10 +10,11 @@ from typing import Any, Concatenate, ParamSpec, TypeVar, cast
 from urllib.parse import quote as url_quote
 
 import sqlalchemy
-from slidge import BaseSession, global_config
+from slidge import BaseSession
 from slidge.command import FormField, SearchResult
 from slidge.command.user import SyncContacts
 from slidge.contact.roster import ContactIsUser
+from slidge.core.mixins.attachment import is_temp_path
 from slidge.db.models import ArchivedMessage, GatewayUser
 from slidge.util import is_valid_phone_number
 from slidge.util.types import (
@@ -337,10 +338,11 @@ class Session(BaseSession[Contact]):
             carbon=message.Actor.IsMe,
         )
         for attachment in attachments:
-            if global_config.NO_UPLOAD_METHOD != "symlink":
+            if attachment.path is None:
+                continue
+            assert isinstance(attachment.path, Path)
+            if is_temp_path(attachment.path):
                 self.log.debug("Removing '%s' from disk", attachment.path)
-                if attachment.path is None:
-                    continue
                 Path(attachment.path).unlink(missing_ok=True)
 
     async def on_wa_msg_edit(

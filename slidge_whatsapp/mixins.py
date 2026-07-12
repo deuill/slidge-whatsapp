@@ -11,7 +11,7 @@ import aiohttp
 from linkpreview import Link, LinkPreview
 from slidge.core.mixins import AvatarMixin as BaseAvatarMixin
 from slidge.util import replace_mentions
-from slidge.util.types import ChatState, Mention, XMPPMessage
+from slidge.util.types import ChatState, Mention, XMPPAttachmentMessage, XMPPMessage
 from slixmpp.exceptions import XMPPError
 
 from .generated import go, whatsapp
@@ -101,7 +101,7 @@ class RecipientMixin(abc.ABC):
         self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
         return message_id
 
-    async def _on_file(self, xmpp_msg: XMPPMessage) -> str:
+    async def _on_file(self, xmpp_msg: XMPPAttachmentMessage) -> str:
         """
         Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
         """
