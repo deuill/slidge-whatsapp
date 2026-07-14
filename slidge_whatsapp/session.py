@@ -5,7 +5,6 @@ import warnings
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from functools import wraps
-from pathlib import Path
 from typing import Any, Concatenate, ParamSpec, TypeVar, cast
 from urllib.parse import quote as url_quote
 
@@ -14,7 +13,6 @@ from slidge import BaseSession
 from slidge.command import FormField, SearchResult
 from slidge.command.user import SyncContacts
 from slidge.contact.roster import ContactIsUser
-from slidge.core.mixins.attachment import is_temp_path
 from slidge.db.models import ArchivedMessage, GatewayUser
 from slidge.util import is_valid_phone_number
 from slidge.util.types import (
@@ -338,13 +336,6 @@ class Session(BaseSession[Contact]):
             when=self.__get_timestamp(message),
             carbon=message.Actor.IsMe,
         )
-        for attachment in attachments:
-            if attachment.path is None:
-                continue
-            assert isinstance(attachment.path, Path)
-            if is_temp_path(attachment.path):
-                self.log.debug("Removing '%s' from disk", attachment.path)
-                Path(attachment.path).unlink(missing_ok=True)
 
     async def on_wa_msg_edit(
         self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
