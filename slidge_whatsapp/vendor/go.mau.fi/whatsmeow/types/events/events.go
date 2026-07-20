@@ -18,6 +18,7 @@ import (
 	armadillo "go.mau.fi/whatsmeow/proto"
 	"go.mau.fi/whatsmeow/proto/instamadilloTransportPayload"
 	"go.mau.fi/whatsmeow/proto/waArmadilloApplication"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waConsumerApplication"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
@@ -48,6 +49,7 @@ type PairSuccess struct {
 	LID          types.JID
 	BusinessName string
 	Platform     string
+	Props        *waCompanionReg.ClientPairingProps
 }
 
 // PairError is emitted when a pair-success event is received from the server, but finishing the pairing locally fails.
@@ -56,7 +58,28 @@ type PairError struct {
 	LID          types.JID
 	BusinessName string
 	Platform     string
+	Props        *waCompanionReg.ClientPairingProps
 	Error        error
+}
+
+// PairPasskeyRequest is emitted when the pairing requires a passkey.
+// The client should generate a response and send it using Client.SendPasskeyResponse.
+type PairPasskeyRequest struct {
+	PublicKey *types.WebAuthnPublicKey
+}
+
+// PairPasskeyError is emitted if handling a passkey notification fails.
+type PairPasskeyError struct {
+	Error        error
+	Continuation bool // Whether this was from a continuation notification rather than the initial one
+}
+
+// PairPasskeyConfirmation is emitted after a successful SendPasskeyResponse call.
+// If SkipHandoffUX is false, the user should be shown the code and asked to verify that it matches the one on their phone.
+// After verification if needed, the client should call Client.SendPasskeyConfirmation to finish the pairing process.
+type PairPasskeyConfirmation struct {
+	Code          string
+	SkipHandoffUX bool
 }
 
 // QRScannedWithoutMultidevice is emitted when the pairing QR code is scanned, but the phone didn't have multidevice enabled.
