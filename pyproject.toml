@@ -77,19 +77,21 @@ files = []
 
 [tool.uv.sources]
 slidge-sphinx-extensions = { index = "codeberg" }
+slidge = { index = "codeberg" }
+slixmpp = { index = "codeberg-poezio" }
 
 [[tool.uv.index]]
-name = "codeberg"
-url = "https://codeberg.org/api/packages/slidge/pypi/simple"
-publish-url = "https://codeberg.org/api/packages/slidge/pypi"
+name = "pypi"
+url = "https://pypi.org/simple"
 
 [[tool.uv.index]]
 name = "codeberg-poezio"
 url = "https://codeberg.org/api/packages/poezio/pypi/simple/"
 
 [[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple"
+name = "codeberg"
+url = "https://codeberg.org/api/packages/slidge/pypi/simple"
+publish-url = "https://codeberg.org/api/packages/slidge/pypi"
 
 [tool.mypy]
 files = ["slidge_whatsapp"]
