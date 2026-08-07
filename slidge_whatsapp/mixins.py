@@ -43,7 +43,11 @@ class AvatarMixin(BaseAvatarMixin):
             # assert=workaround for poor type annotations in slidge core
             assert not isinstance(self.avatar.unique_id, int)
             unique_id = self.avatar.unique_id or ""
-        self.session.whatsapp.RequestAvatar(self.legacy_id, unique_id)  # type:ignore[no-untyped-call]
+        self.session.whatsapp.RequestAvatar(  # type: ignore[no-untyped-call]
+            address=whatsapp.Address(self.legacy_id),
+            avatarID=unique_id,
+            goRun=True,
+        )
 
 
 class RecipientMixin(abc.ABC):
@@ -82,23 +86,23 @@ class RecipientMixin(abc.ABC):
         Send outgoing plain-text message to given WhatsApp contact.
         """
         assert xmpp_msg.body
-        message_id: str = self.wa.GenerateMessageID()  # type:ignore[no-untyped-call]
-        message_preview = await self.__get_preview(xmpp_msg.body) or whatsapp.Preview()  # type:ignore[no-untyped-call]
+        message_id: str = self.wa.GenerateMessageID()  # type: ignore[no-untyped-call]
+        message_preview = await self.__get_preview(xmpp_msg.body) or whatsapp.Preview()  # type: ignore[no-untyped-call]
         message_location = (
-            await self.__get_location(xmpp_msg.body) or whatsapp.Location()  # type:ignore[no-untyped-call]
+            await self.__get_location(xmpp_msg.body) or whatsapp.Location()  # type: ignore[no-untyped-call]
         )
-        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type: ignore[no-untyped-call]
             ID=message_id,
             Chat=self.get_wa_chat(),
             Body=replace_mentions(xmpp_msg.body, xmpp_msg.mentions, mention_map),
             Preview=message_preview,
             Location=message_location,
-            MentionJIDs=go.Slice_string(  # type:ignore[no-untyped-call]
+            MentionJIDs=go.Slice_string(  # type: ignore[no-untyped-call]
                 [m.contact.legacy_id for m in xmpp_msg.mentions]
             ),
         )
         self._set_reply_to(xmpp_msg, message)
-        self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.wa.SendMessage(message)  # type: ignore[no-untyped-call]
         self.session.sent_msg_date_store.add(message_id)
         return message_id
 
@@ -117,22 +121,22 @@ class RecipientMixin(abc.ABC):
                     "Unable to retrieve file from XMPP server, try again",
                 )
             content_type = resp.content_type
-        message_id: str = self.wa.GenerateMessageID()  # type:ignore[no-untyped-call]
-        message_attachment = whatsapp.Attachment(  # type:ignore[no-untyped-call]
+        message_id: str = self.wa.GenerateMessageID()  # type: ignore[no-untyped-call]
+        message_attachment = whatsapp.Attachment(  # type: ignore[no-untyped-call]
             MIME=content_type,
             Filename=basename(att.url),
-            Data=go.Slice_byte.from_bytes(data),  # type:ignore[no-untyped-call]
+            Data=go.Slice_byte.from_bytes(data),  # type: ignore[no-untyped-call]
             Caption=xmpp_msg.body or "",
         )
-        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type: ignore[no-untyped-call]
             Kind=whatsapp.MessageAttachment,
             ID=message_id,
             Chat=self.get_wa_chat(),
             ReplyID=xmpp_msg.reply.msg_id if xmpp_msg.reply else "",
-            Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),  # type:ignore[no-untyped-call]
+            Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),  # type: ignore[no-untyped-call]
         )
         self._set_reply_to(xmpp_msg, message)
-        self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.wa.SendMessage(message)  # type: ignore[no-untyped-call]
         self.session.sent_msg_date_store.add(message_id)
         return message_id
 
@@ -149,13 +153,13 @@ class RecipientMixin(abc.ABC):
                 "WhatsApp does not let you edit messages older than 15 minutes.",
             )
         assert xmpp_msg.body
-        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type: ignore[no-untyped-call]
             Kind=whatsapp.MessageEdit,
             ID=xmpp_msg.replace,
             Chat=self.get_wa_chat(),
             Body=replace_mentions(xmpp_msg.body, xmpp_msg.mentions, mention_map),
         )
-        self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.wa.SendMessage(message)  # type: ignore[no-untyped-call]
 
     async def __get_preview(self, text: str) -> whatsapp.Preview | None:
         enable_previews = self.session.user.preferences.get(
@@ -203,15 +207,15 @@ class RecipientMixin(abc.ABC):
                     if url.startswith(VIDEO_PREVIEW_DOMAINS)
                     else whatsapp.PreviewPlain
                 )
-                return whatsapp.Preview(  # type:ignore[no-untyped-call]
+                return whatsapp.Preview(  # type: ignore[no-untyped-call]
                     Kind=kind,
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,
                     Thumbnail=(
-                        go.Slice_byte.from_bytes(thumbnail)  # type:ignore[no-untyped-call]
+                        go.Slice_byte.from_bytes(thumbnail)  # type: ignore[no-untyped-call]
                         if thumbnail
-                        else go.Slice_byte()  # type:ignore[no-untyped-call]
+                        else go.Slice_byte()  # type: ignore[no-untyped-call]
                     ),
                 )
         except Exception as e:
@@ -226,7 +230,7 @@ class RecipientMixin(abc.ABC):
         longitude = match.group("lon")
         if latitude == "" or longitude == "":
             return None
-        return whatsapp.Location(  # type:ignore[no-untyped-call]
+        return whatsapp.Location(  # type: ignore[no-untyped-call]
             Latitude=float(latitude),
             Longitude=float(longitude),
             Accuracy=int(match.group("acc") or 0),
@@ -240,17 +244,17 @@ class RecipientMixin(abc.ABC):
                 self.__send_state(whatsapp.ChatStatePaused)
 
     def __send_state(self, kind: int) -> None:
-        state = whatsapp.ChatState(Chat=self.get_wa_chat(), Kind=kind)  # type:ignore[no-untyped-call]
-        self.wa.SendChatState(state)  # type:ignore[no-untyped-call]
+        state = whatsapp.ChatState(Chat=self.get_wa_chat(), Kind=kind)  # type: ignore[no-untyped-call]
+        self.wa.SendChatState(state)  # type: ignore[no-untyped-call]
 
     async def on_displayed(self, legacy_msg_id: str, thread: str | None) -> None:
-        receipt = whatsapp.Receipt(  # type:ignore[no-untyped-call]
-            MessageIDs=go.Slice_string([legacy_msg_id]),  # type:ignore[no-untyped-call]
+        receipt = whatsapp.Receipt(  # type: ignore[no-untyped-call]
+            MessageIDs=go.Slice_string([legacy_msg_id]),  # type: ignore[no-untyped-call]
+            Actor=await self.get_wa_actor(legacy_msg_id),
             Chat=self.get_wa_chat(),
-            OriginActor=await self.get_wa_actor(legacy_msg_id),
             Timestamp=round(int(time.time())),
         )
-        self.wa.SendReceipt(receipt)  # type:ignore[no-untyped-call]
+        self.wa.SendReceipt(receipt)  # type: ignore[no-untyped-call]
 
     async def on_react(
         self, legacy_msg_id: str, emojis: list[str], thread: str | None
@@ -260,14 +264,14 @@ class RecipientMixin(abc.ABC):
         Slidge core makes sure that the emojis parameter is always empty or a
         *single* emoji.
         """
-        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type: ignore[no-untyped-call]
             Kind=whatsapp.MessageReaction,
             ID=legacy_msg_id,
             Chat=self.get_wa_chat(),
             Body=emojis[0] if emojis else "",
             OriginActor=await self.get_wa_actor(legacy_msg_id),
         )
-        self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.wa.SendMessage(message)  # type: ignore[no-untyped-call]
 
     async def on_retract(self, legacy_msg_id: str, thread: str | None) -> None:
         """
@@ -278,17 +282,17 @@ class RecipientMixin(abc.ABC):
                 "bad-request",
                 "WhatsApp does not let you retract messages older than 2 days.",
             )
-        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type: ignore[no-untyped-call]
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
             Chat=self.get_wa_chat(),
         )
-        self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.wa.SendMessage(message)  # type: ignore[no-untyped-call]
 
 
 def mention_map(mention: Mention) -> str:
     # mentions are @phonenumber, without the @s.whatsapp.net or @lid suffix
-    return f"@{mention.contact.phone}"  # type:ignore
+    return f"@{mention.contact.phone}"  # type: ignore
 
 
 def strip_quote_prefix(text: str) -> str:

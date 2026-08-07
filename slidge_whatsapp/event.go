@@ -3,6 +3,7 @@ package whatsapp
 import (
 	// Standard library.
 	"context"
+	"errors"
 	"fmt"
 	"mime"
 	"os"
@@ -15,7 +16,6 @@ import (
 	// Third-party libraries.
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -67,8 +67,8 @@ type HandleEventFunc func(EventKind, *EventPayload)
 // Connect represents event data related to a connection to WhatsApp being established, or failing
 // to do so (based on the [Connect.Error] result).
 type Connect struct {
-	JID   string // The device JID given for this connection.
-	Error string // The connection error, if any.
+	Address Address // The user JID given for this connection.
+	Error   string  // The connection error, if any.
 }
 
 // LoggedOut repreents event data related to an explicit or implicit log-out event.
@@ -80,94 +80,91 @@ type LoggedOut struct {
 type Avatar struct {
 	ID  string // The unique ID for this avatar, used for persistent caching.
 	URL string // The HTTP URL over which this avatar might be retrieved. Can change for the same ID.
-
-	ResourceID string // JID of the group or contact this avatar concerns
-	IsGroup    bool   // Whether this JID is a group or a contact
+	// TODO: Give better name?
+	Address Address // Address of the group or contact this avatar concerns.
 }
 
 // A Contact represents any entity that be communicated with directly in WhatsApp. This typically
 // represents people, but may represent a business or bot as well, but not a group-chat.
 type Contact struct {
-	Actor    Actor
-	Name     string // The user-set, human-readable name for this contact.
-	IsFriend bool   // Whether this contact is in the user's contact list.
+	Address  Address // The unique identifier for this contact.
+	Name     string  // The user-set, human-readable name for this contact.
+	Phone    string  // The phone number for the user.
+	IsFriend bool    // Whether this contact is in the user's contact list.
 }
 
-// NewContactEvent returns event data meant for [Session.propagateEvent] for a "live contact" event
-func newContactEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Contact) (EventKind, *EventPayload) {
-	lid, errlid := types.ParseJID(evt.Action.GetLidJID())
-	jid, errjid := types.ParseJID(evt.Action.GetPnJID())
-
-	if errlid != nil && errjid != nil {
-		client.Log.Warnf("Ignoring contact event: %s (LID) %s (JID)", errlid, errjid)
+// NewContactEvent returns event data meant for [Session.propagateEvent] for a contact event.
+func newContactEvent(ctx context.Context, client *whatsmeow.Client, jid types.JID) (EventKind, *EventPayload) {
+	info, err := client.Store.Contacts.GetContact(ctx, jid)
+	if err != nil {
+		client.Log.Errorf("Failed getting contact information from store: %s", err)
 		return EventUnknown, nil
 	}
 
-	actor := newActor(ctx, client, evt.JID, lid, jid)
-	contact := newContact(client, actor, types.ContactInfo{
-		FullName:  evt.Action.GetFullName(),
-		FirstName: evt.Action.GetFirstName(),
-		PushName:  evt.Action.GetUsername(), // Username === PushName?? maybe not
-	})
-	return EventContact, &EventPayload{Contact: contact}
-}
-
-// NewContactEventFromHistory returns event data meant for [Session.propagateEvent] for a "history push name sync" event
-func newContactEventFromHistory(ctx context.Context, client *whatsmeow.Client, evt *waHistorySync.Pushname) (EventKind, *EventPayload) {
-	jid, _ := types.ParseJID(evt.GetID())
-	actor := newActor(ctx, client, jid)
-	contact := newContact(client, actor, types.ContactInfo{PushName: evt.GetPushname()})
-	return EventContact, &EventPayload{Contact: contact}
-}
-
-// NewContactEvent returns event data meant for [Session.propagateEvent] for a "live pushname" event
-func newContactEventFromPushName(ctx context.Context, client *whatsmeow.Client, evt *events.PushName) (EventKind, *EventPayload) {
-	contactInfo, err := client.Store.Contacts.GetContact(ctx, evt.JID)
+	contact, err := newContact(ctx, client, jid, info)
 	if err != nil {
-		contactInfo, _ = client.Store.Contacts.GetContact(ctx, evt.JIDAlt)
+		client.Log.Errorf("Failed creating contact for contact event: %s", err)
+		return EventUnknown, nil
 	}
-	contactInfo.PushName = evt.NewPushName
-	actor := newActor(ctx, client, evt.JID, evt.JIDAlt)
-	return EventContact, &EventPayload{Contact: newContact(client, actor, contactInfo)}
+
+	return EventContact, &EventPayload{Contact: contact}
 }
 
-// NewContact returns a concrete [Contact] instance for the JID and additional information given.
-// In cases where a valid contact can't be returned, [Contact.JID] will be left empty.
-func newContact(client *whatsmeow.Client, actor Actor, info types.ContactInfo) Contact {
-	var contact = Contact{
-		Actor:    actor,
-		IsFriend: info.FullName != "", // Only trusted contacts have full names attached on WhatsApp.
+// TODO
+func newContact(ctx context.Context, client *whatsmeow.Client, jid types.JID, info types.ContactInfo) (Contact, error) {
+	// Set specific name for special JIDs.
+	switch jid {
+	case types.MetaAIJID:
+		if info.PushName == jid.User {
+			info.PushName = "Meta AI"
+		}
+	case types.LegacyPSAJID, types.PSAJID:
+		info.PushName = "WhatsApp"
 	}
 
-	// Find valid contact name from list of alternatives, or return empty contact if none could be found.
-	for _, n := range []string{info.FullName, info.FirstName, info.BusinessName, info.PushName, info.RedactedPhone} {
-		if n != "" {
-			contact.Name = n
+	var contact = Contact{Address: addressFromJID(jid)}
+	if jid.Server == types.DefaultUserServer {
+		contact.Phone = "+" + jid.User
+	}
+
+	// Attempt to merge data in from alternative JID (or LID) where none exists in [ContactInfo].
+	switch jid.Server {
+	case types.DefaultUserServer, types.HiddenUserServer:
+		altJID, err := client.Store.GetAltJID(ctx, jid)
+		if err != nil {
+			client.Log.Errorf("Failed getting alternative JID: %s", err)
 			break
+		}
+		altInfo, err := client.Store.Contacts.GetContact(ctx, altJID)
+		if err != nil {
+			client.Log.Errorf("Failed getting alternative contact info: %s", err)
+			break
+		}
+		info.PushName = coalesce(info.PushName, altInfo.PushName)
+		info.BusinessName = coalesce(info.BusinessName, altInfo.BusinessName)
+		if altJID.Server == types.DefaultUserServer {
+			// Force override the contact's push name and business names on mismatch if the alt JID is a "user" type.
+			if info.PushName != "" && altInfo.PushName != "" && info.PushName != altInfo.PushName {
+				info.PushName = altInfo.PushName
+			}
+			if info.BusinessName != "" && altInfo.BusinessName != "" && info.BusinessName != altInfo.BusinessName {
+				info.BusinessName = altInfo.BusinessName
+			}
+			info.FullName = coalesce(info.FullName, altInfo.FullName)
+			info.FirstName = coalesce(info.FirstName, altInfo.FirstName)
+			contact.Phone = "+" + altJID.User
 		}
 	}
 
+	contact.Name = coalesce(info.FullName, info.FirstName, info.BusinessName, info.PushName, info.RedactedPhone)
 	if contact.Name == "" {
-		client.Log.Warnf("Could not find a name for this contact: %+v", info)
-		return Contact{}
+		return Contact{}, errors.New("contact has no valid name")
 	}
 
-	return contact
-}
+	// Assume contact is a "friend" if a full name has been set.
+	contact.IsFriend = info.FullName != ""
 
-// Chat identifies a contact or a group, in other words, the "conversation" where an event takes
-// place.
-type Chat struct {
-	JID     string
-	IsGroup bool
-}
-
-// Actor identifies who has triggered the event. It is either a contact identified by a proper JID
-// (in 1:1) or a participant identified by a LID (in groups).
-type Actor struct {
-	JID  string
-	LID  string
-	IsMe bool
+	return contact, nil
 }
 
 // PresenceKind represents the different kinds of activity states possible in WhatsApp.
@@ -183,8 +180,8 @@ const (
 // Precence represents a contact's general state of activity, and is periodically updated as
 // contacts start or stop paying attention to their client of choice.
 type Presence struct {
-	Actor    Actor
 	Kind     PresenceKind
+	Actor    Actor
 	LastSeen int64
 }
 
@@ -192,8 +189,8 @@ type Presence struct {
 // event given.
 func newPresenceEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Presence) (EventKind, *EventPayload) {
 	var presence = Presence{
-		Actor:    newActor(ctx, client, evt.From),
 		Kind:     PresenceAvailable,
+		Actor:    Actor{Address: addressFromJID(evt.From)},
 		LastSeen: evt.LastSeen.Unix(),
 	}
 
@@ -225,7 +222,7 @@ type Message struct {
 	Kind        MessageKind  // The concrete message kind being sent or received.
 	ID          string       // The unique message ID, used for referring to a specific Message instance.
 	Actor       Actor        // Identifies who sent this message
-	Chat        Chat         // The JID of the group or contact.
+	Chat        Address      // The address of the group or contact.
 	OriginActor Actor        // Identifies who sent a message being referred to for reaction, replies and moderation
 	Body        string       // The plain-text message body. For attachment messages, this can be a caption.
 	Timestamp   int64        // The Unix timestamp denoting when this message was created.
@@ -248,11 +245,11 @@ type Message struct {
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
 // a message, for display or storage on the recepient client.
 type Attachment struct {
-	MIME         string // The MIME type for attachment.
-	Filename     string // The recommended file name for this attachment. May be an auto-generated name.
-	Caption      string // The user-provided caption, provided alongside this attachment.
-	Data         []byte // Data for the attachment.
-	TempFilePath string // If the file is above maxInRamMediaSize, Data is empty and the content of this file should be used instead
+	MIME     string // The MIME type for attachment.
+	Filename string // The recommended file name for this attachment. May be an auto-generated name.
+	Caption  string // The user-provided caption, provided alongside this attachment.
+	Data     []byte // Data for the attachment. Mutually exclusive with [.Path].
+	Path     string // Path to (usually temporary) file for this attachment. Mutually exclusive with [.Data].
 
 	// Internal fields.
 	spec *media.Spec // Metadata specific to audio/video files, used in processing.
@@ -331,18 +328,16 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        evt.Info.ID,
-		Actor:     newActor(ctx, client, evt.Info.Sender, evt.Info.SenderAlt),
+		Actor:     Actor{Address: addressFromJID(evt.Info.Sender), IsSelf: evt.Info.IsFromMe},
+		Chat:      addressFromJID(evt.Info.Chat),
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
 	}
 
-	message.Chat = newChat(ctx, client, evt.Info.Chat, evt.Info.IsGroup)
-	message.Actor.IsMe = evt.Info.IsFromMe
-
+	// Handle non-carbon, non-status broadcast messages as plain messages; support for other types
+	// is lacking in the XMPP world.
 	if evt.Info.Chat.Server == types.BroadcastServer {
-		// Handle non-carbon, non-status broadcast messages as plain messages; support for other
-		// types is lacking in the XMPP world.
-		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.Actor.IsMe {
+		if evt.Info.Chat.User == types.StatusBroadcastJID.User || evt.Info.IsFromMe {
 			return EventUnknown, nil
 		}
 	}
@@ -359,13 +354,13 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 				return EventUnknown, nil
 			}
 		case waE2E.ProtocolMessage_REVOKE:
-			originJID, err := types.ParseJID(p.Key.GetParticipant())
+			jid, err := types.ParseJID(p.Key.GetParticipant())
 			if err != nil {
 				return EventUnknown, nil
 			}
 			message.Kind = MessageRevoke
 			message.ID = p.Key.GetID()
-			message.OriginActor = newActor(ctx, client, originJID)
+			message.OriginActor = Actor{Address: addressFromJID(jid), IsSelf: p.Key.GetFromMe()}
 			return EventMessage, &EventPayload{Message: message}
 		}
 	}
@@ -464,7 +459,7 @@ func newMessageEvent(ctx context.Context, client *whatsmeow.Client, evt *events.
 			if groupJID, err := client.JoinGroupWithLink(ctx, code); err != nil {
 				client.Log.Errorf("Failed joining group with invite: %s", err)
 			} else {
-				message.GroupInvite = Group{JID: groupJID.ToNonAD().String()}
+				message.GroupInvite = Group{Address: addressFromJID(groupJID)}
 			}
 		}
 
@@ -487,14 +482,13 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 		return message
 	}
 
-	remoteJID, _ := types.ParseJID(info.GetRemoteJID())
 	originJID, err := types.ParseJID(info.GetParticipant())
 	if err != nil {
 		return message
 	}
 
 	message.ReplyID = info.GetStanzaID()
-	message.OriginActor = newActor(ctx, client, originJID, remoteJID)
+	message.OriginActor = Actor{Address: addressFromJID(originJID)}
 	message.IsForwarded = info.GetIsForwarded()
 
 	// Handle reply messages.
@@ -509,10 +503,9 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 	return message
 }
 
-// getSize returns the size of a downloadable attachment, as reported by the
-// uploader.
-// If that size is not available for any reason, 0 is returned.
-func getSize(msg whatsmeow.DownloadableMessage) int {
+// GetAttachmentSize returns the size of a downloadable attachment, as reported by the uploader. If
+// that size is not available for any reason, 0 is returned.
+func getAttachmentSize(msg whatsmeow.DownloadableMessage) int {
 	switch s := msg.(type) {
 	case interface{ GetFileLength() int32 }:
 		return int(s.GetFileLength())
@@ -523,7 +516,6 @@ func getSize(msg whatsmeow.DownloadableMessage) int {
 	case interface{ GetFileSizeBytes() uint64 }:
 		return int(s.GetFileSizeBytes())
 	}
-	// If we couldn't get the info, assume it's larger than what we want in RAM
 	return 0
 }
 
@@ -568,8 +560,8 @@ func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, messag
 		}
 
 		// Attempt to download and decrypt raw attachment data, if any.
-		size := getSize(msg)
-		client.Log.Debugf("Reported size: %s", size)
+		size := getAttachmentSize(msg)
+		client.Log.Debugf("Reported attachment size: %s", size)
 		if size == 0 || size > maxInRamMediaSize {
 			tempFile, err := os.CreateTemp(media.TempDir, "whatsmeow-attachment-*")
 			if err != nil {
@@ -581,7 +573,7 @@ func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, messag
 				os.Remove(tempFile.Name())
 				return nil, nil, err
 			}
-			a.TempFilePath = tempFile.Name()
+			a.Path = tempFile.Name()
 		} else {
 			data, err := client.Download(ctx, msg)
 			if err != nil {
@@ -837,7 +829,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    new(uint64(len(attach.Data))),
 			},
 		}
 		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
@@ -860,12 +852,12 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
-				Seconds:       ptrTo(uint32(spec.Duration.Seconds())),
+				FileLength:    new(uint64(len(attach.Data))),
+				Seconds:       new(uint32(spec.Duration.Seconds())),
 			},
 		}
 		if attach.MIME == voiceMessageMIME {
-			message.AudioMessage.PTT = ptrTo(true)
+			message.AudioMessage.PTT = new(true)
 			if spec != nil {
 				w, err := media.GetWaveform(ctx, attach.Data, spec, maxWaveformSamples)
 				if err != nil {
@@ -889,10 +881,10 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
-				Seconds:       ptrTo(uint32(spec.Duration.Seconds())),
-				Width:         ptrTo(uint32(spec.VideoWidth)),
-				Height:        ptrTo(uint32(spec.VideoHeight)),
+				FileLength:    new(uint64(len(attach.Data))),
+				Seconds:       new(uint32(spec.Duration.Seconds())),
+				Width:         new(uint32(spec.VideoWidth)),
+				Height:        new(uint32(spec.VideoHeight)),
 			},
 		}
 		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
@@ -902,7 +894,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 			message.VideoMessage.JPEGThumbnail = t
 		}
 		if originalMIME == animatedImageMIME {
-			message.VideoMessage.GifPlayback = ptrTo(true)
+			message.VideoMessage.GifPlayback = new(true)
 		}
 	case whatsmeow.MediaDocument:
 		message = &waE2E.Message{
@@ -913,7 +905,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    new(uint64(len(attach.Data))),
 				FileName:      &attach.Filename,
 			},
 		}
@@ -922,7 +914,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 			if spec, err := attach.GetSpec(ctx); err != nil {
 				client.Log.Warnf("failed fetching attachment metadata: %s", err)
 			} else {
-				message.DocumentMessage.PageCount = ptrTo(uint32(spec.DocumentPage))
+				message.DocumentMessage.PageCount = new(uint32(spec.DocumentPage))
 			}
 			t, err := media.Convert(ctx, attach.Data, &previewThumbnailSpec)
 			if err != nil {
@@ -974,8 +966,8 @@ func getBaseMediaType(typ string) string {
 func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *waWeb.WebMessageInfo) (EventKind, *EventPayload) {
 	// Handle message as group message is remote JID is a group JID in the absence of any other,
 	// specific signal, or don't handle at all if no group JID is found.
-	var jid = info.GetKey().GetRemoteJID()
-	if j, _ := types.ParseJID(jid); j.Server != types.GroupServer {
+	jid, _ := types.ParseJID(info.GetKey().GetRemoteJID())
+	if jid.Server != types.GroupServer {
 		return EventUnknown, nil
 	}
 
@@ -984,6 +976,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	var message = Message{
 		Kind:      MessagePlain,
 		ID:        info.GetKey().GetID(),
+		Chat:      addressFromJID(jid),
 		Body:      info.GetMessage().GetConversation(),
 		Timestamp: int64(info.GetMessageTimestamp()),
 		IsHistory: true,
@@ -994,18 +987,12 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		if err != nil {
 			return EventUnknown, nil
 		}
-		message.Actor = newActor(ctx, client, jid)
-		message.Chat = newChat(ctx, client, jid, true)
+		message.Actor = Actor{Address: addressFromJID(jid)}
 	} else if info.GetKey().GetFromMe() {
-		message.Actor = newActor(ctx, client, client.Store.LID, *client.Store.ID)
-		jid, err := types.ParseJID(jid)
-		if err != nil {
-			return EventUnknown, nil
-		}
-		message.Chat = newChat(ctx, client, jid, true)
+		message.Actor = Actor{Address: addressFromJID(client.Store.GetJID()), IsSelf: true}
 	} else {
-		// It's likely we cannot handle this message correctly if we don't know the concrete
-		// sender, so just ignore it completely.
+		// It's likely we cannot handle this message correctly if we don't know the concrete sender,
+		// so just ignore it completely.
 		return EventUnknown, nil
 	}
 
@@ -1021,7 +1008,7 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 		}
 		return EventCall, &EventPayload{Call: Call{
 			State:     CallMissed,
-			Actor:     newActor(ctx, client, jid),
+			Actor:     Actor{Address: addressFromJID(jid), IsSelf: info.GetKey().GetFromMe()},
 			Timestamp: int64(info.GetMessageTimestamp()),
 		}}
 	case waWeb.WebMessageInfo_REVOKE:
@@ -1042,10 +1029,10 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 				continue
 			}
 			message.Reactions = append(message.Reactions, Message{
-				Chat:      message.Chat,
 				Kind:      MessageReaction,
 				ID:        r.GetKey().GetID(),
-				Actor:     newActor(ctx, client, jid),
+				Actor:     Actor{Address: addressFromJID(jid), IsSelf: r.GetKey().GetFromMe()},
+				Chat:      message.Chat,
 				Body:      r.GetText(),
 				Timestamp: r.GetSenderTimestampMS() / 1000,
 			})
@@ -1067,15 +1054,16 @@ func newEventFromHistory(ctx context.Context, client *whatsmeow.Client, info *wa
 	// Handle pre-set receipt status, if any.
 	for _, r := range info.GetUserReceipt() {
 		// Ignore self-receipts for the moment, as these cannot be handled correctly by the adapter.
+		// TODO: Check to see if this is still necessary.
 		if client.Store.ID.ToNonAD().String() == r.GetUserJID() {
-			continue // why? they're handled fine for live events
+			continue
 		}
 		jid, err := types.ParseJID(r.GetUserJID())
 		if err != nil {
 			continue
 		}
 		var receipt = Receipt{
-			Actor:      newActor(ctx, client, jid),
+			Actor:      Actor{Address: addressFromJID(jid)},
 			Chat:       message.Chat,
 			MessageIDs: []string{message.ID},
 		}
@@ -1122,23 +1110,27 @@ const (
 // Presence, which is the contact's general state across all discussions.
 type ChatState struct {
 	Kind  ChatStateKind
-	Chat  Chat
 	Actor Actor
+	Chat  Address
 }
 
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
 func newChatStateEvent(ctx context.Context, client *whatsmeow.Client, evt *events.ChatPresence) (EventKind, *EventPayload) {
 	var state = ChatState{
-		Actor: newActor(ctx, client, evt.Sender, evt.SenderAlt),
+		Actor: Actor{Address: addressFromJID(evt.Sender)},
+		Chat:  addressFromJID(evt.Chat),
 	}
-	state.Chat = newChat(ctx, client, evt.Chat, evt.IsGroup)
+
 	switch evt.State {
 	case types.ChatPresenceComposing:
 		state.Kind = ChatStateComposing
 	case types.ChatPresencePaused:
 		state.Kind = ChatStatePaused
+	default:
+		return EventUnknown, nil
 	}
+
 	return EventChatState, &EventPayload{ChatState: state}
 }
 
@@ -1156,12 +1148,11 @@ const (
 // received. Receipts can be delivered for many messages at once, but are generally all delivered
 // under one specific state at a time.
 type Receipt struct {
-	Kind        ReceiptKind // The distinct kind of receipt presented.
-	MessageIDs  []string    // The list of message IDs to mark for receipt.
-	Actor       Actor
-	OriginActor Actor
-	Chat        Chat
-	Timestamp   int64
+	Kind       ReceiptKind // The distinct kind of receipt presented.
+	MessageIDs []string    // The list of message IDs to mark for receipt.
+	Actor      Actor
+	Chat       Address
+	Timestamp  int64
 }
 
 // NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive receipt
@@ -1169,18 +1160,18 @@ type Receipt struct {
 func newReceiptEvent(ctx context.Context, client *whatsmeow.Client, evt *events.Receipt) (EventKind, *EventPayload) {
 	var receipt = Receipt{
 		MessageIDs: slices.Clone(evt.MessageIDs),
-		Actor:      newActor(ctx, client, evt.Sender, evt.SenderAlt),
+		Actor:      Actor{Address: addressFromJID(evt.Sender), IsSelf: evt.IsFromMe},
+		Chat:       addressFromJID(evt.Chat),
 		Timestamp:  evt.Timestamp.Unix(),
 	}
-	receipt.Chat = newChat(ctx, client, evt.Chat, evt.IsGroup)
-	receipt.Actor.IsMe = evt.IsFromMe
 
 	if len(receipt.MessageIDs) == 0 {
 		return EventUnknown, nil
 	}
 
 	if evt.Chat.Server == types.BroadcastServer {
-		receipt.Actor.JID = evt.BroadcastListOwner.ToNonAD().String()
+		receipt.Actor = Actor{Address: addressFromJID(evt.BroadcastListOwner)}
+		receipt.Chat = addressFromJID(evt.BroadcastListOwner)
 	}
 
 	switch evt.Type {
@@ -1208,7 +1199,7 @@ const (
 // generally invited to out-of-band with respect to overarching adaptor; see the documentation for
 // [Session.GetGroups] for more information.
 type Group struct {
-	JID          string             // The WhatsApp JID for this group.
+	Address      Address            // The address for this group.
 	Name         string             // The user-defined, human-readable name for this group.
 	Subject      GroupSubject       // The longer-form, user-defined description for this group.
 	Nickname     string             // Our own nickname in this group-chat.
@@ -1219,9 +1210,9 @@ type Group struct {
 // A GroupSubject represents the user-defined group description and attached metadata thereof, for a
 // given [Group].
 type GroupSubject struct {
-	Subject string // The user-defined group description.
-	SetAt   int64  // The exact time this group description was set at, as a timestamp.
-	SetBy   Actor  // The name of the user that set the subject.
+	Subject string  // The user-defined group description.
+	SetAt   int64   // The exact time this group description was set at, as a timestamp.
+	SetBy   Address // The address of the user that set the subject.
 }
 
 // GroupParticipantAction represents the distinct set of actions that can be taken when encountering
@@ -1254,7 +1245,7 @@ func (a GroupParticipantAction) toParticipantChange() whatsmeow.ParticipantChang
 // WhatsApp can generally be derived back to their individual [Contact]; there are no anonymous groups
 // in WhatsApp.
 type GroupParticipant struct {
-	Actor       Actor
+	Address     Address                // The address for this participant.
 	Nickname    string                 // The user-set name for this participant, typically only set for anonymous participants.
 	Affiliation GroupAffiliation       // The set of priviledges given to this specific participant.
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
@@ -1269,14 +1260,12 @@ func newGroupParticipant(ctx context.Context, client *whatsmeow.Client, particip
 	}
 
 	var p = GroupParticipant{
-		Actor:    newActor(ctx, client, participant.PhoneNumber, participant.LID),
+		Address:  addressFromJID(participant.JID),
 		Nickname: participant.DisplayName,
 	}
 
-	if p.Actor.JID != "" {
-		if c, err := client.Store.Contacts.GetContact(ctx, participant.JID); err == nil {
-			p.Nickname = c.PushName
-		}
+	if c, err := client.Store.Contacts.GetContact(ctx, participant.JID); err == nil {
+		p.Nickname = c.PushName
 	}
 
 	if participant.IsSuperAdmin {
@@ -1291,40 +1280,39 @@ func newGroupParticipant(ctx context.Context, client *whatsmeow.Client, particip
 // given. Group data returned by this function can be partial, and callers should take care to only
 // handle non-empty values.
 func newGroupEvent(ctx context.Context, client *whatsmeow.Client, evt *events.GroupInfo) (EventKind, *EventPayload) {
-	var group = Group{JID: evt.JID.ToNonAD().String()}
+	var group = Group{Address: addressFromJID(evt.JID)}
 	if evt.Name != nil {
 		group.Name = evt.Name.Name
 	}
 	if evt.Topic != nil {
-		topicActor := newActor(ctx, client, evt.Topic.TopicSetBy, evt.Topic.TopicSetByPN)
 		group.Subject = GroupSubject{
 			Subject: evt.Topic.Topic,
+			SetBy:   addressFromJID(evt.Topic.TopicSetBy),
 			SetAt:   evt.Topic.TopicSetAt.Unix(),
 		}
-		group.Subject.SetBy = topicActor
 	}
-	for _, p := range evt.Join {
+	for _, jid := range evt.Join {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Actor:  newActor(ctx, client, p),
-			Action: GroupParticipantActionAdd,
+			Address: addressFromJID(jid),
+			Action:  GroupParticipantActionAdd,
 		})
 	}
-	for _, p := range evt.Leave {
+	for _, jid := range evt.Leave {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Actor:  newActor(ctx, client, p),
-			Action: GroupParticipantActionRemove,
+			Address: addressFromJID(jid),
+			Action:  GroupParticipantActionRemove,
 		})
 	}
-	for _, p := range evt.Promote {
+	for _, jid := range evt.Promote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Actor:       newActor(ctx, client, p),
+			Address:     addressFromJID(jid),
 			Action:      GroupParticipantActionPromote,
 			Affiliation: GroupAffiliationAdmin,
 		})
 	}
-	for _, p := range evt.Demote {
+	for _, jid := range evt.Demote {
 		group.Participants = append(group.Participants, GroupParticipant{
-			Actor:       newActor(ctx, client, p),
+			Address:     addressFromJID(jid),
 			Action:      GroupParticipantActionDemote,
 			Affiliation: GroupAffiliationNone,
 		})
@@ -1343,12 +1331,12 @@ func newGroup(ctx context.Context, client *whatsmeow.Client, info *types.GroupIn
 	}
 
 	var group = Group{
-		JID:  info.JID.ToNonAD().String(),
-		Name: info.Name,
+		Address: addressFromJID(info.JID),
+		Name:    info.Name,
 		Subject: GroupSubject{
 			Subject: info.Topic,
 			SetAt:   info.TopicSetAt.Unix(),
-			SetBy:   newActor(ctx, client, info.TopicSetBy, info.TopicSetByPN),
+			SetBy:   addressFromJID(info.TopicSetBy),
 		},
 		Nickname:     client.Store.PushName,
 		Participants: participants,
@@ -1395,79 +1383,7 @@ func newCallEvent(ctx context.Context, client *whatsmeow.Client, state CallState
 
 	return EventCall, &EventPayload{Call: Call{
 		State:     state,
-		Actor:     newActor(ctx, client, meta.From, meta.CallCreator, meta.CallCreatorAlt),
+		Actor:     Actor{Address: addressFromJID(meta.From)},
 		Timestamp: meta.Timestamp.Unix(),
 	}}
-}
-
-// NewActor returns a concrete [Actor] for the given primary or alternative [types.JID], representing
-// one or more phone-number or anonymous IDs (JIDs and LIDs, in WhatsApp nomenclature).
-//
-// This function makes a best-effort search for JID or LID when either are missing, based on
-// internal mappings, or other stored data; it is possible, however, that [Actor] representations
-// returned are partial or empty.
-func newActor(ctx context.Context, client *whatsmeow.Client, primaryJID types.JID, altJIDs ...types.JID) Actor {
-	var phoneID, anonID types.JID
-	var actor Actor
-
-	// Find (phone-number) JID and (numeric) LID from list of identifiers given in best-effort search.
-	for _, id := range append([]types.JID{primaryJID}, altJIDs...) {
-		if id.Server == types.HiddenUserServer && anonID.IsEmpty() {
-			anonID = id
-		} else if id.Server == types.DefaultUserServer && phoneID.IsEmpty() {
-			phoneID = id
-		} else if !id.IsEmpty() {
-			client.Log.Debugf("Unused JID or LID: %s", id)
-		}
-	}
-
-	// Try to get JID or LID from internal mapping, if possible.
-	if phoneID.IsEmpty() && !anonID.IsEmpty() {
-		phoneID, _ = client.Store.LIDs.GetPNForLID(ctx, anonID)
-	} else if !phoneID.IsEmpty() && anonID.IsEmpty() {
-		anonID, _ = client.Store.LIDs.GetLIDForPN(ctx, phoneID)
-	}
-
-	// Set actor JID and LID based on values given, or try to fall back stored values for own device
-	// if we've surmised that either JID or LID is for the self-actor.
-	if !phoneID.IsEmpty() {
-		actor.JID = phoneID.ToNonAD().String()
-		actor.IsMe = phoneID.ToNonAD() == client.Store.GetJID().ToNonAD()
-	}
-	if !anonID.IsEmpty() {
-		actor.LID = anonID.ToNonAD().String()
-		actor.IsMe = anonID.ToNonAD() == client.Store.GetLID().ToNonAD()
-	}
-
-	if actor.IsMe {
-		if actor.JID == "" {
-			actor.JID = client.Store.GetJID().ToNonAD().String()
-		}
-		if actor.LID == "" {
-			actor.LID = client.Store.GetLID().ToNonAD().String()
-		}
-	}
-
-	return actor
-}
-
-// NewChat returns a concrete [Chat] instance for the JID given, which is expected to be a concrete
-// group-chat JID or phone-number JID. In cases where the JID given is an anonymous LID for a user,
-// we will attempt a best-effort mapping back to the phone-number JID.
-func newChat(ctx context.Context, client *whatsmeow.Client, jid types.JID, isGroup bool) Chat {
-	var chatJID types.JID
-	if jid.Server == types.DefaultUserServer || jid.Server == types.GroupServer {
-		chatJID = jid
-	} else if jid.Server == types.HiddenUserServer && !isGroup {
-		chatJID, _ = client.Store.LIDs.GetPNForLID(ctx, jid)
-	}
-
-	if chatJID.IsEmpty() {
-		return Chat{}
-	}
-
-	return Chat{
-		JID:     chatJID.ToNonAD().String(),
-		IsGroup: isGroup,
-	}
 }

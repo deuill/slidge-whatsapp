@@ -28,19 +28,16 @@ class Contact(AvatarMixin, RecipientMixin, LegacyContact):
             if last_seen_timestamp > 0
             else None
         )
-        if presence == whatsapp.PresenceUnavailable:  # type:ignore[comparison-overlap]
+        if presence == whatsapp.PresenceUnavailable:  # type: ignore[comparison-overlap]
             self.away(last_seen=last_seen)
         else:
             self.online(last_seen=last_seen)
 
     async def update_info(self) -> None:
-        if whatsapp.IsAnonymousJID(self.legacy_id):  # type:ignore[no-untyped-call]
-            raise XMPPError(
-                "item-not-found", f"LIDs are not valid contact IDs: {self.legacy_id}"
-            )
-        # If we receive presences, the status will be updated accordingly. But presences do not
-        # work reliably, and having contacts offline has annoying side effects, such as contacts not
-        # appearing in the participant list of groups.
+        """
+        Update contact info, and force-set presence to 'online', to work around issues with
+        unreliable presence propagation.
+        """
         self.online()
 
     async def update_whatsapp_info(self, wa_contact: whatsapp.Contact) -> None:
@@ -51,23 +48,25 @@ class Contact(AvatarMixin, RecipientMixin, LegacyContact):
             self.name = wa_contact.Name
             self.is_friend = bool(
                 wa_contact.IsFriend
-                or self.session.user.preferences.get("roster_add_non_friends", True)
+                or self.session.user.preferences.get("roster_add_non_friends", False)
             )
             await self.update_whatsapp_avatar()
-            self.set_vcard(full_name=self.name, phone=str(self.jid.local))
+            if wa_contact.Address.Kind() == whatsapp.AddressPhoneNumber:
+                self.set_vcard(full_name=wa_contact.Name, phone=whatsapp.Address)
 
     def get_wa_chat(self) -> whatsapp.Chat:
-        return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)  # type:ignore[no-untyped-call]
+        return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)  # type: ignore[no-untyped-call]
 
     async def get_wa_actor(self, legacy_msg_id: str) -> whatsapp.Actor:
         carbon = self.session.message_is_carbon(self, legacy_msg_id)
-        return whatsapp.Actor(  # type:ignore[no-untyped-call]
+        return whatsapp.Actor(  # type: ignore[no-untyped-call]
             JID=self.session.contacts.user_legacy_id if carbon else self.legacy_id,
             IsMe=carbon,
         )
 
     @property
     def phone(self) -> str:
+        # FIXME: Contacts don't always have phone numbers.
         return self.legacy_id.split("@")[0]
 
     def _set_reply_to(self, xmpp_msg: XMPPMessage, wa_msg: whatsapp.Message) -> None:
@@ -97,25 +96,23 @@ class Roster(LegacyRoster[Contact]):
         Retrieve contacts from remote WhatsApp service, subscribing to their presence and adding to
         local roster.
         """
-        wa_contacts = self.session.whatsapp.GetContacts(  # type:ignore[no-untyped-call]
+        wa_contacts = self.session.whatsapp.GetContacts(  # type: ignore[no-untyped-call]
             refresh=config.ALWAYS_SYNC_ROSTER
         )
         for wa_contact in wa_contacts:
             contact = await self.add_whatsapp_contact(wa_contact)
             if contact is not None:
                 yield contact
-        self.session.whatsapp.SubscribeToPresences()  # type:ignore[no-untyped-call]
+        self.session.whatsapp.SubscribeToPresences()  # type: ignore[no-untyped-call]
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact) -> Contact | None:
         """
         Adds a WhatsApp contact to local roster, filling all required and optional information.
         """
         # Don't attempt to add ourselves to the roster.
-        if self.user_legacy_id == data.Actor.JID:
+        if not data.Address or self.user_legacy_id == data.Address:
             return None
-        if not data.Actor.JID:
-            return None
-        contact = await self.by_legacy_id(data.Actor.JID)
+        contact = await self.by_legacy_id(data.Address)
         await contact.update_whatsapp_info(data)
         return contact
 

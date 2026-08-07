@@ -75,9 +75,9 @@ class Session(BaseSession[Contact]):
         super().__init__(user)
         self.sent_msg_date_store = AutoExpiryStore()
         try:
-            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])  # type:ignore[no-untyped-call]
+            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])  # type: ignore[no-untyped-call]
         except KeyError:
-            device = whatsapp.LinkedDevice()  # type:ignore[no-untyped-call]
+            device = whatsapp.LinkedDevice()  # type: ignore[no-untyped-call]
         self.__presence_status: str = ""
         self.user_phone: str | None = None
         self.whatsapp: whatsapp.Session = self.xmpp.whatsapp.NewSession(device)
@@ -92,7 +92,7 @@ class Session(BaseSession[Contact]):
         or will re-connect to a previously existing Linked Device session.
         """
         self.__reset_connected()
-        self.whatsapp.Login()  # type:ignore[no-untyped-call]
+        self.whatsapp.Login()  # type: ignore[no-untyped-call]
         return await self.__connected
 
     async def logout(self) -> None:
@@ -100,7 +100,7 @@ class Session(BaseSession[Contact]):
         Disconnect the active WhatsApp session. This will not remove any local or remote state, and
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
         """
-        self.whatsapp.Disconnect()  # type:ignore[no-untyped-call]
+        self.whatsapp.Disconnect()  # type: ignore[no-untyped-call]
         self.logged = False
 
     @ignore_contact_is_user
@@ -119,7 +119,7 @@ class Session(BaseSession[Contact]):
         ):
             await self.contacts.ready
             await self.bookmarks.ready
-        event = whatsapp.EventPayload(handle=ptr)  # type:ignore[no-untyped-call]
+        event = whatsapp.EventPayload(handle=ptr)  # type: ignore[no-untyped-call]
         match event_kind:
             case whatsapp.EventQRCode:
                 await self.on_wa_qr(event.QRCode)
@@ -173,8 +173,8 @@ class Session(BaseSession[Contact]):
                 XMPPError("internal-server-error", connect.Error),
             )
         else:
-            self.contacts.user_legacy_id = connect.JID
-            self.user_phone = "+" + connect.JID.split("@")[0]
+            self.contacts.user_legacy_id = connect.Address
+            self.user_phone = connect.Address
             self.xmpp.loop.call_soon_threadsafe(
                 self.__connected.set_result, self.__get_connected_status_message()
             )
@@ -193,24 +193,26 @@ class Session(BaseSession[Contact]):
             muc.history_requested = False
 
     async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
-        if wa_contact.Actor.JID:
-            contact = await self.contacts.add_whatsapp_contact(wa_contact)
-            if contact is not None and contact.is_friend:
-                # slidge core would do that automatically if the is_friend flag
-                # was set in update_info(), but it actually happens in
-                # update_whatsapp_info()
-                await contact.add_to_roster()
-        elif wa_contact.Actor.LID:
-            await self.bookmarks.rename_anonymous_participants(wa_contact)
+        match wa_contact.Address.Kind():
+            case whatsapp.AddressPhoneNumber:
+                contact = await self.contacts.add_whatsapp_contact(wa_contact)
+                if contact is not None and contact.is_friend:
+                    # TODO: Fix this.
+                    # slidge core would do that automatically if the is_friend flag
+                    # was set in update_info(), but it actually happens in
+                    # update_whatsapp_info()
+                    await contact.add_to_roster()
+            case whatsapp.AddressHidden:
+                # FIXME: Figure out what to do about these, since contacts aren't guaranteed to only
+                # have phone number JIDs.
+                await self.bookmarks.rename_anonymous_participants(wa_contact)
 
     async def on_wa_group(self, group: whatsapp.Group) -> None:
         await self.bookmarks.add_whatsapp_group(group)
 
     async def on_wa_presence(self, presence: whatsapp.Presence) -> None:
-        if presence.Actor.JID:
-            contact = await self.contacts.by_legacy_id(presence.Actor.JID)
-            await contact.update_presence(presence.Kind, presence.LastSeen)
-        # TODO: LID participant presence update?
+        contact = await self.contacts.by_legacy_id(presence.From)
+        await contact.update_presence(presence.Kind, presence.LastSeen)
 
     async def on_wa_chat_state(self, state: whatsapp.ChatState) -> None:
         if not state.Chat.IsGroup and not state.Actor.JID:
@@ -266,16 +268,15 @@ class Session(BaseSession[Contact]):
         types, including plain-text messages, media messages, reactions, etc., and may also include
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
-        # Skip handing message that's already in our message archive.
+        # Skip handing message that's already in our message archive. This only works for messages
+        # with a body -- messages without body have no "legacy_msg_id" attached to them. In
+        # practice, this means we fill our MAM table with (hopefully just a few) duplicate rows for
+        # all reactions, receipts, displayed markers, retractions and corrections.
         if (
-            message.Chat.IsGroup
+            message.Chat.Kind() == whatsapp.AddressKindGroup
             and message.IsHistory
             and await self.__is_message_in_archive(message.ID)
         ):
-            # FIXME: this only works for messages with a body
-            # Messages without body have no "legacy_msg_id" attached to them. In practice, this means
-            # we fill our MAM table with (hopefully just a few) duplicate rows for all reactions, receipts,
-            # displayed markers, retractions and corrections.
             return
         actor, muc = await self.__get_contact_or_participant(
             message.Chat, message.Actor
@@ -363,7 +364,7 @@ class Session(BaseSession[Contact]):
     async def on_wa_msg_revoke(
         self, message: whatsapp.Message, actor: Contact | Participant, muc: MUC | None
     ) -> None:
-        if muc is None or message.OriginActor.JID == message.Actor.JID:
+        if muc is None or message.OriginActor.Address == message.Actor.Address:
             actor.retract(legacy_msg_id=message.ID, carbon=message.Actor.IsMe)
         else:
             assert isinstance(actor, Participant)
@@ -390,10 +391,10 @@ class Session(BaseSession[Contact]):
         )
 
     async def on_wa_avatar(self, avatar: whatsapp.Avatar) -> None:
-        if avatar.IsGroup:
-            chat: MUC | Contact = await self.bookmarks.by_legacy_id(avatar.ResourceID)
+        if avatar.Address.Kind() == whatsapp.AddressGroup:
+            chat: MUC | Contact = await self.bookmarks.by_legacy_id(avatar.Address)
         else:
-            chat = await self.contacts.by_legacy_id(avatar.ResourceID)
+            chat = await self.contacts.by_legacy_id(avatar.Address)
         chat.avatar = Avatar(url=avatar.URL or None, unique_id=avatar.ID or None)
 
     async def on_presence(
@@ -409,7 +410,7 @@ class Session(BaseSession[Contact]):
         XMPP clients.
         """
         if not merged_resource:
-            self.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")  # type:ignore[no-untyped-call]
+            self.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")  # type: ignore[no-untyped-call]
         else:
             presence = (
                 whatsapp.PresenceAvailable
@@ -423,7 +424,7 @@ class Session(BaseSession[Contact]):
             )
             if status:
                 self.__presence_status = status
-            self.whatsapp.SendPresence(presence, status)  # type:ignore[no-untyped-call]
+            self.whatsapp.SendPresence(presence, status)  # type: ignore[no-untyped-call]
 
     async def on_avatar(
         self,
@@ -438,7 +439,7 @@ class Session(BaseSession[Contact]):
         """
         self.whatsapp.SetAvatar(
             "",
-            go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte(),  # type:ignore[no-untyped-call]
+            go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte(),  # type: ignore[no-untyped-call]
         )
 
     async def on_create_group(self, name: str, contacts: list[Contact]) -> str:
@@ -447,7 +448,7 @@ class Session(BaseSession[Contact]):
         """
         group = self.whatsapp.CreateGroup(
             name,
-            go.Slice_string([c.legacy_id for c in contacts]),  # type:ignore[no-untyped-call]
+            go.Slice_string([c.legacy_id for c in contacts]),  # type: ignore[no-untyped-call]
         )
         muc = await self.bookmarks.by_legacy_id(group.JID)
         return muc.legacy_id
@@ -461,7 +462,7 @@ class Session(BaseSession[Contact]):
         if not is_valid_phone_number(phone):
             raise ValueError("Not a valid phone number", phone)
 
-        data: whatsapp.Contact = self.whatsapp.FindContact(phone)  # type:ignore[no-untyped-call]
+        data: whatsapp.Contact = self.whatsapp.FindContact(phone)  # type: ignore[no-untyped-call]
         if not data.Actor.JID:
             return None
 
@@ -482,10 +483,10 @@ class Session(BaseSession[Contact]):
                 "Running contact sync after group contacts in roster policy change"
             )
             # This updates the "friend" status of contacts
-            for wa_contact in self.whatsapp.GetContacts(refresh=True):  # type:ignore[no-untyped-call]
+            for wa_contact in self.whatsapp.GetContacts(refresh=True):  # type: ignore[no-untyped-call]
                 await self.contacts.add_whatsapp_contact(wa_contact)
             # This works but is really hacky, slidge core should expose this more cleanly
-            await SyncContacts.sync(self, self, self.user_jid)  # type:ignore
+            await SyncContacts.sync(self, self, self.user_jid)  # type: ignore
 
     def message_is_carbon(self, c: Recipient, legacy_msg_id: str) -> bool:
         with self.xmpp.store.session() as orm:

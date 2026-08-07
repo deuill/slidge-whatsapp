@@ -55,7 +55,7 @@ class Participant(LegacyParticipant["Contact"]):
     def lid(self) -> str:
         return self.occupant_id.removesuffix("@lid")
 
-    async def on_set_affiliation(  # type:ignore[override]  # ty:ignore[invalid-method-override]
+    async def on_set_affiliation(  # type: ignore[override]  # ty:ignore[invalid-method-override]
         self,
         contact: "Contact",
         affiliation: MucAffiliation,
@@ -63,7 +63,7 @@ class Participant(LegacyParticipant["Contact"]):
         nickname: str | None,
     ) -> None:
         if affiliation == "member":
-            participant = await self.muc.get_participant_by_contact(  # type:ignore[call-overload]  # ty:ignore
+            participant = await self.muc.get_participant_by_contact(  # type: ignore[call-overload]  # ty:ignore
                 contact, create=False
             )
             if participant is None or participant.affiliation in ("outcast", "none"):
@@ -83,10 +83,10 @@ class Participant(LegacyParticipant["Contact"]):
             )
         self.session.whatsapp.UpdateGroupParticipants(
             contact.legacy_id,
-            whatsapp.Slice_whatsapp_GroupParticipant(  # type:ignore[no-untyped-call]
+            whatsapp.Slice_whatsapp_GroupParticipant(  # type: ignore[no-untyped-call]
                 [
-                    whatsapp.GroupParticipant(  # type:ignore[no-untyped-call]
-                        Actor=whatsapp.Actor(JID=contact.legacy_id),  # type:ignore[no-untyped-call]
+                    whatsapp.GroupParticipant(  # type: ignore[no-untyped-call]
+                        Actor=whatsapp.Actor(JID=contact.legacy_id),  # type: ignore[no-untyped-call]
                         Action=action,
                     )
                 ]
@@ -121,7 +121,9 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
         self._history_requested = bool(data.get("history_requested", False))
 
     async def update_info(self) -> None:
-        # stuff happens in self.update_whatsapp_info()
+        """
+        Update group information. Work actually happens in :meth:`self.update_whatsapp_info()`.
+        """
         pass
 
     async def backfill(
@@ -143,15 +145,16 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
             # on startup, as long as we have not been logged out by WhatsApp
 
         assert isinstance(before.id, str)
-        oldest_message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        oldest_message = whatsapp.Message(  # type: ignore[no-untyped-call]
             ID=before.id,
             Actor=await self.get_wa_actor(before.id),
             Timestamp=int(before.timestamp.timestamp()),
         )
-        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)  # type:ignore[no-untyped-call]
+        self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)  # type: ignore[no-untyped-call]
         self.history_requested = True
 
     def get_sender_lid(self, legacy_msg_id: str) -> str:
+        # TODO: Allow to send JIDs and whatever else.
         for message in self.get_archived_messages(legacy_msg_id):
             break
         else:
@@ -160,7 +163,7 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
             )
         occupant_id = message.occupant_id
         if occupant_id == "slidge-user":
-            return self.session.contacts.user_legacy_id  # type:ignore
+            return self.session.contacts.user_legacy_id  # type: ignore
         if occupant_id.endswith("@lid"):
             return occupant_id
         # this part _should_ not be reached, but it is a safeguard against sending
@@ -223,7 +226,7 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
     async def on_avatar(self, data: bytes | None, mime: str | None) -> None:
         self.session.whatsapp.SetAvatar(
             self.legacy_id,
-            go.Slice_byte.from_bytes(data) if data else go.Slice_byte(),  # type:ignore[no-untyped-call]
+            go.Slice_byte.from_bytes(data) if data else go.Slice_byte(),  # type: ignore[no-untyped-call]
         )
 
     async def on_set_config(
@@ -233,20 +236,20 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
     ) -> None:
         # there are no group descriptions in WA, but topics=subjects
         if self.name != name:
-            self.session.whatsapp.SetGroupName(self.legacy_id, name)  # type:ignore[no-untyped-call]
+            self.session.whatsapp.SetGroupName(self.legacy_id, name)  # type: ignore[no-untyped-call]
 
     async def on_set_subject(self, subject: str) -> None:
         if self.subject != subject:
-            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)  # type:ignore[no-untyped-call]
+            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)  # type: ignore[no-untyped-call]
 
     async def on_moderate(self, legacy_msg_id: str, reason: str | None) -> None:
-        message = whatsapp.Message(  # type:ignore[no-untyped-call]
+        message = whatsapp.Message(  # type: ignore[no-untyped-call]
             Kind=whatsapp.MessageRevoke,
             ID=legacy_msg_id,
             Chat=self.get_wa_chat(),
             OriginActor=await self.get_wa_actor(legacy_msg_id),
         )
-        self.session.whatsapp.SendMessage(message)  # type:ignore[no-untyped-call]
+        self.session.whatsapp.SendMessage(message)  # type: ignore[no-untyped-call]
         # Apparently, no revoke event is received by whatsmeow after sending
         # the revoke message, so we need to "echo" it here.
         part = await self.get_user_participant()
@@ -256,10 +259,10 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
         """
         Removes own user from given WhatsApp group.
         """
-        self.session.whatsapp.LeaveGroup(legacy_muc_id)  # type:ignore[no-untyped-call]
+        self.session.whatsapp.LeaveGroup(legacy_muc_id)  # type: ignore[no-untyped-call]
 
     def get_wa_chat(self) -> whatsapp.Chat:
-        return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)  # type:ignore[no-untyped-call]
+        return whatsapp.Chat(JID=self.legacy_id, IsGroup=True)  # type: ignore[no-untyped-call]
 
     async def get_participant_by_actor(
         self, actor: whatsapp.Actor, nickname: str = "", create: bool = True
@@ -271,19 +274,20 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
             assert isinstance(actor.LID, str)
             # call-overload? because https://github.com/python/mypy/issues/14764
             # FIXME?: missing overload in slidge core
-            return await self.get_participant_by_legacy_id(  # type:ignore[call-overload,no-any-return]
+            return await self.get_participant_by_legacy_id(  # type: ignore[call-overload,no-any-return]
                 actor.JID, occupant_id=actor.LID, create=create
             )
         else:
             if not actor.LID:
                 return None
-            return await self.get_participant(  # type:ignore[call-overload,no-any-return]
+            return await self.get_participant(  # type: ignore[call-overload,no-any-return]
                 nickname,
                 occupant_id=actor.LID,
                 create=create,
             )
 
     async def get_wa_actor(self, legacy_msg_id: str) -> whatsapp.Actor:
+        # TODO: Fix this to return whatever ID we have on-hand.
         lid = self.get_sender_lid(legacy_msg_id)
         jid = ""
         # I don't think we need a JID in groups now, but here is how we could get it
@@ -292,7 +296,7 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
         #     jid = part.contact.legacy_id
         # elif part.is_user:
         #     jid = self.session.contacts.user_legacy_id
-        return whatsapp.Actor(  # type:ignore[no-untyped-call]
+        return whatsapp.Actor(  # type: ignore[no-untyped-call]
             JID=jid,
             LID=lid or "",
             IsMe=self.session.message_is_carbon(self, legacy_msg_id),
@@ -330,7 +334,7 @@ class Bookmarks(LegacyBookmarks[MUC]):
     session: "Session"
 
     async def fill(self) -> None:
-        groups = self.session.whatsapp.GetGroups()  # type:ignore[no-untyped-call]
+        groups = self.session.whatsapp.GetGroups()  # type: ignore[no-untyped-call]
         for group in groups:
             await self.add_whatsapp_group(group)
 
