@@ -4,6 +4,7 @@
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
+from slidge import __version__ as slidge_version
 from slidge import entrypoint
 
 # import everything for automatic subclasses discovery by slidge core
@@ -18,6 +19,7 @@ except PackageNotFoundError:
 
 def main() -> None:
     if len(sys.argv) == 2 and sys.argv[1] == "--version":
+        print("slidge version", slidge_version)
         print("slidge-whatsapp version", __version__)
         exit(0)
     entrypoint("slidge_whatsapp")
