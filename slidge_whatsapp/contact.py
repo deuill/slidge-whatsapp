@@ -1,9 +1,9 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from slidge.contact import LegacyContact, LegacyRoster
-from slidge.util.types import XMPPMessage
+from slidge.util.types import XMPPMessageProtocol
 from slixmpp.exceptions import XMPPError
 
 from . import config
@@ -11,6 +11,7 @@ from .generated import whatsapp
 from .mixins import AvatarMixin, RecipientMixin, strip_quote_prefix
 
 if TYPE_CHECKING:
+    from .group import Participant
     from .session import Session
 
 
@@ -70,7 +71,9 @@ class Contact(AvatarMixin, RecipientMixin, LegacyContact):
     def phone(self) -> str:
         return self.legacy_id.split("@")[0]
 
-    def _set_reply_to(self, xmpp_msg: XMPPMessage, wa_msg: whatsapp.Message) -> None:
+    def _set_reply_to(
+        self, xmpp_msg: XMPPMessageProtocol["Participant"], wa_msg: whatsapp.Message
+    ) -> None:
         if not xmpp_msg.reply:
             return
 
@@ -80,12 +83,11 @@ class Contact(AvatarMixin, RecipientMixin, LegacyContact):
             wa_msg.ReplyBody = strip_quote_prefix(xmpp_msg.reply.fallback)
             wa_msg.Body = wa_msg.Body.lstrip()
 
-        if not xmpp_msg.reply.to:
+        if xmpp_msg.reply.to == "self":
             wa_msg.OriginActor.IsMe = True
             wa_msg.OriginActor.JID = self.session.contacts.user_legacy_id
             return
 
-        xmpp_msg.reply.to = cast(Contact, xmpp_msg.reply.to)
         wa_msg.OriginActor.JID = self.legacy_id
 
 

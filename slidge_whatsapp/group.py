@@ -4,7 +4,13 @@ from typing import TYPE_CHECKING, cast
 
 from slidge.db.meta import JSONSerializable
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.types import Hat, HoleBound, MucAffiliation, XMPPMessage
+from slidge.util.types import (
+    Hat,
+    HoleBound,
+    MucAffiliation,
+    MUCMessageProtocol,
+    XMPPMessageProtocol,
+)
 from slixmpp.exceptions import XMPPError
 
 from .generated import go, whatsapp
@@ -298,7 +304,13 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
             IsMe=self.session.message_is_carbon(self, legacy_msg_id),
         )
 
-    def _set_reply_to(self, xmpp_msg: XMPPMessage, wa_msg: whatsapp.Message) -> None:
+    def _set_reply_to(
+        self,
+        xmpp_msg: XMPPMessageProtocol[Participant],
+        wa_msg: whatsapp.Message,
+    ) -> None:
+        xmpp_msg = cast(MUCMessageProtocol[Participant], xmpp_msg)
+
         wa_msg.OriginActor.GroupJID = self.legacy_id
 
         if not xmpp_msg.reply:
@@ -315,7 +327,6 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
             wa_msg.OriginActor.JID = self.session.contacts.user_legacy_id
             return
 
-        xmpp_msg.reply.to = cast(Participant, xmpp_msg.reply.to)
         wa_msg.OriginActor.IsMe = xmpp_msg.reply.to.is_user
         wa_msg.OriginActor.GroupJID = self.legacy_id
         if xmpp_msg.reply.to.contact:

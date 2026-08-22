@@ -7,8 +7,7 @@ from importlib.metadata import PackageNotFoundError, version
 from slidge import __version__ as slidge_version
 from slidge import entrypoint
 
-# import everything for automatic subclasses discovery by slidge core
-from . import command, config, contact, gateway, group, session
+from .gateway import Gateway
 
 try:
     __version__ = version("slidge-whatsapp")
@@ -25,13 +24,4 @@ def main() -> None:
     entrypoint("slidge_whatsapp")
 
 
-__all__ = (
-    "__version__",
-    "command",
-    "config",
-    "contact",
-    "gateway",
-    "group",
-    "main",
-    "session",
-)
+__all__ = ("Gateway", "__version__", "main")

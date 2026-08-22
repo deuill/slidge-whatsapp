@@ -3,17 +3,15 @@ from __future__ import annotations
 import warnings
 from logging import getLevelName, getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from slidge import BaseGateway, global_config
 from slidge.command import FormField
+from slidge.db.meta import JSONSerializable
 from slixmpp import JID
 
 from . import config
 from .generated import whatsapp
-
-if TYPE_CHECKING:
-    from .session import Session
+from .session import Session
 
 REGISTRATION_INSTRUCTIONS = (
     "Continue and scan the resulting QR codes on your main device, or alternatively, "
@@ -28,7 +26,7 @@ WELCOME_MESSAGE = (
 )
 
 
-class Gateway(BaseGateway["Session"]):
+class Gateway(BaseGateway[Session]):
     COMPONENT_NAME = "WhatsApp (slidge)"
     COMPONENT_TYPE = "whatsapp"
     COMPONENT_AVATAR = "https://www.whatsapp.com/apple-touch-icon.png"
@@ -77,7 +75,7 @@ class Gateway(BaseGateway["Session"]):
         self.whatsapp.Init()
 
     async def validate(
-        self, user_jid: JID, registration_form: dict[str, str | None]
+        self, user_jid: JID, registration_form: JSONSerializable
     ) -> None:
         """
         Validate registration form. A no-op for WhatsApp, as actual registration takes place

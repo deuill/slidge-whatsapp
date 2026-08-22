@@ -11,12 +11,19 @@ import aiohttp
 from linkpreview import Link, LinkPreview
 from slidge.core.mixins import AvatarMixin as BaseAvatarMixin
 from slidge.util import replace_mentions
-from slidge.util.types import ChatState, Mention, XMPPAttachmentMessage, XMPPMessage
+from slidge.util.types import (
+    AttachmentMessageProtocol,
+    ChatState,
+    Mention,
+    XMPPMessageProtocol,
+    has_attachments,
+)
 from slixmpp.exceptions import XMPPError
 
 from .generated import go, whatsapp
 
 if TYPE_CHECKING:
+    from .group import Participant
     from .session import Session
 
 
@@ -63,11 +70,11 @@ class RecipientMixin(abc.ABC):
 
     @abc.abstractmethod
     def _set_reply_to(
-        self, xmpp_msg: XMPPMessage, wa_msg: whatsapp.Message
+        self, xmpp_msg: XMPPMessageProtocol[Participant], wa_msg: whatsapp.Message
     ) -> None: ...
 
-    async def on_message(self, message: XMPPMessage) -> str | None:
-        if message.attachments:
+    async def on_message(self, message: XMPPMessageProtocol[Participant]) -> str | None:
+        if has_attachments(message):
             return await self._on_file(message)
         if message.body:
             if message.replace:
@@ -77,7 +84,7 @@ class RecipientMixin(abc.ABC):
                 return await self._on_text(message)
         raise XMPPError("internal-server-error", "This should not happen!")
 
-    async def _on_text(self, xmpp_msg: XMPPMessage) -> str:
+    async def _on_text(self, xmpp_msg: XMPPMessageProtocol[Participant]) -> str:
         """
         Send outgoing plain-text message to given WhatsApp contact.
         """
@@ -94,7 +101,11 @@ class RecipientMixin(abc.ABC):
             Preview=message_preview,
             Location=message_location,
             MentionJIDs=go.Slice_string(  # type:ignore[no-untyped-call]
-                [m.contact.legacy_id for m in xmpp_msg.mentions]
+                [
+                    m.participant.contact.legacy_id
+                    for m in xmpp_msg.mentions
+                    if m.participant.contact
+                ]
             ),
         )
         self._set_reply_to(xmpp_msg, message)
@@ -102,7 +113,7 @@ class RecipientMixin(abc.ABC):
         self.session.sent_msg_date_store.add(message_id)
         return message_id
 
-    async def _on_file(self, xmpp_msg: XMPPAttachmentMessage) -> str:
+    async def _on_file(self, xmpp_msg: AttachmentMessageProtocol[Participant]) -> str:
         """
         Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
         """
@@ -136,7 +147,7 @@ class RecipientMixin(abc.ABC):
         self.session.sent_msg_date_store.add(message_id)
         return message_id
 
-    async def _on_correct(self, xmpp_msg: XMPPMessage) -> None:
+    async def _on_correct(self, xmpp_msg: XMPPMessageProtocol[Participant]) -> None:
         """
         Request correction (aka editing) for a given WhatsApp message.
         """
@@ -286,9 +297,11 @@ class RecipientMixin(abc.ABC):
         self.wa.SendMessage(message)  # type:ignore[no-untyped-call]
 
 
-def mention_map(mention: Mention) -> str:
+def mention_map(mention: Mention[Participant]) -> str:
     # mentions are @phonenumber, without the @s.whatsapp.net or @lid suffix
-    return f"@{mention.contact.phone}"  # type:ignore
+    if contact := mention.participant.contact:
+        return f"@{contact.phone}"
+    return mention.participant.nickname
 
 
 def strip_quote_prefix(text: str) -> str:

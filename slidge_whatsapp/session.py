@@ -6,7 +6,7 @@ import warnings
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from functools import wraps
-from typing import Any, Concatenate, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar, cast
 from urllib.parse import quote as url_quote
 
 import sqlalchemy
@@ -27,9 +27,11 @@ from slixmpp.exceptions import XMPPError
 from slixmpp.types import ResourceDict
 
 from .contact import Contact, Roster
-from .gateway import Gateway
 from .generated import go, whatsapp
 from .group import MUC, Bookmarks, Participant
+
+if TYPE_CHECKING:
+    from .gateway import Gateway
 
 MESSAGE_PAIR_SUCCESS = (
     "Pairing successful! You might need to repeat this process in the future if the"
@@ -52,7 +54,7 @@ T = TypeVar("T")
 WrappedSessionMethod = Callable[Concatenate["Session", P], Coroutine[Any, Any, T]]
 
 
-def ignore_contact_is_user(
+def ignore_contact_is_user[**P, T](
     func: WrappedSessionMethod[P, T],
 ) -> WrappedSessionMethod[P, T | None]:
     @wraps(func)
@@ -66,10 +68,8 @@ def ignore_contact_is_user(
     return wrapped
 
 
-class Session(BaseSession[Contact]):
+class Session(BaseSession[Roster, Bookmarks]):
     xmpp: Gateway
-    contacts: Roster
-    bookmarks: Bookmarks
 
     def __init__(self, user: GatewayUser) -> None:
         super().__init__(user)
@@ -659,7 +659,7 @@ def add_quote_prefix(text: str) -> str:
     return "\n".join(("> " + x).strip() for x in text.split("\n")).strip()
 
 
-def make_sync(
+def make_sync[**P, T](
     func: Callable[P, Coroutine[Any, Any, T]], loop: asyncio.AbstractEventLoop
 ) -> Callable[P, T]:
     """
