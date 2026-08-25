@@ -1,14 +1,14 @@
 module codeberg.org/slidge/slidge-whatsapp/slidge_whatsapp
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/gen2brain/go-fitz v1.24.15
-	github.com/go-python/gopy v0.4.11-0.20260602125840-72557f647208
+	github.com/go-python/gopy v0.5.0
 	github.com/h2non/filetype v1.1.3
-	github.com/mattn/go-sqlite3 v1.14.48
+	github.com/mattn/go-sqlite3 v1.14.49
 	go.mau.fi/libsignal v0.2.2
-	go.mau.fi/whatsmeow v0.0.0-20260716095330-85d99080dee8
+	go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
 	golang.org/x/image v0.43.0
 )
 
@@ -22,15 +22,15 @@ require (
 	github.com/jupiterrider/ffi v0.7.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
-	github.com/petermattis/goid v0.0.0-20260713124913-97594f28f5ca // indirect
+	github.com/petermattis/goid v0.0.0-20260816044145-ed329add6b1b // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.35 // indirect
-	go.mau.fi/util v0.9.11 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	go.mau.fi/util v0.10.1-0.20260820140024-eb612d936fde // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 )
