@@ -414,7 +414,7 @@ func (s *Session) SendPresence(presence PresenceKind, statusMessage string) erro
 	}
 
 	if err == nil && statusMessage != "" {
-		err = s.client.SetStatusMessage(s.ctx, statusMessage)
+		err = s.client.SetStatusMessage(s.ctx, types.SetStatusInput{Text: new(statusMessage)})
 	}
 
 	return err
