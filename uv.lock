@@ -1216,6 +1216,18 @@ wheels = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/b2/7fc2931bfae0af02d5f53b174e9cf701adbb35f39d69c2af63d4a39f81a9/qrcode-8.2.tar.gz", hash = "sha256:35c3f2a4172b33136ab9f6b3ef1c00260dd2f66f858f24d88418a015f446506c", size = 43317, upload-time = "2025-05-01T15:44:24.726Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/b8/d2d6d731733f51684bbf76bf34dab3b70a9148e8f2cef2bb544fccec681a/qrcode-8.2-py3-none-any.whl", hash = "sha256:16e64e0716c14960108e85d853062c9e8bba5ca8252c0b4d0231b9df4060ff4f", size = 45986, upload-time = "2025-05-01T15:44:22.781Z" },
+]
+
+[[package]]
 name = "requests"
 version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1266,7 +1278,7 @@ wheels = [
 
 [[package]]
 name = "slidge"
-version = "0.5.0a2.dev2+g8ca420ef0"
+version = "0.5.0a3.dev1+g0c150b593"
 source = { registry = "https://codeberg.org/api/packages/slidge/pypi/simple" }
 dependencies = [
     { name = "aiohttp", extra = ["speedups"] },
@@ -1280,9 +1292,14 @@ dependencies = [
     { name = "thumbhash" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.5.0a2.dev2+g8ca420ef0/slidge-0.5.0a2.dev2+g8ca420ef0.tar.gz", hash = "sha256:1de25ab8437763acadd7352104186a065a62dc45e613788a9caf613df7cc6cf2", size = 524917 }
+sdist = { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.5.0a3.dev1+g0c150b593/slidge-0.5.0a3.dev1+g0c150b593.tar.gz", hash = "sha256:f438e5e7ae29956e4a8bf2c9632a5a7948a0d1995524dc147cadb268786206eb", size = 529069 }
 wheels = [
-    { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.5.0a2.dev2+g8ca420ef0/slidge-0.5.0a2.dev2+g8ca420ef0-py3-none-any.whl", hash = "sha256:9522752fa25cb2a435aff770195c8b0738b248f8b28cd36302dd78dffb790e9c", size = 214586 },
+    { url = "https://codeberg.org/api/packages/slidge/pypi/files/slidge/0.5.0a3.dev1+g0c150b593/slidge-0.5.0a3.dev1+g0c150b593-py3-none-any.whl", hash = "sha256:0bd3cb256cc3f9763ebd8a92373a35ecf71967e4c399061c195230ee970e8918", size = 218351 },
+]
+
+[package.optional-dependencies]
+qr = [
+    { name = "qrcode" },
 ]
 
 [[package]]
@@ -1304,7 +1321,7 @@ name = "slidge-whatsapp"
 source = { editable = "." }
 dependencies = [
     { name = "linkpreview" },
-    { name = "slidge" },
+    { name = "slidge", extra = ["qr"] },
 ]
 
 [package.dev-dependencies]
@@ -1322,7 +1339,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "linkpreview", specifier = ">=0.11.0" },
-    { name = "slidge", specifier = ">=0.5.0a2.dev2,<0.6", index = "https://codeberg.org/api/packages/slidge/pypi/simple" },
+    { name = "slidge", extras = ["qr"], specifier = ">=0.5.0a2,<0.6", index = "https://codeberg.org/api/packages/slidge/pypi/simple" },
 ]
 
 [package.metadata.requires-dev]
