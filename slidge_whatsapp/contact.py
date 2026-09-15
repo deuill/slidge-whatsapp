@@ -34,7 +34,7 @@ class Contact(AvatarMixin, RecipientMixin, LegacyContact):
         else:
             self.online(last_seen=last_seen)
 
-    async def update_info(self) -> None:
+    async def update_info(self, wa_contact: whatsapp.Contact | None = None) -> None:
         if whatsapp.IsAnonymousJID(self.legacy_id):  # type:ignore[no-untyped-call]
             raise XMPPError(
                 "item-not-found", f"LIDs are not valid contact IDs: {self.legacy_id}"
@@ -43,19 +43,20 @@ class Contact(AvatarMixin, RecipientMixin, LegacyContact):
         # work reliably, and having contacts offline has annoying side effects, such as contacts not
         # appearing in the participant list of groups.
         self.online()
+        if wa_contact is None:
+            self.session.log.debug("No more info for me!")
+            return
 
-    async def update_whatsapp_info(self, wa_contact: whatsapp.Contact) -> None:
-        with self.updating_info():
-            self.session.log.debug(
-                "User named %s, friend: %s", wa_contact.Name, wa_contact.IsFriend
-            )
-            self.name = wa_contact.Name
-            self.is_friend = bool(
-                wa_contact.IsFriend
-                or self.session.user.preferences.get("roster_add_non_friends", True)
-            )
-            await self.update_whatsapp_avatar()
-            self.set_vcard(full_name=self.name, phone=str(self.jid.local))
+        self.session.log.debug(
+            "User named %s, friend: %s", wa_contact.Name, wa_contact.IsFriend
+        )
+        self.name = wa_contact.Name
+        self.is_friend = bool(
+            wa_contact.IsFriend
+            or self.session.user.preferences.get("roster_add_non_friends", True)
+        )
+        self.update_whatsapp_avatar()
+        self.set_vcard(full_name=self.name, phone=str(self.jid.local))
 
     def get_wa_chat(self) -> whatsapp.Chat:
         return whatsapp.Chat(JID=self.legacy_id, IsGroup=False)  # type:ignore[no-untyped-call]
@@ -117,9 +118,7 @@ class Roster(LegacyRoster[Contact]):
             return None
         if not data.Actor.JID:
             return None
-        contact = await self.by_legacy_id(data.Actor.JID)
-        await contact.update_whatsapp_info(data)
-        return contact
+        return await self.by_legacy_id(data.Actor.JID, data)
 
     async def legacy_id_to_jid_username(self, legacy_id: str) -> str:
         if "@" not in legacy_id:

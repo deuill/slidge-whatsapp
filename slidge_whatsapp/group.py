@@ -126,9 +126,9 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
     def deserialize_extra_attributes(self, data: JSONSerializable) -> None:
         self._history_requested = bool(data.get("history_requested", False))
 
-    async def update_info(self) -> None:
-        # stuff happens in self.update_whatsapp_info()
-        pass
+    async def update_info(self, info: whatsapp.Group | None = None) -> None:
+        if info is not None:
+            await self.update_whatsapp_info(info)
 
     async def backfill(
         self,
@@ -181,37 +181,36 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
         Set MUC information based on WhatsApp group information, which may or may not be partial in
         case of updates to existing MUCs.
         """
-        with self.updating_info():
-            self.type = MucType.GROUP
-            if info.Nickname:
-                self.user_nick = info.Nickname
-            if info.Name:
-                self.name = info.Name
-            if info.Subject.Subject:
-                self.subject = info.Subject.Subject
-                if info.Subject.SetAt:
-                    set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=UTC)
-                    self.subject_date = set_at
-                if info.Subject.SetBy and info.Subject.SetBy.JID:
-                    self.subject_setter = await self.get_participant_by_actor(
-                        info.Subject.SetBy
-                    )
-
-            await self.update_whatsapp_avatar()
-            self.n_participants = len(info.Participants)
-            for wa_part in info.Participants:
-                assert isinstance(wa_part, whatsapp.GroupParticipant)
-                participant = await self.get_participant_by_actor(
-                    wa_part.Actor,
-                    wa_part.Nickname,
-                    create=wa_part.Action != whatsapp.GroupParticipantActionRemove,
+        self.type = MucType.GROUP
+        if info.Nickname:
+            self.user_nick = info.Nickname
+        if info.Name:
+            self.name = info.Name
+        if info.Subject.Subject:
+            self.subject = info.Subject.Subject
+            if info.Subject.SetAt:
+                set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=UTC)
+                self.subject_date = set_at
+            if info.Subject.SetBy and info.Subject.SetBy.JID:
+                self.subject_setter = await self.get_participant_by_actor(
+                    info.Subject.SetBy
                 )
-                if participant is None:
-                    continue
-                if wa_part.Action == whatsapp.GroupParticipantActionRemove:
-                    self.remove_participant(participant)
-                else:
-                    participant.update_whatsapp_info(wa_part)
+
+        self.update_whatsapp_avatar()
+        self.n_participants = len(info.Participants)
+        for wa_part in info.Participants:
+            assert isinstance(wa_part, whatsapp.GroupParticipant)
+            participant = await self.get_participant_by_actor(
+                wa_part.Actor,
+                wa_part.Nickname,
+                create=wa_part.Action != whatsapp.GroupParticipantActionRemove,
+            )
+            if participant is None:
+                continue
+            if wa_part.Action == whatsapp.GroupParticipantActionRemove:
+                self.remove_participant(participant)
+            else:
+                participant.update_whatsapp_info(wa_part)
 
     async def replace_mentions(self, text: str) -> str:
         # TODO: ideally, we shouldn't parse the text looking for mentions of any participant
@@ -343,12 +342,8 @@ class Bookmarks(LegacyBookmarks[MUC]):
     async def fill(self) -> None:
         groups = self.session.whatsapp.GetGroups()  # type:ignore[no-untyped-call]
         for group in groups:
-            await self.add_whatsapp_group(group)
-
-    async def add_whatsapp_group(self, data: whatsapp.Group) -> None:
-        muc = await self.by_legacy_id(data.JID)
-        await muc.update_whatsapp_info(data)
-        await muc.add_to_bookmarks()
+            muc = await self.by_legacy_id(group.JID, group)
+            await muc.add_to_bookmarks()
 
     async def legacy_id_to_jid_local_part(self, legacy_id: str) -> str:
         return "#" + legacy_id[: legacy_id.find("@")]

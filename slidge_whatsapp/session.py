@@ -194,17 +194,13 @@ class Session(BaseSession[Roster, Bookmarks]):
 
     async def on_wa_contact(self, wa_contact: whatsapp.Contact) -> None:
         if wa_contact.Actor.JID:
-            contact = await self.contacts.add_whatsapp_contact(wa_contact)
-            if contact is not None and contact.is_friend:
-                # slidge core would do that automatically if the is_friend flag
-                # was set in update_info(), but it actually happens in
-                # update_whatsapp_info()
-                await contact.add_to_roster()
+            await self.contacts.by_legacy_id(wa_contact.Actor.JID, wa_contact)
         elif wa_contact.Actor.LID:
             await self.bookmarks.rename_anonymous_participants(wa_contact)
 
     async def on_wa_group(self, group: whatsapp.Group) -> None:
-        await self.bookmarks.add_whatsapp_group(group)
+        muc = await self.bookmarks.by_legacy_id(group.JID, group)
+        await muc.add_to_bookmarks()
 
     async def on_wa_presence(self, presence: whatsapp.Presence) -> None:
         if presence.Actor.JID:
