@@ -102,9 +102,8 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 		} else {
 			source.Sender = ag.OptionalJIDOrEmpty("participant")
 		}
-		if source.AddressingMode == types.AddressingModeLID {
-			source.SenderAlt = ag.OptionalJIDOrEmpty("participant_pn")
-		} else {
+		source.SenderAlt = ag.OptionalJIDOrEmpty("participant_pn")
+		if source.SenderAlt.IsEmpty() && source.AddressingMode != types.AddressingModeLID {
 			source.SenderAlt = ag.OptionalJIDOrEmpty("participant_lid")
 		}
 		if source.Sender.User == clientID.User || source.Sender.User == clientLID.User {
@@ -194,11 +193,12 @@ func (cli *Client) parseMsgBotInfo(node waBinary.Node) (botInfo types.MsgBotInfo
 	botNode := node.GetChildByTag("bot")
 
 	ag := botNode.AttrGetter()
-	botInfo.EditType = types.BotEditType(ag.String("edit"))
-	if botInfo.EditType == types.EditTypeInner || botInfo.EditType == types.EditTypeLast {
-		botInfo.EditTargetID = types.MessageID(ag.String("edit_target_id"))
+	botInfo.EditType = types.BotEditType(ag.OptionalString("edit"))
+	if botInfo.EditType == types.EditTypeInner || botInfo.EditType == types.EditTypeLast || botInfo.EditType == types.EditTypeFull {
+		botInfo.EditTargetID = types.MessageID(ag.OptionalString("edit_target_id"))
 		botInfo.EditSenderTimestampMS = ag.UnixMilli("sender_timestamp_ms")
 	}
+	botInfo.ClientThreadID = ag.OptionalString("client_thread_id")
 	err = ag.Error()
 	return
 }
@@ -378,11 +378,9 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 					targetSenderJID = cli.getOwnID()
 				}
 			}
-			var decryptMessageID string
-			if info.MsgBotInfo.EditType == types.EditTypeInner || info.MsgBotInfo.EditType == types.EditTypeLast {
+			decryptMessageID := info.ID
+			if (info.MsgBotInfo.EditType == types.EditTypeInner || info.MsgBotInfo.EditType == types.EditTypeLast) && info.MsgBotInfo.EditTargetID != "" {
 				decryptMessageID = info.MsgBotInfo.EditTargetID
-			} else {
-				decryptMessageID = info.ID
 			}
 			var msMsg waE2E.MessageSecretMessage
 			var messageSecret []byte
@@ -394,6 +392,12 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 				err = fmt.Errorf("failed to unmarshal MessageSecretMessage protobuf: %v", err)
 			} else {
 				decrypted, err = cli.decryptBotMessage(ctx, messageSecret, &msMsg, decryptMessageID, targetSenderJID, info)
+				if err != nil && decryptMessageID != info.ID {
+					decrypted, err = cli.decryptBotMessage(ctx, messageSecret, &msMsg, info.ID, targetSenderJID, info)
+					if err == nil {
+						cli.Log.Debugf("Decrypted bot message %s using own ID instead of edit target ID %s", info.ID, decryptMessageID)
+					}
+				}
 			}
 		} else {
 			cli.Log.Warnf("Unhandled encrypted message (type %s) from %s", encType, info.SourceString())

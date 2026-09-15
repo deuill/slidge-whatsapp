@@ -118,7 +118,7 @@ go.mau.fi/util/jsontime
 go.mau.fi/util/ptr
 go.mau.fi/util/random
 go.mau.fi/util/retryafter
-# go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
+# go.mau.fi/whatsmeow v0.0.0-20260914150520-0d3b644136bf
 ## explicit; go 1.26.0
 go.mau.fi/whatsmeow
 go.mau.fi/whatsmeow/appstate
