@@ -57,6 +57,7 @@ class Gateway(BaseGateway[Session]):
     SEARCH_FIELDS = (FormField(var="phone", label="Phone number", required=True),)
 
     MARK_ALL_MESSAGES = True
+    THREADS = False
     GROUPS = True
     PROPER_RECEIPTS = True
 
