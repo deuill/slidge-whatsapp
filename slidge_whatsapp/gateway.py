@@ -5,11 +5,11 @@ from logging import getLevelName, getLogger
 from pathlib import Path
 
 from slidge import BaseGateway, global_config
-from slidge.command import FormField
+from slidge.command import FormField, commands_from_module
 from slidge.db.meta import JSONSerializable
 from slixmpp import JID
 
-from . import config
+from . import command, config
 from .generated import whatsapp
 from .session import Session
 
@@ -60,6 +60,8 @@ class Gateway(BaseGateway[Session]):
     THREADS = False
     GROUPS = True
     PROPER_RECEIPTS = True
+
+    COMMANDS = BaseGateway.COMMANDS + commands_from_module(command)
 
     def __init__(self) -> None:
         super().__init__()
