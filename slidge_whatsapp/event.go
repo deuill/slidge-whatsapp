@@ -509,10 +509,9 @@ func getMessageWithContext(ctx context.Context, client *whatsmeow.Client, messag
 	return message
 }
 
-// getSize returns the size of a downloadable attachment, as reported by the
-// uploader.
-// If that size is not available for any reason, 0 is returned.
-func getSize(msg whatsmeow.DownloadableMessage) int {
+// GetMessageSize returns the size, in bytes, of a downloadable message, or 0 if the size cannot be
+// detected correctly.
+func getMessageSize(msg whatsmeow.DownloadableMessage) int {
 	switch s := msg.(type) {
 	case interface{ GetFileLength() int32 }:
 		return int(s.GetFileLength())
@@ -523,7 +522,6 @@ func getSize(msg whatsmeow.DownloadableMessage) int {
 	case interface{ GetFileSizeBytes() uint64 }:
 		return int(s.GetFileSizeBytes())
 	}
-	// If we couldn't get the info, assume it's larger than what we want in RAM
 	return 0
 }
 
@@ -568,17 +566,15 @@ func getMessageAttachments(ctx context.Context, client *whatsmeow.Client, messag
 		}
 
 		// Attempt to download and decrypt raw attachment data, if any.
-		size := getSize(msg)
-		client.Log.Debugf("Reported size: %s", size)
-		if size == 0 || size > maxInRamMediaSize {
+		if s := getMessageSize(msg); s == 0 || s > maxInRamMediaSize {
 			tempFile, err := os.CreateTemp(media.TempDir, "whatsmeow-attachment-*")
 			if err != nil {
 				return nil, nil, err
 			}
-			defer tempFile.Close()
+			defer func() { _ = tempFile.Close() }()
 			err = client.DownloadToFile(ctx, msg, tempFile)
 			if err != nil {
-				os.Remove(tempFile.Name())
+				_ = os.Remove(tempFile.Name())
 				return nil, nil, err
 			}
 			a.TempFilePath = tempFile.Name()
@@ -837,7 +833,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    new(uint64(len(attach.Data))),
 			},
 		}
 		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
@@ -860,12 +856,12 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
-				Seconds:       ptrTo(uint32(spec.Duration.Seconds())),
+				FileLength:    new(uint64(len(attach.Data))),
+				Seconds:       new(uint32(spec.Duration.Seconds())),
 			},
 		}
 		if attach.MIME == voiceMessageMIME {
-			message.AudioMessage.PTT = ptrTo(true)
+			message.AudioMessage.PTT = new(true)
 			if spec != nil {
 				w, err := media.GetWaveform(ctx, attach.Data, spec, maxWaveformSamples)
 				if err != nil {
@@ -889,10 +885,10 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
-				Seconds:       ptrTo(uint32(spec.Duration.Seconds())),
-				Width:         ptrTo(uint32(spec.VideoWidth)),
-				Height:        ptrTo(uint32(spec.VideoHeight)),
+				FileLength:    new(uint64(len(attach.Data))),
+				Seconds:       new(uint32(spec.Duration.Seconds())),
+				Width:         new(uint32(spec.VideoWidth)),
+				Height:        new(uint32(spec.VideoHeight)),
 			},
 		}
 		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
@@ -902,7 +898,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 			message.VideoMessage.JPEGThumbnail = t
 		}
 		if originalMIME == animatedImageMIME {
-			message.VideoMessage.GifPlayback = ptrTo(true)
+			message.VideoMessage.GifPlayback = new(true)
 		}
 	case whatsmeow.MediaDocument:
 		message = &waE2E.Message{
@@ -913,7 +909,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    new(uint64(len(attach.Data))),
 				FileName:      &attach.Filename,
 			},
 		}
@@ -922,7 +918,7 @@ func uploadAttachment(ctx context.Context, client *whatsmeow.Client, attach *Att
 			if spec, err := attach.GetSpec(ctx); err != nil {
 				client.Log.Warnf("failed fetching attachment metadata: %s", err)
 			} else {
-				message.DocumentMessage.PageCount = ptrTo(uint32(spec.DocumentPage))
+				message.DocumentMessage.PageCount = new(uint32(spec.DocumentPage))
 			}
 			t, err := media.Convert(ctx, attach.Data, &previewThumbnailSpec)
 			if err != nil {

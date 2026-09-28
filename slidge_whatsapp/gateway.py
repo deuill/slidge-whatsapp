@@ -90,7 +90,7 @@ class Gateway(BaseGateway[Session]):
         """
         Logout from the active WhatsApp session. This will also force a remote log-out, and thus
         require pairing on next login. For simply disconnecting the active session, look at the
-        :meth:`.Session.disconnect` function.
+        :meth:`.Session.logout` function.
         """
         session.whatsapp.Logout()  # type:ignore[no-untyped-call]
         try:

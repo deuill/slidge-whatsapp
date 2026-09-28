@@ -113,19 +113,17 @@ func (s *Session) Login() error {
 			select {
 			case <-timer.C:
 				if presence == PresenceAvailable {
-					s.SubscribeToPresences()
+					_ = s.SubscribeToPresences()
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				} else {
 					timerStopped = true
 				}
 			case p, ok := <-s.presenceChan:
-				if !ok && !timerStopped {
-					if !timer.Stop() {
-						<-timer.C
-					}
+				if !ok {
+					timer.Stop()
 					return
 				} else if timerStopped && p == PresenceAvailable {
-					s.SubscribeToPresences()
+					_ = s.SubscribeToPresences()
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				}
 				presence = p
@@ -274,7 +272,7 @@ func (s *Session) SendMessage(message Message) error {
 					Participant: &participant,
 				},
 				Text:              &message.Body,
-				SenderTimestampMS: ptrTo(time.Now().UnixMilli()),
+				SenderTimestampMS: new(time.Now().UnixMilli()),
 			},
 		}
 	default:
@@ -314,7 +312,7 @@ func (s *Session) getMessagePayload(ctx context.Context, message Message) *waE2E
 					Text: &message.Body,
 					ContextInfo: &waE2E.ContextInfo{
 						StanzaID:      &message.ReplyID,
-						QuotedMessage: &waE2E.Message{Conversation: ptrTo(message.ReplyBody)},
+						QuotedMessage: &waE2E.Message{Conversation: new(message.ReplyBody)},
 						Participant:   &participant,
 					},
 				},
@@ -334,9 +332,9 @@ func (s *Session) getMessagePayload(ctx context.Context, message Message) *waE2E
 
 		switch message.Preview.Kind {
 		case PreviewPlain:
-			payload.ExtendedTextMessage.PreviewType = ptrTo(waE2E.ExtendedTextMessage_NONE)
+			payload.ExtendedTextMessage.PreviewType = new(waE2E.ExtendedTextMessage_NONE)
 		case PreviewVideo:
-			payload.ExtendedTextMessage.PreviewType = ptrTo(waE2E.ExtendedTextMessage_VIDEO)
+			payload.ExtendedTextMessage.PreviewType = new(waE2E.ExtendedTextMessage_VIDEO)
 		}
 
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
@@ -348,8 +346,8 @@ func (s *Session) getMessagePayload(ctx context.Context, message Message) *waE2E
 			if err == nil {
 				payload.ExtendedTextMessage.JPEGThumbnail = data
 				if info, err := jpeg.DecodeConfig(bytes.NewReader(data)); err == nil {
-					payload.ExtendedTextMessage.ThumbnailWidth = ptrTo(uint32(info.Width))
-					payload.ExtendedTextMessage.ThumbnailHeight = ptrTo(uint32(info.Height))
+					payload.ExtendedTextMessage.ThumbnailWidth = new(uint32(info.Width))
+					payload.ExtendedTextMessage.ThumbnailHeight = new(uint32(info.Height))
 				}
 			}
 		}
@@ -373,7 +371,7 @@ func (s *Session) getMessagePayload(ctx context.Context, message Message) *waE2E
 		}
 		payload.LocationMessage.DegreesLatitude = &message.Location.Latitude
 		payload.LocationMessage.DegreesLongitude = &message.Location.Longitude
-		payload.LocationMessage.AccuracyInMeters = ptrTo(uint32(message.Location.Accuracy))
+		payload.LocationMessage.AccuracyInMeters = new(uint32(message.Location.Accuracy))
 	}
 
 	if payload == nil {
@@ -489,7 +487,13 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 	return contacts, nil
 }
 
+// SubscribeToPresences attempts to subscribe to presence events for all locally known contacts,
+// enabling any future events to be handled as per [Session]-wide event handlers.
 func (s *Session) SubscribeToPresences() error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("cannot subscribe to presences for unauthenticated session")
+	}
+
 	data, err := s.client.Store.Contacts.GetAllContacts(s.ctx)
 	if err != nil {
 		return fmt.Errorf("failed getting local contacts: %s", err)
@@ -883,11 +887,7 @@ func (s *Session) handleEvent(evt any) {
 	case *events.CallTerminate:
 		s.propagateEvent(newCallEvent(s.ctx, s.client, callStateFromReason(evt.Reason), evt.BasicCallMeta))
 	case *events.LoggedOut:
-		s.client.Disconnect()
-		if err := s.client.Store.Delete(s.ctx); err != nil {
-			s.gateway.logger.Warnf("Unable to delete local device state on logout: %s", err)
-		}
-		s.client = nil
+		_ = s.Disconnect()
 		s.propagateEvent(EventLoggedOut, &EventPayload{LoggedOut: LoggedOut{Reason: evt.Reason.String()}})
 	case *events.PairSuccess:
 		if s.client.Store.ID == nil {
@@ -933,10 +933,4 @@ type jsonStringer struct{ v any }
 func (j jsonStringer) String() string {
 	buf, _ := json.MarshalIndent(j.v, "", "    ")
 	return string(buf)
-}
-
-// PtrTo returns a pointer to the given value, and is used for convenience when converting between
-// concrete and pointer values without assigning to a variable.
-func ptrTo[T any](t T) *T {
-	return &t
 }
