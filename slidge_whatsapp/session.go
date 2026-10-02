@@ -18,6 +18,7 @@ import (
 
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
+	"go.mau.fi/util/jsontime"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waCommon"
@@ -49,8 +50,12 @@ const (
 	// order to provide a more natural interaction with remote WhatsApp servers.
 	presenceRefreshInterval = 12 * time.Hour
 
-	// Similarly, a sleep interval between making avatar-related calls to whatsapp
+	// Similarly, a sleep interval between making avatar-related calls to WhatsApp.
 	requestAvatarInterval = 100 * time.Millisecond
+
+	// The default amount of time a status message propagated to WhatsApp will remain in place before
+	// being reset.
+	statusMessageDuration = 24 * time.Hour
 
 	// The maximum number of messages to request at a time when performing on-demand history
 	// synchronization.
@@ -450,7 +455,10 @@ func (s *Session) SendPresence(presence PresenceKind, statusMessage string) erro
 	}
 
 	if err == nil && statusMessage != "" {
-		err = s.client.SetStatusMessage(s.ctx, types.SetStatusInput{Text: new(statusMessage)})
+		err = s.client.SetStatusMessage(s.ctx, types.SetStatusInput{
+			Text:     new(statusMessage),
+			Duration: jsontime.S(statusMessageDuration),
+		})
 	}
 
 	return err
