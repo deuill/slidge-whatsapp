@@ -165,6 +165,7 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
                 "internal-server-error", f"Message {legacy_msg_id} is not in archive"
             )
         occupant_id = message.occupant_id
+        assert occupant_id is not None
         if occupant_id == "slidge-user":
             return self.session.contacts.user_legacy_id  # type:ignore
         if occupant_id.endswith("@lid"):
@@ -282,7 +283,7 @@ class MUC(RecipientMixin, AvatarMixin, LegacyMUC[Participant]):
         else:
             if not actor.LID:
                 return None
-            return await self.get_participant(  # type:ignore[call-overload,no-any-return]
+            return await self.get_participant(
                 nickname,
                 occupant_id=actor.LID,
                 create=create,

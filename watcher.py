@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Hot-reloader for both go and python files (in the docker-compose dev setup)
 """
@@ -36,7 +38,7 @@ if __name__ == "__main__":
         for p in path.split(":"):
             for dirpath, _, filenames in os.walk(p):
                 if "go.mod" in filenames:
-                    subprocess.run(gopy_cmd, shell=True, cwd=dirpath)
+                    subprocess.run(gopy_cmd, shell=True, cwd=dirpath, check=True)
         auto_restart.start()
         while observer.is_alive():
             observer.join(1)

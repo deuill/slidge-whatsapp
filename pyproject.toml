@@ -117,6 +117,7 @@ exclude = [
 
 [tool.ruff.lint]
 extend-select = ["I", "UP", "ANN", "RUF", "SIM"]
+ignore = ["BLE001", "DTZ002", "DTZ005"]
 
 [tool.git-cliff.remote.gitea]
 owner = "slidge"

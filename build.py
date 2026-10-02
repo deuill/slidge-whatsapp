@@ -41,7 +41,7 @@ def main() -> None:
 
 def build_go() -> None:
     current_sum = ""
-    for p in sorted(list(SRC_PATH.glob("**/*.go"))):
+    for p in sorted(SRC_PATH.glob("**/*.go")):
         p_rel = p.relative_to(SRC_PATH)
         if p_rel.parents[0].name == "generated":
             continue

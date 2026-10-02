@@ -84,7 +84,6 @@ class Gateway(BaseGateway[Session]):
         Validate registration form. A no-op for WhatsApp, as actual registration takes place
         after in-band registration commands complete; see :meth:`.Session.login` for more.
         """
-        pass
 
     async def unregister(self, session: Session) -> None:
         """
