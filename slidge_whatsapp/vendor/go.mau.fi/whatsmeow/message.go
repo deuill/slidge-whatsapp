@@ -24,6 +24,7 @@ import (
 	"go.mau.fi/libsignal/protocol"
 	"go.mau.fi/libsignal/session"
 	"go.mau.fi/libsignal/signalerror"
+	"go.mau.fi/libsignal/state/record"
 	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 
@@ -574,6 +575,14 @@ func (cli *Client) bufferedDecrypt(
 	return
 }
 
+type sessionlessSignalStore struct {
+	*store.Device
+}
+
+func (sessionlessSignalStore) StoreSession(_ context.Context, _ *protocol.SignalAddress, _ *record.Session) error {
+	return nil
+}
+
 func (cli *Client) decryptDM(ctx context.Context, child *waBinary.Node, from types.JID, isPreKey bool, serverTS time.Time) ([]byte, *[32]byte, error) {
 	content, ok := child.Content.([]byte)
 	if !ok {
@@ -581,6 +590,10 @@ func (cli *Client) decryptDM(ctx context.Context, child *waBinary.Node, from typ
 	}
 
 	builder := session.NewBuilderFromSignal(cli.Store, from.SignalAddress(), pbSerializer)
+	if isPreKey && child.AttrGetter().OptionalString("state") == "false" {
+		cli.Log.Debugf("Not storing session from stateless prekey message from %s", from)
+		builder = session.NewBuilderFromSignal(sessionlessSignalStore{cli.Store}, from.SignalAddress(), pbSerializer)
+	}
 	cipher := session.NewCipher(builder, from.SignalAddress())
 	var plaintext []byte
 	var ciphertextHash [32]byte
@@ -950,11 +963,24 @@ func (cli *Client) processProtocolParts(ctx context.Context, info *types.Message
 
 func (cli *Client) storeMessageSecret(ctx context.Context, info *types.MessageInfo, msg *waE2E.Message) {
 	if msgSecret := msg.GetMessageContextInfo().GetMessageSecret(); len(msgSecret) > 0 {
-		err := cli.Store.MsgSecrets.PutMessageSecret(ctx, info.Chat, info.Sender, info.ID, msgSecret)
+		targetChat := info.Chat
+		dsm := msg
+		if msg.GetDeviceSentMessage().GetMessage() != nil {
+			dsm = msg.GetDeviceSentMessage().GetMessage()
+		}
+		if targetChatJID := dsm.GetRootSecretDistributeMessage().GetChatJID(); targetChatJID != "" && info.IsFromMe {
+			var err error
+			targetChat, err = types.ParseJID(targetChatJID)
+			if err != nil {
+				cli.Log.Warnf("Failed to parse chat JID %s from root secret distribute message: %v", targetChatJID, err)
+				return
+			}
+		}
+		err := cli.Store.MsgSecrets.PutMessageSecret(ctx, targetChat, info.Sender, info.ID, msgSecret)
 		if err != nil {
 			cli.Log.Errorf("Failed to store message secret key for %s: %v", info.ID, err)
 		} else {
-			cli.Log.Debugf("Stored message secret key for %s", info.ID)
+			cli.Log.Debugf("Stored message secret key for %s/%s/%s", info.Chat, info.Sender, info.ID)
 		}
 	}
 }
