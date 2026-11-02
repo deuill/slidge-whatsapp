@@ -37,6 +37,7 @@ steps:
       - uv python install ${PYTHON_VERSION}
       - uv python pin ${PYTHON_VERSION}
       - uv build
+      - repairwheel dist/*.whl -o wheels/
 
   codeberg-pypi:
     when:
@@ -47,7 +48,7 @@ steps:
       CODEBERG_TOKEN:
         from_secret: CODEBERG_TOKEN
     commands:
-      - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.whl
+      - uv publish --index codeberg --token $CODEBERG_TOKEN wheels/*.whl
       - uv publish --index codeberg --token $CODEBERG_TOKEN dist/*.tar.gz || echo "Failed to upload sdist."
 
   pypi:
@@ -59,7 +60,7 @@ steps:
       PYPI_TOKEN:
         from_secret: PYPI_TOKEN
     commands:
-      - uv publish --token $PYPI_TOKEN dist/*.whl
+      - uv publish --token $PYPI_TOKEN wheels/*.whl
       - uv publish --token $PYPI_TOKEN dist/*.tar.gz || echo "Failed to upload sdist."
 
   codeberg-release:

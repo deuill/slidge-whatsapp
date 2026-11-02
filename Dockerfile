@@ -66,6 +66,7 @@ RUN --mount=source=.git,target=/build/.git,type=bind \
 ENV UV_PROJECT_ENVIRONMENT="/woodpecker/src/codeberg.org/slidge/slidge-whatsapp/.venv"
 ENV UV_LINK_MODE=copy
 ENV PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
+RUN uv pip install repairwheel
 
 # *******************************
 # Base container for prod
